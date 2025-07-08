@@ -1,18 +1,19 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { oauth } from '@/services/oauthService';
 import { useAuthStore } from '@/stores/authStore';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,7 +22,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   
-  const { login, isLoading, isAuthenticated } = useAuthStore();
+  const { login, oauthLogin, isLoading, isAuthenticated } = useAuthStore();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
@@ -42,6 +43,30 @@ export default function LoginScreen() {
     
     if (!success) {
       Alert.alert('로그인 실패', '이메일 또는 비밀번호를 확인해주세요.');
+    }
+  };
+
+  const handleOAuthLogin = async (provider: 'google' | 'naver') => {
+    try {
+      let result;
+      
+      if (provider === 'google') {
+        result = await oauth.googleLogin();
+      } else {
+        result = await oauth.naverLogin();
+      }
+      
+      if (result.success && result.accessToken) {
+        const success = await oauthLogin(provider, result.accessToken, result.refreshToken);
+        
+        if (!success) {
+          Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
+        }
+      } else {
+        Alert.alert('로그인 실패', result.error || `${provider} 로그인 중 오류가 발생했습니다.`);
+      }
+    } catch (error) {
+      Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
     }
   };
 
@@ -67,6 +92,32 @@ export default function LoginScreen() {
               <Text style={[styles.subtitle, { color: colors.icon }]}>
                 가라부에 오신 것을 환영합니다
               </Text>
+            </View>
+
+            {/* 소셜 로그인 버튼 */}
+            <View style={styles.socialContainer}>
+              <TouchableOpacity
+                style={[styles.socialButton, styles.googleButton]}
+                onPress={() => handleOAuthLogin('google')}
+                disabled={isLoading}
+              >
+                <Text style={styles.socialButtonText}>Google로 계속하기</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.socialButton, styles.naverButton]}
+                onPress={() => handleOAuthLogin('naver')}
+                disabled={isLoading}
+              >
+                <Text style={styles.socialButtonText}>Naver로 계속하기</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* 구분선 */}
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.icon }]} />
+              <Text style={[styles.dividerText, { color: colors.icon }]}>또는</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.icon }]} />
             </View>
 
             {/* 로그인 폼 */}
@@ -186,7 +237,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 32,
   },
   logoText: {
     fontSize: 32,
@@ -196,6 +247,40 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  socialContainer: {
+    marginBottom: 24,
+  },
+  socialButton: {
+    height: 50,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  googleButton: {
+    backgroundColor: '#4285F4',
+  },
+  naverButton: {
+    backgroundColor: '#03C75A',
+  },
+  socialButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
   },
   formContainer: {
     width: '100%',

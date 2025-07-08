@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { oauth } from '@/services/oauthService';
 import { useAuthStore } from '@/stores/authStore';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -17,14 +18,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignupScreen() {
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   
-  const { signup, isLoading, isAuthenticated } = useAuthStore();
+  const { signup, oauthLogin, isLoading, isAuthenticated } = useAuthStore();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
@@ -36,7 +37,7 @@ export default function SignupScreen() {
   }, [isAuthenticated]);
 
   const handleSignup = async () => {
-    if (!name || !email || !password || !confirmPassword) {
+    if (!email || !username || !password || !confirmPassword) {
       Alert.alert('오류', '모든 필드를 입력해주세요.');
       return;
     }
@@ -51,10 +52,34 @@ export default function SignupScreen() {
       return;
     }
 
-    const success = await signup(name, email, password);
+    const success = await signup(email, username, password);
     
     if (!success) {
       Alert.alert('회원가입 실패', '회원가입 중 오류가 발생했습니다. 다시 시도해주세요.');
+    }
+  };
+
+  const handleOAuthLogin = async (provider: 'google' | 'naver') => {
+    try {
+      let result;
+      
+      if (provider === 'google') {
+        result = await oauth.googleLogin();
+      } else {
+        result = await oauth.naverLogin();
+      }
+      
+      if (result.success && result.accessToken) {
+        const success = await oauthLogin(provider, result.accessToken, result.refreshToken);
+        
+        if (!success) {
+          Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
+        }
+      } else {
+        Alert.alert('로그인 실패', result.error || `${provider} 로그인 중 오류가 발생했습니다.`);
+      }
+    } catch (error) {
+      Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
     }
   };
 
@@ -86,29 +111,34 @@ export default function SignupScreen() {
               <Text style={[styles.headerTitle, { color: colors.text }]}>회원가입</Text>
             </View>
 
+            {/* 소셜 로그인 버튼 */}
+            <View style={styles.socialContainer}>
+              <TouchableOpacity
+                style={[styles.socialButton, styles.googleButton]}
+                onPress={() => handleOAuthLogin('google')}
+                disabled={isLoading}
+              >
+                <Text style={styles.socialButtonText}>Google로 계속하기</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.socialButton, styles.naverButton]}
+                onPress={() => handleOAuthLogin('naver')}
+                disabled={isLoading}
+              >
+                <Text style={styles.socialButtonText}>Naver로 계속하기</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* 구분선 */}
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.icon }]} />
+              <Text style={[styles.dividerText, { color: colors.icon }]}>또는</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.icon }]} />
+            </View>
+
             {/* 회원가입 폼 */}
             <View style={styles.formContainer}>
-              <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>이름</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
-                      color: colors.text,
-                      borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
-                    },
-                  ]}
-                  placeholder="이름을 입력하세요"
-                  placeholderTextColor={colors.icon}
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  autoComplete="name"
-                />
-              </View>
-
               <View style={styles.inputContainer}>
                 <Text style={[styles.label, { color: colors.text }]}>이메일</Text>
                 <TextInput
@@ -128,6 +158,27 @@ export default function SignupScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="email"
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: colors.text }]}>사용자명</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
+                      color: colors.text,
+                      borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
+                    },
+                  ]}
+                  placeholder="사용자명을 입력하세요"
+                  placeholderTextColor={colors.icon}
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="username"
                 />
               </View>
 
@@ -262,6 +313,40 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  socialContainer: {
+    marginBottom: 24,
+  },
+  socialButton: {
+    height: 50,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  googleButton: {
+    backgroundColor: '#4285F4',
+  },
+  naverButton: {
+    backgroundColor: '#03C75A',
+  },
+  socialButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
   },
   formContainer: {
     flex: 1,

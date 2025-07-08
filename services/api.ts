@@ -1,7 +1,7 @@
 import { useAuthStore } from '@/stores/authStore';
 
 // API 기본 설정
-const API_BASE_URL = 'https://your-api-server.com/api'; // 실제 API 서버 URL로 변경하세요
+const API_BASE_URL = 'http://localhost:8080'; // 실제 API 서버 URL
 
 interface LoginRequest {
   email: string;
@@ -11,22 +11,37 @@ interface LoginRequest {
 interface LoginResponse {
   user: {
     id: string;
-    name: string;
+    username: string;
     email: string;
   };
   token: string;
 }
 
 interface SignupRequest {
-  name: string;
   email: string;
+  username: string;
   password: string;
 }
 
 interface SignupResponse {
   user: {
     id: string;
-    name: string;
+    username: string;
+    email: string;
+  };
+  token: string;
+}
+
+interface OAuthRequest {
+  provider: 'google' | 'naver';
+  accessToken: string;
+  refreshToken?: string;
+}
+
+interface OAuthResponse {
+  user: {
+    id: string;
+    username: string;
     email: string;
   };
   token: string;
@@ -66,7 +81,8 @@ class ApiService {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
       return await response.json();
@@ -76,9 +92,9 @@ class ApiService {
     }
   }
 
-  // 로그인 API
+  // 로그인 API (Spring Security 기본 엔드포인트)
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    return this.request<LoginResponse>('/auth/login', {
+    return this.request<LoginResponse>('/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
@@ -86,20 +102,28 @@ class ApiService {
 
   // 회원가입 API
   async signup(userData: SignupRequest): Promise<SignupResponse> {
-    return this.request<SignupResponse>('/auth/signup', {
+    return this.request<SignupResponse>('/api/v2/join', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
   }
 
+  // OAuth2 소셜 로그인
+  async oauthLogin(oauthData: OAuthRequest): Promise<OAuthResponse> {
+    return this.request<OAuthResponse>('/api/v2/oauth/login', {
+      method: 'POST',
+      body: JSON.stringify(oauthData),
+    });
+  }
+
   // 사용자 정보 조회 API
   async getProfile(): Promise<{ user: LoginResponse['user'] }> {
-    return this.request<{ user: LoginResponse['user'] }>('/auth/profile');
+    return this.request<{ user: LoginResponse['user'] }>('/api/v2/profile');
   }
 
   // 로그아웃 API
   async logout(): Promise<void> {
-    return this.request<void>('/auth/logout', {
+    return this.request<void>('/api/v2/logout', {
       method: 'POST',
     });
   }
@@ -118,7 +142,7 @@ export class MockApiService {
       return {
         user: {
           id: '1',
-          name: '테스트 사용자',
+          username: '테스트 사용자',
           email: credentials.email,
         },
         token: 'mock-jwt-token-' + Date.now(),
@@ -135,8 +159,22 @@ export class MockApiService {
     return {
       user: {
         id: Date.now().toString(),
-        name: userData.name,
+        username: userData.username,
         email: userData.email,
+      },
+      token: 'mock-jwt-token-' + Date.now(),
+    };
+  }
+
+  async oauthLogin(oauthData: OAuthRequest): Promise<OAuthResponse> {
+    // 실제 API 호출을 시뮬레이션
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    return {
+      user: {
+        id: Date.now().toString(),
+        username: `${oauthData.provider} 사용자`,
+        email: `user@${oauthData.provider}.com`,
       },
       token: 'mock-jwt-token-' + Date.now(),
     };
@@ -148,7 +186,7 @@ export class MockApiService {
     return {
       user: {
         id: '1',
-        name: '테스트 사용자',
+        username: '테스트 사용자',
         email: 'test@example.com',
       },
     };
@@ -159,7 +197,7 @@ export class MockApiService {
   }
 }
 
-// 개발 환경에서는 Mock API 사용
+// 개발 환경에서는 Mock API 사용, 프로덕션에서는 실제 API 사용
 export const api = process.env.NODE_ENV === 'development' 
   ? new MockApiService() 
   : apiService; 

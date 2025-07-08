@@ -5,22 +5,25 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 interface User {
   id: string;
-  name: string;
+  username: string;
   email: string;
 }
 
 interface AuthState {
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   
   // Actions
   setUser: (user: User | null) => void;
   setToken: (token: string | null) => void;
+  setRefreshToken: (refreshToken: string | null) => void;
   setLoading: (loading: boolean) => void;
   login: (email: string, password: string) => Promise<boolean>;
-  signup: (name: string, email: string, password: string) => Promise<boolean>;
+  signup: (email: string, username: string, password: string) => Promise<boolean>;
+  oauthLogin: (provider: 'google' | 'naver', accessToken: string, refreshToken?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   initializeAuth: () => Promise<void>;
 }
@@ -55,11 +58,13 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
+      refreshToken: null,
       isLoading: true,
       isAuthenticated: false,
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setToken: (token) => set({ token }),
+      setRefreshToken: (refreshToken) => set({ refreshToken }),
       setLoading: (loading) => set({ isLoading: loading }),
 
       login: async (email: string, password: string) => {
@@ -84,12 +89,12 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      signup: async (name: string, email: string, password: string) => {
+      signup: async (email: string, username: string, password: string) => {
         set({ isLoading: true });
         
         try {
           // 실제 API 호출
-          const response = await api.signup({ name, email, password });
+          const response = await api.signup({ email, username, password });
           
           set({
             user: response.user,
@@ -106,17 +111,42 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      oauthLogin: async (provider: 'google' | 'naver', accessToken: string, refreshToken?: string) => {
+        set({ isLoading: true });
+        
+        try {
+          // 실제 API 호출
+          const response = await api.oauthLogin({ provider, accessToken });
+          
+          set({
+            user: response.user,
+            token: response.token,
+            refreshToken: refreshToken || null,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+          
+          return true;
+        } catch (error) {
+          console.error('OAuth 로그인 실패:', error);
+          set({ isLoading: false });
+          return false;
+        }
+      },
+
       logout: async () => {
         set({ isLoading: true });
         
         try {
           // 토큰 삭제
           await secureStorage.removeItem('auth-token');
+          await secureStorage.removeItem('refresh-token');
           await secureStorage.removeItem('user-data');
           
           set({
             user: null,
             token: null,
+            refreshToken: null,
             isAuthenticated: false,
             isLoading: false,
           });
@@ -132,6 +162,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           // 저장된 토큰과 사용자 정보 확인
           const token = await secureStorage.getItem('auth-token');
+          const refreshToken = await secureStorage.getItem('refresh-token');
           const userData = await secureStorage.getItem('user-data');
           
           if (token && userData) {
@@ -139,6 +170,7 @@ export const useAuthStore = create<AuthState>()(
             set({
               user,
               token,
+              refreshToken: refreshToken || null,
               isAuthenticated: true,
               isLoading: false,
             });
@@ -157,6 +189,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         token: state.token,
+        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
     }

@@ -49,7 +49,7 @@ export default function HomeScreen() {
       {/* 사용자 정보 */}
       <ThemedView style={styles.userContainer}>
         <ThemedText type="subtitle">사용자 정보</ThemedText>
-        <ThemedText>이름: {user?.name}</ThemedText>
+        <ThemedText>사용자명: {user?.username}</ThemedText>
         <ThemedText>이메일: {user?.email}</ThemedText>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <ThemedText style={styles.logoutButtonText}>로그아웃</ThemedText>
