@@ -11,11 +11,12 @@ export default function AuthNavigator() {
     if (isLoading) return;
 
     const currentRoute = segments[0];
-    const isAuthRoute = currentRoute === 'login' || currentRoute === 'signup';
+    const isAuthRoute = currentRoute === '(auth)';
 
+    // 현재 경로와 인증 상태가 일치하지 않을 때만 라우팅
     if (!isAuthenticated && !isAuthRoute) {
       // 로그인되지 않은 상태에서 인증이 필요한 화면에 접근하려고 할 때
-      router.replace('/login');
+      router.replace('/(auth)/login');
     } else if (isAuthenticated && isAuthRoute) {
       // 로그인된 상태에서 로그인/회원가입 화면에 접근하려고 할 때
       router.replace('/(tabs)');

@@ -1,7 +1,5 @@
-import { api } from '@/services/api';
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
 
 interface User {
   id: string;
@@ -53,145 +51,144 @@ const secureStorage = {
   },
 };
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      user: null,
-      token: null,
-      refreshToken: null,
-      isLoading: true,
-      isAuthenticated: false,
+export const useAuthStore = create<AuthState>((set, get) => ({
+  user: null,
+  token: null,
+  refreshToken: null,
+  isLoading: false,
+  isAuthenticated: false,
 
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
-      setToken: (token) => set({ token }),
-      setRefreshToken: (refreshToken) => set({ refreshToken }),
-      setLoading: (loading) => set({ isLoading: loading }),
+  setUser: (user) => set({ user, isAuthenticated: !!user }),
+  setToken: (token) => set({ token }),
+  setRefreshToken: (refreshToken) => set({ refreshToken }),
+  setLoading: (loading) => set({ isLoading: loading }),
 
-      login: async (email: string, password: string) => {
-        set({ isLoading: true });
-        
-        try {
-          // 실제 API 호출
-          const response = await api.login({ email, password });
-          
-          set({
-            user: response.user,
-            token: response.token,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-          
-          return true;
-        } catch (error) {
-          console.error('로그인 실패:', error);
-          set({ isLoading: false });
-          return false;
-        }
-      },
-
-      signup: async (email: string, username: string, password: string) => {
-        set({ isLoading: true });
-        
-        try {
-          // 실제 API 호출
-          const response = await api.signup({ email, username, password });
-          
-          set({
-            user: response.user,
-            token: response.token,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-          
-          return true;
-        } catch (error) {
-          console.error('회원가입 실패:', error);
-          set({ isLoading: false });
-          return false;
-        }
-      },
-
-      oauthLogin: async (provider: 'google' | 'naver', accessToken: string, refreshToken?: string) => {
-        set({ isLoading: true });
-        
-        try {
-          // 실제 API 호출
-          const response = await api.oauthLogin({ provider, accessToken });
-          
-          set({
-            user: response.user,
-            token: response.token,
-            refreshToken: refreshToken || null,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-          
-          return true;
-        } catch (error) {
-          console.error('OAuth 로그인 실패:', error);
-          set({ isLoading: false });
-          return false;
-        }
-      },
-
-      logout: async () => {
-        set({ isLoading: true });
-        
-        try {
-          // 토큰 삭제
-          await secureStorage.removeItem('auth-token');
-          await secureStorage.removeItem('refresh-token');
-          await secureStorage.removeItem('user-data');
-          
-          set({
-            user: null,
-            token: null,
-            refreshToken: null,
-            isAuthenticated: false,
-            isLoading: false,
-          });
-        } catch (error) {
-          console.error('로그아웃 실패:', error);
-          set({ isLoading: false });
-        }
-      },
-
-      initializeAuth: async () => {
-        set({ isLoading: true });
-        
-        try {
-          // 저장된 토큰과 사용자 정보 확인
-          const token = await secureStorage.getItem('auth-token');
-          const refreshToken = await secureStorage.getItem('refresh-token');
-          const userData = await secureStorage.getItem('user-data');
-          
-          if (token && userData) {
-            const user = JSON.parse(userData);
-            set({
-              user,
-              token,
-              refreshToken: refreshToken || null,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-          } else {
-            set({ isLoading: false });
-          }
-        } catch (error) {
-          console.error('인증 초기화 실패:', error);
-          set({ isLoading: false });
-        }
-      },
-    }),
-    {
-      name: 'auth-storage',
-      storage: createJSONStorage(() => secureStorage),
-      partialize: (state) => ({
-        user: state.user,
-        token: state.token,
-        refreshToken: state.refreshToken,
-        isAuthenticated: state.isAuthenticated,
-      }),
+  login: async (email: string, password: string) => {
+    console.log('로그인 시작:', email);
+    set({ isLoading: true });
+    
+    try {
+      // 동적 import로 API 호출
+      const { api } = await import('@/services/api');
+      const response = await api.login({ email, password });
+      
+      console.log('로그인 성공:', response);
+      
+      set({
+        user: response.user,
+        token: response.token,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('로그인 실패:', error);
+      set({ isLoading: false });
+      return false;
     }
-  )
-); 
+  },
+
+  signup: async (email: string, username: string, password: string) => {
+    console.log('회원가입 시작:', email, username);
+    set({ isLoading: true });
+    
+    try {
+      // 동적 import로 API 호출
+      const { api } = await import('@/services/api');
+      const response = await api.signup({ email, username, password });
+      
+      console.log('회원가입 성공:', response);
+      
+      set({
+        user: response.user,
+        token: response.token,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('회원가입 실패:', error);
+      set({ isLoading: false });
+      return false;
+    }
+  },
+
+  oauthLogin: async (provider: 'google' | 'naver', accessToken: string, refreshToken?: string) => {
+    console.log(`${provider} OAuth 로그인 시작, 토큰:`, accessToken);
+    set({ isLoading: true });
+    
+    try {
+      // 동적 import로 API 호출
+      console.log('API 호출 중...');
+      const { api } = await import('@/services/api');
+      const response = await api.oauthLogin({ provider, accessToken });
+      console.log('API 응답:', response);
+      
+      set({
+        user: response.user,
+        token: response.token,
+        refreshToken: refreshToken || null,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      
+      console.log(`${provider} OAuth 로그인 성공!`);
+      return true;
+    } catch (error) {
+      console.error('OAuth 로그인 실패:', error);
+      set({ isLoading: false });
+      return false;
+    }
+  },
+
+  logout: async () => {
+    set({ isLoading: true });
+    
+    try {
+      // 토큰 삭제
+      await secureStorage.removeItem('auth-token');
+      await secureStorage.removeItem('refresh-token');
+      await secureStorage.removeItem('user-data');
+      
+      set({
+        user: null,
+        token: null,
+        refreshToken: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+    } catch (error) {
+      console.error('로그아웃 실패:', error);
+      set({ isLoading: false });
+    }
+  },
+
+  initializeAuth: async () => {
+    set({ isLoading: true });
+    
+    try {
+      // 저장된 토큰과 사용자 정보 확인
+      const token = await secureStorage.getItem('auth-token');
+      const refreshToken = await secureStorage.getItem('refresh-token');
+      const userData = await secureStorage.getItem('user-data');
+      
+      if (token && userData) {
+        const user = JSON.parse(userData);
+        set({
+          user,
+          token,
+          refreshToken: refreshToken || null,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      } else {
+        set({ isLoading: false });
+      }
+    } catch (error) {
+      console.error('인증 초기화 실패:', error);
+      set({ isLoading: false });
+    }
+  },
+})); 

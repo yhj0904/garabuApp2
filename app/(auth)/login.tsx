@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { oauth } from '@/services/oauthService';
 import { useAuthStore } from '@/stores/authStore';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -31,7 +32,7 @@ export default function LoginScreen() {
     if (isAuthenticated) {
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, router]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -47,7 +48,10 @@ export default function LoginScreen() {
   };
 
   const handleOAuthLogin = async (provider: 'google' | 'naver') => {
+    console.log(`${provider} 로그인 버튼 클릭됨`);
+    
     try {
+      console.log(`${provider} OAuth 시작...`);
       let result;
       
       if (provider === 'google') {
@@ -56,22 +60,30 @@ export default function LoginScreen() {
         result = await oauth.naverLogin();
       }
       
+      console.log(`${provider} OAuth 결과:`, result);
+      
       if (result.success && result.accessToken) {
+        console.log(`${provider} 토큰 획득 성공, 로그인 처리 중...`);
         const success = await oauthLogin(provider, result.accessToken, result.refreshToken);
         
-        if (!success) {
+        if (success) {
+          console.log(`${provider} 로그인 성공!`);
+        } else {
+          console.log(`${provider} 로그인 실패`);
           Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
         }
       } else {
+        console.log(`${provider} OAuth 실패:`, result.error);
         Alert.alert('로그인 실패', result.error || `${provider} 로그인 중 오류가 발생했습니다.`);
       }
     } catch (error) {
+      console.error(`${provider} OAuth 오류:`, error);
       Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
     }
   };
 
   const handleSignUp = () => {
-    router.push('/signup');
+    router.push('/(auth)/signup');
   };
 
   const togglePasswordVisibility = () => {
@@ -88,6 +100,9 @@ export default function LoginScreen() {
           <View style={styles.content}>
             {/* 로고 또는 앱 이름 */}
             <View style={styles.logoContainer}>
+              <View style={[styles.logoIcon, { backgroundColor: colors.tint }]}>
+                <Ionicons name="wallet" size={40} color="white" />
+              </View>
               <Text style={[styles.logoText, { color: colors.tint }]}>Garabu</Text>
               <Text style={[styles.subtitle, { color: colors.icon }]}>
                 가라부에 오신 것을 환영합니다
@@ -97,19 +112,41 @@ export default function LoginScreen() {
             {/* 소셜 로그인 버튼 */}
             <View style={styles.socialContainer}>
               <TouchableOpacity
-                style={[styles.socialButton, styles.googleButton]}
-                onPress={() => handleOAuthLogin('google')}
+                style={[
+                  styles.socialButton, 
+                  styles.googleButton,
+                  { opacity: isLoading ? 0.7 : 1 }
+                ]}
+                onPress={() => {
+                  console.log('Google 버튼 터치됨');
+                  handleOAuthLogin('google');
+                }}
                 disabled={isLoading}
+                activeOpacity={0.8}
               >
-                <Text style={styles.socialButtonText}>Google로 계속하기</Text>
+                <Ionicons name="logo-google" size={24} color="white" />
+                <Text style={styles.socialButtonText}>
+                  {isLoading ? '처리 중...' : 'Google로 계속하기'}
+                </Text>
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={[styles.socialButton, styles.naverButton]}
-                onPress={() => handleOAuthLogin('naver')}
+                style={[
+                  styles.socialButton, 
+                  styles.naverButton,
+                  { opacity: isLoading ? 0.7 : 1 }
+                ]}
+                onPress={() => {
+                  console.log('Naver 버튼 터치됨');
+                  handleOAuthLogin('naver');
+                }}
                 disabled={isLoading}
+                activeOpacity={0.8}
               >
-                <Text style={styles.socialButtonText}>Naver로 계속하기</Text>
+                <Ionicons name="logo-html5" size={24} color="white" />
+                <Text style={styles.socialButtonText}>
+                  {isLoading ? '처리 중...' : 'Naver로 계속하기'}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -123,7 +160,10 @@ export default function LoginScreen() {
             {/* 로그인 폼 */}
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>이메일</Text>
+                <View style={styles.inputLabelContainer}>
+                  <Ionicons name="mail" size={16} color={colors.icon} />
+                  <Text style={[styles.label, { color: colors.text }]}>이메일</Text>
+                </View>
                 <TextInput
                   style={[
                     styles.input,
@@ -145,7 +185,10 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>비밀번호</Text>
+                <View style={styles.inputLabelContainer}>
+                  <Ionicons name="lock-closed" size={16} color={colors.icon} />
+                  <Text style={[styles.label, { color: colors.text }]}>비밀번호</Text>
+                </View>
                 <View style={styles.passwordContainer}>
                   <TextInput
                     style={[
@@ -169,9 +212,11 @@ export default function LoginScreen() {
                     style={styles.eyeButton}
                     onPress={togglePasswordVisibility}
                   >
-                    <Text style={[styles.eyeText, { color: colors.icon }]}>
-                      {isPasswordVisible ? '👁️' : '👁️‍🗨️'}
-                    </Text>
+                    <Ionicons 
+                      name={isPasswordVisible ? "eye-off" : "eye"} 
+                      size={20} 
+                      color={colors.icon} 
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -187,14 +232,17 @@ export default function LoginScreen() {
                 ]}
                 onPress={handleLogin}
                 disabled={isLoading}
+                activeOpacity={0.8}
               >
+                <Ionicons name="log-in" size={20} color="white" />
                 <Text style={styles.loginButtonText}>
                   {isLoading ? '로그인 중...' : '로그인'}
                 </Text>
               </TouchableOpacity>
 
               {/* 테스트 계정 정보 */}
-              <View style={styles.testAccountContainer}>
+              <View style={[styles.testAccountContainer, { backgroundColor: colors.card }]}>
+                <Ionicons name="information-circle" size={16} color={colors.icon} />
                 <Text style={[styles.testAccountText, { color: colors.icon }]}>
                   테스트 계정: test@example.com / password
                 </Text>
@@ -239,6 +287,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
+  logoIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
   logoText: {
     fontSize: 32,
     fontWeight: 'bold',
@@ -253,10 +317,20 @@ const styles = StyleSheet.create({
   },
   socialButton: {
     height: 50,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
+    flexDirection: 'row',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   googleButton: {
     backgroundColor: '#4285F4',
@@ -288,15 +362,20 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 20,
   },
+  inputLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
   label: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 8,
   },
   input: {
     height: 50,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 16,
   },
@@ -306,7 +385,7 @@ const styles = StyleSheet.create({
   passwordInput: {
     height: 50,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
     paddingRight: 50,
     fontSize: 16,
@@ -314,18 +393,25 @@ const styles = StyleSheet.create({
   eyeButton: {
     position: 'absolute',
     right: 16,
-    top: 12,
+    top: 15,
     padding: 4,
-  },
-  eyeText: {
-    fontSize: 20,
   },
   loginButton: {
     height: 50,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,
+    flexDirection: 'row',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   loginButtonText: {
     color: 'white',
@@ -335,13 +421,14 @@ const styles = StyleSheet.create({
   testAccountContainer: {
     marginTop: 16,
     padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 8,
+    borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   testAccountText: {
     fontSize: 12,
-    textAlign: 'center',
+    flex: 1,
   },
   signUpContainer: {
     flexDirection: 'row',

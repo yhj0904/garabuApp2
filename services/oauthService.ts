@@ -120,8 +120,12 @@ export const oauthService = new OAuthService();
 // 개발용 Mock OAuth 서비스
 export class MockOAuthService {
   async googleLogin(): Promise<OAuthResult> {
+    console.log('Mock Google OAuth 시작');
+    
     // Mock 지연
     await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    console.log('Mock Google OAuth 완료');
     
     return {
       success: true,
@@ -131,8 +135,12 @@ export class MockOAuthService {
   }
 
   async naverLogin(): Promise<OAuthResult> {
+    console.log('Mock Naver OAuth 시작');
+    
     // Mock 지연
     await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    console.log('Mock Naver OAuth 완료');
     
     return {
       success: true,
@@ -142,11 +150,12 @@ export class MockOAuthService {
   }
 
   initializeOAuth() {
-    // Mock에서는 아무것도 하지 않음
+    console.log('Mock OAuth 초기화');
   }
 }
 
 // 개발 환경에서는 Mock 서비스 사용
-export const oauth = process.env.NODE_ENV === 'development' 
-  ? new MockOAuthService() 
-  : oauthService; 
+// 현재는 강제로 Mock 서비스 사용
+console.log('OAuth 서비스: Mock 서비스 사용');
+
+export const oauth = new MockOAuthService(); 

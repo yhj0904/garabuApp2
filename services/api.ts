@@ -1,5 +1,3 @@
-import { useAuthStore } from '@/stores/authStore';
-
 // API 기본 설정
 const API_BASE_URL = 'http://localhost:8080'; // 실제 API 서버 URL
 
@@ -56,7 +54,8 @@ class ApiService {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    token?: string
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     
@@ -67,7 +66,6 @@ class ApiService {
     };
 
     // JWT 토큰이 있으면 헤더에 추가
-    const token = useAuthStore.getState().token;
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
@@ -117,15 +115,15 @@ class ApiService {
   }
 
   // 사용자 정보 조회 API
-  async getProfile(): Promise<{ user: LoginResponse['user'] }> {
-    return this.request<{ user: LoginResponse['user'] }>('/api/v2/profile');
+  async getProfile(token: string): Promise<{ user: LoginResponse['user'] }> {
+    return this.request<{ user: LoginResponse['user'] }>('/api/v2/profile', {}, token);
   }
 
   // 로그아웃 API
-  async logout(): Promise<void> {
+  async logout(token: string): Promise<void> {
     return this.request<void>('/api/v2/logout', {
       method: 'POST',
-    });
+    }, token);
   }
 }
 
@@ -135,6 +133,8 @@ export const apiService = new ApiService(API_BASE_URL);
 // 개발용 Mock API (실제 API가 없을 때 사용)
 export class MockApiService {
   async login(credentials: LoginRequest): Promise<LoginResponse> {
+    console.log('Mock API login 호출됨:', credentials);
+    
     // 실제 API 호출을 시뮬레이션
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -153,6 +153,8 @@ export class MockApiService {
   }
 
   async signup(userData: SignupRequest): Promise<SignupResponse> {
+    console.log('Mock API signup 호출됨:', userData);
+    
     // 실제 API 호출을 시뮬레이션
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -167,10 +169,12 @@ export class MockApiService {
   }
 
   async oauthLogin(oauthData: OAuthRequest): Promise<OAuthResponse> {
+    console.log('Mock API oauthLogin 호출됨:', oauthData);
+    
     // 실제 API 호출을 시뮬레이션
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    return {
+    const response = {
       user: {
         id: Date.now().toString(),
         username: `${oauthData.provider} 사용자`,
@@ -178,9 +182,12 @@ export class MockApiService {
       },
       token: 'mock-jwt-token-' + Date.now(),
     };
+    
+    console.log('Mock API oauthLogin 응답:', response);
+    return response;
   }
 
-  async getProfile(): Promise<{ user: LoginResponse['user'] }> {
+  async getProfile(token: string): Promise<{ user: LoginResponse['user'] }> {
     await new Promise(resolve => setTimeout(resolve, 500));
     
     return {
@@ -192,12 +199,11 @@ export class MockApiService {
     };
   }
 
-  async logout(): Promise<void> {
+  async logout(token: string): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 }
 
 // 개발 환경에서는 Mock API 사용, 프로덕션에서는 실제 API 사용
-export const api = process.env.NODE_ENV === 'development' 
-  ? new MockApiService() 
-  : apiService; 
+// 현재는 개발 중이므로 Mock API를 사용
+export const api = new MockApiService(); 

@@ -2,18 +2,19 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { oauth } from '@/services/oauthService';
 import { useAuthStore } from '@/stores/authStore';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -34,7 +35,7 @@ export default function SignupScreen() {
     if (isAuthenticated) {
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, router]);
 
   const handleSignup = async () => {
     if (!email || !username || !password || !confirmPassword) {
@@ -84,7 +85,7 @@ export default function SignupScreen() {
   };
 
   const handleBackToLogin = () => {
-    router.back();
+    router.push('/(auth)/login');
   };
 
   const togglePasswordVisibility = () => {
@@ -106,7 +107,7 @@ export default function SignupScreen() {
             {/* 헤더 */}
             <View style={styles.header}>
               <TouchableOpacity onPress={handleBackToLogin} style={styles.backButton}>
-                <Text style={[styles.backButtonText, { color: colors.tint }]}>←</Text>
+                <Ionicons name="arrow-back" size={24} color={colors.tint} />
               </TouchableOpacity>
               <Text style={[styles.headerTitle, { color: colors.text }]}>회원가입</Text>
             </View>
@@ -114,19 +115,35 @@ export default function SignupScreen() {
             {/* 소셜 로그인 버튼 */}
             <View style={styles.socialContainer}>
               <TouchableOpacity
-                style={[styles.socialButton, styles.googleButton]}
+                style={[
+                  styles.socialButton, 
+                  styles.googleButton,
+                  { opacity: isLoading ? 0.7 : 1 }
+                ]}
                 onPress={() => handleOAuthLogin('google')}
                 disabled={isLoading}
+                activeOpacity={0.8}
               >
-                <Text style={styles.socialButtonText}>Google로 계속하기</Text>
+                <Ionicons name="logo-google" size={24} color="white" />
+                <Text style={styles.socialButtonText}>
+                  {isLoading ? '처리 중...' : 'Google로 계속하기'}
+                </Text>
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={[styles.socialButton, styles.naverButton]}
+                style={[
+                  styles.socialButton, 
+                  styles.naverButton,
+                  { opacity: isLoading ? 0.7 : 1 }
+                ]}
                 onPress={() => handleOAuthLogin('naver')}
                 disabled={isLoading}
+                activeOpacity={0.8}
               >
-                <Text style={styles.socialButtonText}>Naver로 계속하기</Text>
+                <Ionicons name="logo-html5" size={24} color="white" />
+                <Text style={styles.socialButtonText}>
+                  {isLoading ? '처리 중...' : 'Naver로 계속하기'}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -140,7 +157,10 @@ export default function SignupScreen() {
             {/* 회원가입 폼 */}
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>이메일</Text>
+                <View style={styles.inputLabelContainer}>
+                  <Ionicons name="mail" size={16} color={colors.icon} />
+                  <Text style={[styles.label, { color: colors.text }]}>이메일</Text>
+                </View>
                 <TextInput
                   style={[
                     styles.input,
@@ -162,7 +182,10 @@ export default function SignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>사용자명</Text>
+                <View style={styles.inputLabelContainer}>
+                  <Ionicons name="person" size={16} color={colors.icon} />
+                  <Text style={[styles.label, { color: colors.text }]}>사용자명</Text>
+                </View>
                 <TextInput
                   style={[
                     styles.input,
@@ -183,7 +206,10 @@ export default function SignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>비밀번호</Text>
+                <View style={styles.inputLabelContainer}>
+                  <Ionicons name="lock-closed" size={16} color={colors.icon} />
+                  <Text style={[styles.label, { color: colors.text }]}>비밀번호</Text>
+                </View>
                 <View style={styles.passwordContainer}>
                   <TextInput
                     style={[
@@ -207,15 +233,20 @@ export default function SignupScreen() {
                     style={styles.eyeButton}
                     onPress={togglePasswordVisibility}
                   >
-                    <Text style={[styles.eyeText, { color: colors.icon }]}>
-                      {isPasswordVisible ? '👁️' : '👁️‍🗨️'}
-                    </Text>
+                    <Ionicons 
+                      name={isPasswordVisible ? "eye-off" : "eye"} 
+                      size={20} 
+                      color={colors.icon} 
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>비밀번호 확인</Text>
+                <View style={styles.inputLabelContainer}>
+                  <Ionicons name="lock-closed" size={16} color={colors.icon} />
+                  <Text style={[styles.label, { color: colors.text }]}>비밀번호 확인</Text>
+                </View>
                 <View style={styles.passwordContainer}>
                   <TextInput
                     style={[
@@ -239,9 +270,11 @@ export default function SignupScreen() {
                     style={styles.eyeButton}
                     onPress={toggleConfirmPasswordVisibility}
                   >
-                    <Text style={[styles.eyeText, { color: colors.icon }]}>
-                      {isConfirmPasswordVisible ? '👁️' : '👁️‍🗨️'}
-                    </Text>
+                    <Ionicons 
+                      name={isConfirmPasswordVisible ? "eye-off" : "eye"} 
+                      size={20} 
+                      color={colors.icon} 
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -257,7 +290,9 @@ export default function SignupScreen() {
                 ]}
                 onPress={handleSignup}
                 disabled={isLoading}
+                activeOpacity={0.8}
               >
+                <Ionicons name="person-add" size={20} color="white" />
                 <Text style={styles.signupButtonText}>
                   {isLoading ? '회원가입 중...' : '회원가입'}
                 </Text>
@@ -306,10 +341,6 @@ const styles = StyleSheet.create({
     padding: 8,
     marginRight: 16,
   },
-  backButtonText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -319,10 +350,20 @@ const styles = StyleSheet.create({
   },
   socialButton: {
     height: 50,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
+    flexDirection: 'row',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   googleButton: {
     backgroundColor: '#4285F4',
@@ -354,15 +395,20 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 20,
   },
+  inputLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
   label: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 8,
   },
   input: {
     height: 50,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 16,
   },
@@ -372,7 +418,7 @@ const styles = StyleSheet.create({
   passwordInput: {
     height: 50,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
     paddingRight: 50,
     fontSize: 16,
@@ -380,18 +426,25 @@ const styles = StyleSheet.create({
   eyeButton: {
     position: 'absolute',
     right: 16,
-    top: 12,
+    top: 15,
     padding: 4,
-  },
-  eyeText: {
-    fontSize: 20,
   },
   signupButton: {
     height: 50,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,
+    flexDirection: 'row',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   signupButtonText: {
     color: 'white',

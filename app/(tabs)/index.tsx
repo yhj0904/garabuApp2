@@ -1,14 +1,19 @@
-import { Image } from 'expo-image';
-import { Alert, Platform, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function HomeScreen() {
   const { user, logout } = useAuthStore();
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
 
   const handleLogout = async () => {
     Alert.alert(
@@ -24,106 +29,265 @@ export default function HomeScreen() {
           style: 'destructive',
           onPress: async () => {
             await logout();
-            // 로그아웃 후 앱 재시작 효과
-            // 실제로는 앱을 다시 시작하거나 로그인 화면으로 이동
           },
         },
       ]
     );
   };
 
+  const openModal = () => {
+    router.push('/(modals)/' as any);
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ThemedView style={styles.container}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* 헤더 */}
+          <View style={styles.header}>
+            <View style={styles.userInfo}>
+              <ThemedText type="title">안녕하세요!</ThemedText>
+              <ThemedText type="subtitle">{user?.username || '사용자'}님</ThemedText>
+            </View>
+            <TouchableOpacity style={styles.profileButton} onPress={openModal}>
+              <Ionicons name="person-circle" size={40} color={colors.tint} />
+            </TouchableOpacity>
+          </View>
 
-      {/* 사용자 정보 */}
-      <ThemedView style={styles.userContainer}>
-        <ThemedText type="subtitle">사용자 정보</ThemedText>
-        <ThemedText>사용자명: {user?.username}</ThemedText>
-        <ThemedText>이메일: {user?.email}</ThemedText>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <ThemedText style={styles.logoutButtonText}>로그아웃</ThemedText>
-        </TouchableOpacity>
-      </ThemedView>
+          {/* 잔액 카드 */}
+          <View style={[styles.balanceCard, { backgroundColor: colors.card }]}>
+            <View style={styles.balanceHeader}>
+              <ThemedText type="subtitle">현재 잔액</ThemedText>
+              <Ionicons name="wallet" size={24} color={colors.tint} />
+            </View>
+            <ThemedText type="title" style={styles.balanceAmount}>
+              ₩1,250,000
+            </ThemedText>
+            <View style={styles.balanceChange}>
+              <Ionicons name="trending-up" size={16} color="#4CAF50" />
+              <ThemedText style={[styles.changeText, { color: '#4CAF50' }]}>
+                +₩45,000 이번 달
+              </ThemedText>
+            </View>
+          </View>
 
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
+          {/* 빠른 액션 버튼들 */}
+          <View style={styles.quickActions}>
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.card }]}>
+              <Ionicons name="add-circle" size={32} color={colors.tint} />
+              <ThemedText type="defaultSemiBold">수입 추가</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.card }]}>
+              <Ionicons name="remove-circle" size={32} color="#FF3B30" />
+              <ThemedText type="defaultSemiBold">지출 추가</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.card }]}>
+              <Ionicons name="analytics" size={32} color={colors.tint} />
+              <ThemedText type="defaultSemiBold">통계 보기</ThemedText>
+            </TouchableOpacity>
+          </View>
+
+          {/* 최근 거래 내역 */}
+          <View style={styles.recentTransactions}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="subtitle">최근 거래</ThemedText>
+              <TouchableOpacity>
+                <ThemedText style={[styles.seeAllText, { color: colors.tint }]}>
+                  모두 보기
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.transactionItem, { backgroundColor: colors.card }]}>
+              <View style={styles.transactionIcon}>
+                <Ionicons name="restaurant" size={24} color="#FF9500" />
+              </View>
+              <View style={styles.transactionInfo}>
+                <ThemedText type="defaultSemiBold">점심 식사</ThemedText>
+                <ThemedText style={styles.transactionDate}>오늘 12:30</ThemedText>
+              </View>
+              <ThemedText style={[styles.transactionAmount, { color: '#FF3B30' }]}>
+                -₩12,000
+              </ThemedText>
+            </View>
+
+            <View style={[styles.transactionItem, { backgroundColor: colors.card }]}>
+              <View style={styles.transactionIcon}>
+                <Ionicons name="card" size={24} color="#007AFF" />
+              </View>
+              <View style={styles.transactionInfo}>
+                <ThemedText type="defaultSemiBold">월급</ThemedText>
+                <ThemedText style={styles.transactionDate}>어제 09:00</ThemedText>
+              </View>
+              <ThemedText style={[styles.transactionAmount, { color: '#4CAF50' }]}>
+                +₩3,500,000
+              </ThemedText>
+            </View>
+
+            <View style={[styles.transactionItem, { backgroundColor: colors.card }]}>
+              <View style={styles.transactionIcon}>
+                <Ionicons name="car" size={24} color="#5856D6" />
+              </View>
+              <View style={styles.transactionInfo}>
+                <ThemedText type="defaultSemiBold">주유</ThemedText>
+                <ThemedText style={styles.transactionDate}>2일 전 18:20</ThemedText>
+              </View>
+              <ThemedText style={[styles.transactionAmount, { color: '#FF3B30' }]}>
+                -₩65,000
+              </ThemedText>
+            </View>
+          </View>
+
+          {/* 로그아웃 버튼 */}
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out" size={20} color="white" />
+            <ThemedText style={styles.logoutButtonText}>로그아웃</ThemedText>
+          </TouchableOpacity>
+        </ScrollView>
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+    padding: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    marginTop: 8,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  profileButton: {
+    padding: 4,
+  },
+  balanceCard: {
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  balanceAmount: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  balanceChange: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
   },
-  userContainer: {
-    gap: 8,
-    marginBottom: 16,
+  changeText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+  },
+  actionButton: {
+    flex: 1,
+    alignItems: 'center',
     padding: 16,
+    borderRadius: 12,
+    marginHorizontal: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  recentTransactions: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  seeAllText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  transactionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  transactionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  transactionInfo: {
+    flex: 1,
+  },
+  transactionDate: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   logoutButton: {
     backgroundColor: '#FF3B30',
-    padding: 12,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 16,
   },
   logoutButtonText: {
     color: 'white',
     fontWeight: '600',
+    fontSize: 16,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+}); 
