@@ -20,14 +20,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Member } from '@/services/api';
 
-interface BookMember {
+interface BookMemberWithJoinDate {
   member: Member;
   role: 'OWNER' | 'EDITOR' | 'VIEWER';
   joinedAt: string;
 }
 
 export default function BookSharingScreen() {
-  const [bookMembers, setBookMembers] = useState<BookMember[]>([]);
+  const [bookMembersWithJoinDate, setBookMembersWithJoinDate] = useState<BookMemberWithJoinDate[]>([]);
   const [availableMembers, setAvailableMembers] = useState<Member[]>([]);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -36,7 +36,15 @@ export default function BookSharingScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const { user, token } = useAuthStore();
-  const { currentBook, getBookOwners } = useBookStore();
+  const { 
+    currentBook, 
+    bookMembers, 
+    fetchBookMembers, 
+    inviteUser, 
+    removeMember, 
+    changeRole, 
+    leaveBook 
+  } = useBookStore();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -54,16 +62,24 @@ export default function BookSharingScreen() {
     
     try {
       setIsLoading(true);
-      const owners = await getBookOwners(currentBook.id, token);
+      const success = await fetchBookMembers(currentBook.id, token);
       
-      // Mock 데이터로 역할 정보 추가
-      const mockBookMembers: BookMember[] = owners.map((member, index) => ({
-        member,
-        role: member.id === currentBook.ownerId ? 'OWNER' : (index % 2 === 0 ? 'EDITOR' : 'VIEWER'),
-        joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
-      }));
-      
-      setBookMembers(mockBookMembers);
+      if (success) {
+        // bookMembers를 BookMemberWithJoinDate로 변환
+        const membersWithJoinDate: BookMemberWithJoinDate[] = bookMembers.map(member => ({
+          member: {
+            id: member.memberId,
+            username: member.username,
+            email: member.email,
+            name: member.username,
+            role: 'USER'
+          },
+          role: member.role,
+          joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
+        }));
+        
+        setBookMembersWithJoinDate(membersWithJoinDate);
+      }
     } catch (error) {
       console.error('Error loading book members:', error);
     } finally {
@@ -79,7 +95,7 @@ export default function BookSharingScreen() {
       const members = await api.getMembers(token);
       
       // 현재 가계부에 없는 멤버들만 필터링
-      const currentMemberIds = bookMembers.map(bm => bm.member.id);
+      const currentMemberIds = bookMembersWithJoinDate.map(bm => bm.member.id);
       const available = members.filter(member => !currentMemberIds.includes(member.id));
       
       setAvailableMembers(available);
@@ -94,35 +110,31 @@ export default function BookSharingScreen() {
     try {
       setIsLoading(true);
       
-      // 실제 API 호출 (현재는 mock)
-      console.log('Adding member to book:', {
-        bookId: currentBook.id,
-        memberId: selectedMember.id,
+      const success = await inviteUser(currentBook.id, {
+        email: selectedMember.email,
         role: selectedRole
-      });
+      }, token);
       
-      // Mock 성공 응답
-      const newBookMember: BookMember = {
-        member: selectedMember,
-        role: selectedRole,
-        joinedAt: new Date().toISOString()
-      };
-      
-      setBookMembers([...bookMembers, newBookMember]);
-      setAvailableMembers(availableMembers.filter(m => m.id !== selectedMember.id));
-      
-      // 푸시 알림 전송
-      await notification.sendBookSharedAlert(
-        selectedMember.id.toString(),
-        currentBook.title,
-        user?.name || user?.username || '사용자'
-      );
-      
-      setShowAddMemberModal(false);
-      setSelectedMember(null);
-      setSelectedRole('EDITOR');
-      
-      Alert.alert('성공', '멤버가 가계부에 추가되었습니다.');
+      if (success) {
+        // 성공 시 멤버 목록 새로고침
+        await loadBookMembers();
+        setAvailableMembers(availableMembers.filter(m => m.id !== selectedMember.id));
+        
+        // 푸시 알림 전송
+        await notification.sendBookSharedAlert(
+          selectedMember.id.toString(),
+          currentBook.title,
+          user?.name || user?.username || '사용자'
+        );
+        
+        setShowAddMemberModal(false);
+        setSelectedMember(null);
+        setSelectedRole('EDITOR');
+        
+        Alert.alert('성공', '멤버가 가계부에 추가되었습니다.');
+      } else {
+        Alert.alert('오류', '멤버 추가에 실패했습니다.');
+      }
     } catch (error) {
       console.error('Error adding member:', error);
       Alert.alert('오류', '멤버 추가에 실패했습니다.');
@@ -132,7 +144,7 @@ export default function BookSharingScreen() {
   };
 
   const handleRemoveMember = (memberId: number) => {
-    const member = bookMembers.find(bm => bm.member.id === memberId);
+    const member = bookMembersWithJoinDate.find(bm => bm.member.id === memberId);
     if (!member) return;
     
     if (member.role === 'OWNER') {
@@ -152,16 +164,17 @@ export default function BookSharingScreen() {
             try {
               setIsLoading(true);
               
-              // 실제 API 호출 (현재는 mock)
-              console.log('Removing member from book:', {
-                bookId: currentBook?.id,
-                memberId
-              });
+              const success = await removeMember(currentBook?.id || 0, memberId, token || '');
               
-              setBookMembers(bookMembers.filter(bm => bm.member.id !== memberId));
-              setAvailableMembers([...availableMembers, member.member]);
-              
-              Alert.alert('성공', '멤버가 제거되었습니다.');
+              if (success) {
+                // 성공 시 멤버 목록 새로고침
+                await loadBookMembers();
+                setAvailableMembers([...availableMembers, member.member]);
+                
+                Alert.alert('성공', '멤버가 제거되었습니다.');
+              } else {
+                Alert.alert('오류', '멤버 제거에 실패했습니다.');
+              }
             } catch (error) {
               console.error('Error removing member:', error);
               Alert.alert('오류', '멤버 제거에 실패했습니다.');
@@ -175,7 +188,7 @@ export default function BookSharingScreen() {
   };
 
   const handleChangeRole = (memberId: number) => {
-    const member = bookMembers.find(bm => bm.member.id === memberId);
+    const member = bookMembersWithJoinDate.find(bm => bm.member.id === memberId);
     if (!member || member.role === 'OWNER') return;
     
     const roleOptions = [
@@ -194,20 +207,20 @@ export default function BookSharingScreen() {
             try {
               setIsLoading(true);
               
-              // 실제 API 호출 (현재는 mock)
-              console.log('Changing member role:', {
-                bookId: currentBook?.id,
-                memberId,
-                newRole: option.value
-              });
+              const success = await changeRole(
+                currentBook?.id || 0, 
+                memberId, 
+                { role: option.value as 'EDITOR' | 'VIEWER' }, 
+                token || ''
+              );
               
-              setBookMembers(bookMembers.map(bm => 
-                bm.member.id === memberId 
-                  ? { ...bm, role: option.value as 'EDITOR' | 'VIEWER' }
-                  : bm
-              ));
-              
-              Alert.alert('성공', '역할이 변경되었습니다.');
+              if (success) {
+                // 성공 시 멤버 목록 새로고침
+                await loadBookMembers();
+                Alert.alert('성공', '역할이 변경되었습니다.');
+              } else {
+                Alert.alert('오류', '역할 변경에 실패했습니다.');
+              }
             } catch (error) {
               console.error('Error changing role:', error);
               Alert.alert('오류', '역할 변경에 실패했습니다.');
@@ -280,7 +293,7 @@ export default function BookSharingScreen() {
     });
   };
 
-  const renderMemberItem = ({ item }: { item: BookMember }) => (
+  const renderMemberItem = ({ item }: { item: BookMemberWithJoinDate }) => (
     <View style={[styles.memberItem, { backgroundColor: colors.card }]}>
       <View style={styles.memberInfo}>
         <View style={styles.memberAvatar}>
@@ -360,7 +373,7 @@ export default function BookSharingScreen() {
           <Ionicons name="book" size={24} color={colors.tint} />
           <Text style={[styles.bookTitle, { color: colors.text }]}>{currentBook.title}</Text>
           <Text style={[styles.memberCount, { color: colors.icon }]}>
-            {bookMembers.length}명 참여
+            {bookMembersWithJoinDate.length}명 참여
           </Text>
         </View>
       )}
@@ -368,13 +381,13 @@ export default function BookSharingScreen() {
       {/* 멤버 목록 */}
       <ScrollView style={styles.memberList} showsVerticalScrollIndicator={false}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>참여 멤버</Text>
-        {bookMembers.length === 0 ? (
+        {bookMembersWithJoinDate.length === 0 ? (
           <Text style={[styles.emptyText, { color: colors.icon }]}>
             아직 참여한 멤버가 없습니다.
           </Text>
         ) : (
           <FlatList
-            data={bookMembers}
+            data={bookMembersWithJoinDate}
             renderItem={renderMemberItem}
             keyExtractor={(item) => item.member.id.toString()}
             scrollEnabled={false}

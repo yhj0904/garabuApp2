@@ -259,6 +259,102 @@ class NotificationService {
     );
   }
 
+  // 가계부 초대 알림
+  async sendBookInvitationAlert(userId: string, bookTitle: string, invitedBy: string, role: string): Promise<boolean> {
+    const roleText = role === 'EDITOR' ? '편집자' : '조회자';
+    return this.sendNotificationToUser(
+      userId,
+      '가계부 초대',
+      `${invitedBy}님이 "${bookTitle}" 가계부에 ${roleText}로 초대했습니다.`,
+      {
+        type: 'BOOK_INVITATION',
+        bookTitle,
+        invitedBy,
+        role
+      }
+    );
+  }
+
+  // 가계부 멤버 제거 알림
+  async sendMemberRemovedAlert(userId: string, bookTitle: string, removedBy: string): Promise<boolean> {
+    return this.sendNotificationToUser(
+      userId,
+      '가계부 멤버 제거',
+      `${removedBy}님이 "${bookTitle}" 가계부에서 회원님을 제거했습니다.`,
+      {
+        type: 'MEMBER_REMOVED',
+        bookTitle,
+        removedBy
+      }
+    );
+  }
+
+  // 가계부 권한 변경 알림
+  async sendRoleChangedAlert(userId: string, bookTitle: string, changedBy: string, newRole: string): Promise<boolean> {
+    const roleText = newRole === 'EDITOR' ? '편집자' : '조회자';
+    return this.sendNotificationToUser(
+      userId,
+      '가계부 권한 변경',
+      `${changedBy}님이 "${bookTitle}" 가계부에서 회원님의 권한을 ${roleText}로 변경했습니다.`,
+      {
+        type: 'ROLE_CHANGED',
+        bookTitle,
+        changedBy,
+        newRole
+      }
+    );
+  }
+
+  // 가계부 멤버 탈퇴 알림 (다른 멤버들에게)
+  async sendMemberLeftAlert(userIds: string[], bookTitle: string, leftMember: string): Promise<boolean> {
+    const promises = userIds.map(userId =>
+      this.sendNotificationToUser(
+        userId,
+        '가계부 멤버 탈퇴',
+        `${leftMember}님이 "${bookTitle}" 가계부에서 탈퇴했습니다.`,
+        {
+          type: 'MEMBER_LEFT',
+          bookTitle,
+          leftMember
+        }
+      )
+    );
+
+    try {
+      await Promise.all(promises);
+      return true;
+    } catch (error) {
+      console.error('Error sending member left alerts:', error);
+      return false;
+    }
+  }
+
+  // 가계부 새 기록 알림
+  async sendNewLedgerEntryAlert(userIds: string[], bookTitle: string, authorName: string, description: string, amount: number): Promise<boolean> {
+    const promises = userIds.map(userId =>
+      this.sendNotificationToUser(
+        userId,
+        '가계부 새 기록',
+        `${authorName}님이 "${bookTitle}" 가계부에 새 기록을 추가했습니다: ${description} (₩${amount.toLocaleString()})`,
+        {
+          type: 'NEW_LEDGER_ENTRY',
+          bookTitle,
+          authorName,
+          description,
+          amount
+        }
+      )
+    );
+
+    try {
+      await Promise.all(promises);
+      return true;
+    } catch (error) {
+      console.error('Error sending new ledger entry alerts:', error);
+      return false;
+    }
+  }
+
   // 현재 토큰 반환
   getCurrentToken(): string | null {
     return this.pushToken;
@@ -322,6 +418,31 @@ export class MockNotificationService {
 
   async sendBookSharedAlert(userId: string, bookTitle: string, sharedBy: string): Promise<boolean> {
     console.log('Mock: Sending book shared alert:', { userId, bookTitle, sharedBy });
+    return true;
+  }
+
+  async sendBookInvitationAlert(userId: string, bookTitle: string, invitedBy: string, role: string): Promise<boolean> {
+    console.log('Mock: Sending book invitation alert:', { userId, bookTitle, invitedBy, role });
+    return true;
+  }
+
+  async sendMemberRemovedAlert(userId: string, bookTitle: string, removedBy: string): Promise<boolean> {
+    console.log('Mock: Sending member removed alert:', { userId, bookTitle, removedBy });
+    return true;
+  }
+
+  async sendRoleChangedAlert(userId: string, bookTitle: string, changedBy: string, newRole: string): Promise<boolean> {
+    console.log('Mock: Sending role changed alert:', { userId, bookTitle, changedBy, newRole });
+    return true;
+  }
+
+  async sendMemberLeftAlert(userIds: string[], bookTitle: string, leftMember: string): Promise<boolean> {
+    console.log('Mock: Sending member left alert:', { userIds, bookTitle, leftMember });
+    return true;
+  }
+
+  async sendNewLedgerEntryAlert(userIds: string[], bookTitle: string, authorName: string, description: string, amount: number): Promise<boolean> {
+    console.log('Mock: Sending new ledger entry alert:', { userIds, bookTitle, authorName, description, amount });
     return true;
   }
 

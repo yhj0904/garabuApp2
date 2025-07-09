@@ -1,5 +1,6 @@
 // API 기본 설정
 const API_BASE_URL = 'http://localhost:8080'; // 실제 API 서버 URL
+// const API_BASE_URL = 'http://192.168.1.100:8080'; // 모바일 디바이스에서 사용할 경우
 
 // 가계부 관련 인터페이스
 interface Member {
@@ -120,6 +121,40 @@ interface CreateCategoryRequest {
 // 결제 수단 생성 요청
 interface CreatePaymentRequest {
   payment: string;
+}
+
+// 가계부 공유 관련 인터페이스
+interface InviteUserRequest {
+  email: string;
+  role: 'EDITOR' | 'VIEWER';
+}
+
+interface InviteUserResponse {
+  message: string;
+}
+
+interface RemoveMemberResponse {
+  message: string;
+}
+
+interface ChangeRoleRequest {
+  role: 'EDITOR' | 'VIEWER';
+}
+
+interface ChangeRoleResponse {
+  message: string;
+}
+
+interface LeaveBookResponse {
+  message: string;
+}
+
+// 가계부 멤버 정보 (소유자 목록에서 확장)
+interface BookMember {
+  memberId: number;
+  username: string;
+  email: string;
+  role: 'OWNER' | 'EDITOR' | 'VIEWER';
 }
 
 class ApiService {
@@ -265,6 +300,44 @@ class ApiService {
 
   async getPaymentList(token: string): Promise<PaymentMethod[]> {
     return this.request<PaymentMethod[]>('/api/v2/payment/list', {}, token);
+  }
+
+  // 가계부 공유 관련 API
+  async inviteUser(bookId: number, data: InviteUserRequest, token: string): Promise<InviteUserResponse> {
+    return this.request<InviteUserResponse>(`/api/v2/book/${bookId}/invite`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, token);
+  }
+
+  async removeMember(bookId: number, memberId: number, token: string): Promise<RemoveMemberResponse> {
+    return this.request<RemoveMemberResponse>(`/api/v2/book/${bookId}/members/${memberId}`, {
+      method: 'DELETE',
+    }, token);
+  }
+
+  async changeRole(bookId: number, memberId: number, data: ChangeRoleRequest, token: string): Promise<ChangeRoleResponse> {
+    return this.request<ChangeRoleResponse>(`/api/v2/book/${bookId}/members/${memberId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }, token);
+  }
+
+  async leaveBook(bookId: number, token: string): Promise<LeaveBookResponse> {
+    return this.request<LeaveBookResponse>(`/api/v2/book/${bookId}/leave`, {
+      method: 'POST',
+    }, token);
+  }
+
+  async getBookMembersWithRoles(bookId: number, token: string): Promise<BookMember[]> {
+    const owners = await this.getBookOwners(bookId, token);
+    // TODO: 실제 API에서 role 정보를 포함한 멤버 목록을 받아와야 함
+    return owners.map(owner => ({
+      memberId: owner.id,
+      username: owner.username,
+      email: owner.email,
+      role: 'OWNER' as const // 임시로 OWNER 설정, 실제로는 API에서 받아와야 함
+    }));
   }
 }
 
@@ -522,11 +595,85 @@ export class MockApiService {
     await new Promise(resolve => setTimeout(resolve, 500));
     return this.mockData.payments;
   }
+
+  // 가계부 공유 관련 Mock API
+  async inviteUser(bookId: number, data: InviteUserRequest, token: string): Promise<InviteUserResponse> {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Mock: 사용자 초대 성공
+    console.log('Mock: 사용자 초대 완료', { bookId, email: data.email, role: data.role });
+    
+    return {
+      message: '사용자가 성공적으로 초대되었습니다.'
+    };
+  }
+
+  async removeMember(bookId: number, memberId: number, token: string): Promise<RemoveMemberResponse> {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Mock: 멤버 제거 성공
+    console.log('Mock: 멤버 제거 완료', { bookId, memberId });
+    
+    return {
+      message: '멤버가 성공적으로 제거되었습니다.'
+    };
+  }
+
+  async changeRole(bookId: number, memberId: number, data: ChangeRoleRequest, token: string): Promise<ChangeRoleResponse> {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Mock: 권한 변경 성공
+    console.log('Mock: 권한 변경 완료', { bookId, memberId, newRole: data.role });
+    
+    return {
+      message: '권한이 성공적으로 변경되었습니다.'
+    };
+  }
+
+  async leaveBook(bookId: number, token: string): Promise<LeaveBookResponse> {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Mock: 가계부 나가기 성공
+    console.log('Mock: 가계부 나가기 완료', { bookId });
+    
+    return {
+      message: '가계부에서 성공적으로 나갔습니다.'
+    };
+  }
+
+  async getBookMembersWithRoles(bookId: number, token: string): Promise<BookMember[]> {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Mock: 가계부 멤버 목록 (역할 포함)
+    const mockMembers: BookMember[] = [
+      {
+        memberId: 1,
+        username: '홍길동',
+        email: 'hong@example.com',
+        role: 'OWNER'
+      },
+      {
+        memberId: 2,
+        username: '김철수',
+        email: 'kim@example.com',
+        role: 'EDITOR'
+      },
+      {
+        memberId: 3,
+        username: '이영희',
+        email: 'lee@example.com',
+        role: 'VIEWER'
+      }
+    ];
+    
+    return mockMembers;
+  }
 }
 
 // 개발 환경에서는 Mock API 사용, 프로덕션에서는 실제 API 사용
-// 현재는 개발 중이므로 Mock API를 사용
+// 실제 백엔드 API를 사용하려면 아래 라인을 주석 해제하고 위 라인을 주석 처리
 export const api = new MockApiService();
+// export const api = new ApiService(API_BASE_URL);
 
 // 타입 export
 export type {
@@ -546,5 +693,12 @@ export type {
   CreateLedgerRequest,
   GetLedgerListRequest,
   CreateCategoryRequest,
-  CreatePaymentRequest
+  CreatePaymentRequest,
+  InviteUserRequest,
+  InviteUserResponse,
+  RemoveMemberResponse,
+  ChangeRoleRequest,
+  ChangeRoleResponse,
+  LeaveBookResponse,
+  BookMember
 }; 

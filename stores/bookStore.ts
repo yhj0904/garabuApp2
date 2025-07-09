@@ -1,16 +1,28 @@
 import { create } from 'zustand';
-import { Book, CreateBookRequest, Member, Ledger, GetLedgerListRequest, CreateLedgerRequest } from '@/services/api';
+import { 
+  Book, 
+  CreateBookRequest, 
+  Member, 
+  Ledger, 
+  GetLedgerListRequest, 
+  CreateLedgerRequest,
+  BookMember,
+  InviteUserRequest,
+  ChangeRoleRequest
+} from '@/services/api';
 
 interface BookState {
   books: Book[];
   currentBook: Book | null;
   ledgers: Ledger[];
+  bookMembers: BookMember[];
   isLoading: boolean;
   
   // Actions
   setBooks: (books: Book[]) => void;
   setCurrentBook: (book: Book | null) => void;
   setLedgers: (ledgers: Ledger[]) => void;
+  setBookMembers: (members: BookMember[]) => void;
   setLoading: (loading: boolean) => void;
   
   // API Actions
@@ -19,17 +31,26 @@ interface BookState {
   fetchLedgers: (params: GetLedgerListRequest, token: string) => Promise<boolean>;
   createLedger: (data: CreateLedgerRequest, token: string) => Promise<boolean>;
   getBookOwners: (bookId: number, token: string) => Promise<Member[]>;
+  
+  // 공유 가계부 관련 Actions
+  fetchBookMembers: (bookId: number, token: string) => Promise<boolean>;
+  inviteUser: (bookId: number, data: InviteUserRequest, token: string) => Promise<boolean>;
+  removeMember: (bookId: number, memberId: number, token: string) => Promise<boolean>;
+  changeRole: (bookId: number, memberId: number, data: ChangeRoleRequest, token: string) => Promise<boolean>;
+  leaveBook: (bookId: number, token: string) => Promise<boolean>;
 }
 
 export const useBookStore = create<BookState>((set, get) => ({
   books: [],
   currentBook: null,
   ledgers: [],
+  bookMembers: [],
   isLoading: false,
 
   setBooks: (books) => set({ books }),
   setCurrentBook: (book) => set({ currentBook: book }),
   setLedgers: (ledgers) => set({ ledgers }),
+  setBookMembers: (members) => set({ bookMembers: members }),
   setLoading: (loading) => set({ isLoading: loading }),
 
   fetchBooks: async (token: string) => {
@@ -145,6 +166,134 @@ export const useBookStore = create<BookState>((set, get) => ({
     } catch (error) {
       console.error('가계부 소유자 조회 실패:', error);
       return [];
+    }
+  },
+
+  // 공유 가계부 관련 Actions
+  fetchBookMembers: async (bookId: number, token: string) => {
+    console.log('가계부 멤버 조회 시작:', bookId);
+    set({ isLoading: true });
+    
+    try {
+      const { api } = await import('@/services/api');
+      const members = await api.getBookMembersWithRoles(bookId, token);
+      
+      console.log('가계부 멤버 조회 성공:', members);
+      
+      set({ 
+        bookMembers: members,
+        isLoading: false 
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('가계부 멤버 조회 실패:', error);
+      set({ isLoading: false });
+      return false;
+    }
+  },
+
+  inviteUser: async (bookId: number, data: InviteUserRequest, token: string) => {
+    console.log('사용자 초대 시작:', { bookId, data });
+    set({ isLoading: true });
+    
+    try {
+      const { api } = await import('@/services/api');
+      await api.inviteUser(bookId, data, token);
+      
+      console.log('사용자 초대 성공');
+      
+      // 멤버 목록 새로고침
+      const { fetchBookMembers } = get();
+      await fetchBookMembers(bookId, token);
+      
+      set({ isLoading: false });
+      return true;
+    } catch (error) {
+      console.error('사용자 초대 실패:', error);
+      set({ isLoading: false });
+      return false;
+    }
+  },
+
+  removeMember: async (bookId: number, memberId: number, token: string) => {
+    console.log('멤버 제거 시작:', { bookId, memberId });
+    set({ isLoading: true });
+    
+    try {
+      const { api } = await import('@/services/api');
+      await api.removeMember(bookId, memberId, token);
+      
+      console.log('멤버 제거 성공');
+      
+      // 멤버 목록에서 해당 멤버 제거
+      const { bookMembers } = get();
+      const updatedMembers = bookMembers.filter(member => member.memberId !== memberId);
+      
+      set({ 
+        bookMembers: updatedMembers,
+        isLoading: false 
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('멤버 제거 실패:', error);
+      set({ isLoading: false });
+      return false;
+    }
+  },
+
+  changeRole: async (bookId: number, memberId: number, data: ChangeRoleRequest, token: string) => {
+    console.log('권한 변경 시작:', { bookId, memberId, data });
+    set({ isLoading: true });
+    
+    try {
+      const { api } = await import('@/services/api');
+      await api.changeRole(bookId, memberId, data, token);
+      
+      console.log('권한 변경 성공');
+      
+      // 멤버 목록에서 해당 멤버의 권한 업데이트
+      const { bookMembers } = get();
+      const updatedMembers = bookMembers.map(member => 
+        member.memberId === memberId 
+          ? { ...member, role: data.role }
+          : member
+      );
+      
+      set({ 
+        bookMembers: updatedMembers,
+        isLoading: false 
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('권한 변경 실패:', error);
+      set({ isLoading: false });
+      return false;
+    }
+  },
+
+  leaveBook: async (bookId: number, token: string) => {
+    console.log('가계부 나가기 시작:', bookId);
+    set({ isLoading: true });
+    
+    try {
+      const { api } = await import('@/services/api');
+      await api.leaveBook(bookId, token);
+      
+      console.log('가계부 나가기 성공');
+      
+      // 가계부 목록 새로고침
+      const { fetchBooks } = get();
+      await fetchBooks(token);
+      
+      set({ isLoading: false });
+      return true;
+    } catch (error) {
+      console.error('가계부 나가기 실패:', error);
+      set({ isLoading: false });
+      return false;
     }
   },
 }));
