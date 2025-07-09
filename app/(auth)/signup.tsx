@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -38,7 +39,7 @@ export default function SignupScreen() {
   }, [isAuthenticated, router]);
 
   const handleSignup = async () => {
-    if (!email || !username || !password || !confirmPassword) {
+    if (!email || !username || !name || !password || !confirmPassword) {
       Alert.alert('오류', '모든 필드를 입력해주세요.');
       return;
     }
@@ -53,7 +54,7 @@ export default function SignupScreen() {
       return;
     }
 
-    const success = await signup(email, username, password);
+    const success = await signup(email, username, password, name);
     
     if (!success) {
       Alert.alert('회원가입 실패', '회원가입 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -202,6 +203,30 @@ export default function SignupScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="username"
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <View style={styles.inputLabelContainer}>
+                  <Ionicons name="person-circle" size={16} color={colors.icon} />
+                  <Text style={[styles.label, { color: colors.text }]}>이름</Text>
+                </View>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
+                      color: colors.text,
+                      borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
+                    },
+                  ]}
+                  placeholder="실명을 입력하세요"
+                  placeholderTextColor={colors.icon}
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  autoComplete="name"
                 />
               </View>
 

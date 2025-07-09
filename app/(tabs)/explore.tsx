@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity, View, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useAuthStore } from '@/stores/authStore';
+import { useBookStore } from '@/stores/bookStore';
+import { useCategoryStore } from '@/stores/categoryStore';
+import { Ledger } from '@/services/api';
 
 const tabs = ['통계', '예산', '내역'];
 const types = ['수입', '지출'];
@@ -13,9 +17,174 @@ const types = ['수입', '지출'];
 export default function ExploreScreen() {
   const [selectedTab, setSelectedTab] = useState(0);
   const [selectedType, setSelectedType] = useState(1); // 기본: 지출
-  const [month, setMonth] = useState('2025년 7월');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [historyLedgers, setHistoryLedgers] = useState<Ledger[]>([]);
+  
+  const { token } = useAuthStore();
+  const { ledgers, fetchLedgers, currentBook } = useBookStore();
+  const { categories } = useCategoryStore();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+
+  const month = currentDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
+
+  // 내역 탭일 때 전체 거래 내역 로드
+  useEffect(() => {
+    if (selectedTab === 2 && token && currentBook) {
+      fetchLedgers({ page: 0, size: 100 }, token).then(() => {
+        setHistoryLedgers(ledgers);
+      });
+    }
+  }, [selectedTab, token, currentBook]);
+
+  // 현재 월의 거래 내역만 필터링
+  const currentMonthLedgers = ledgers.filter(ledger => {
+    const ledgerDate = new Date(ledger.date);
+    return ledgerDate.getMonth() === currentDate.getMonth() && 
+           ledgerDate.getFullYear() === currentDate.getFullYear();
+  });
+
+  // 수입/지출 분리
+  const incomeAmount = currentMonthLedgers
+    .filter(ledger => ledger.amountType === 'INCOME')
+    .reduce((sum, ledger) => sum + ledger.amount, 0);
+
+  const expenseAmount = currentMonthLedgers
+    .filter(ledger => ledger.amountType === 'EXPENSE')
+    .reduce((sum, ledger) => sum + ledger.amount, 0);
+
+  // 카테고리별 집계
+  const categoryStats = categories.map(category => {
+    const categoryLedgers = currentMonthLedgers.filter(ledger => 
+      ledger.categoryId === category.id && ledger.amountType === 'EXPENSE'
+    );
+    const total = categoryLedgers.reduce((sum, ledger) => sum + ledger.amount, 0);
+    const percentage = expenseAmount > 0 ? (total / expenseAmount) * 100 : 0;
+    
+    return {
+      category: category.category,
+      total,
+      percentage: Math.round(percentage),
+      icon: getCategoryIcon(category.category),
+      color: getCategoryColor(category.category)
+    };
+  }).filter(stat => stat.total > 0).sort((a, b) => b.total - a.total);
+
+  // 월 변경 함수
+  const changeMonth = (direction: 'prev' | 'next') => {
+    const newDate = new Date(currentDate);
+    if (direction === 'prev') {
+      newDate.setMonth(newDate.getMonth() - 1);
+    } else {
+      newDate.setMonth(newDate.getMonth() + 1);
+    }
+    setCurrentDate(newDate);
+  };
+
+  // 카테고리 아이콘 매핑
+  const getCategoryIcon = (categoryName: string) => {
+    const name = categoryName.toLowerCase();
+    if (name.includes('식') || name.includes('음식')) return 'restaurant';
+    if (name.includes('교통')) return 'car';
+    if (name.includes('주거') || name.includes('집')) return 'home';
+    if (name.includes('쇼핑')) return 'bag';
+    if (name.includes('의료')) return 'medical';
+    if (name.includes('교육')) return 'school';
+    return 'wallet';
+  };
+
+  // 카테고리 색상 매핑
+  const getCategoryColor = (categoryName: string) => {
+    const name = categoryName.toLowerCase();
+    if (name.includes('식') || name.includes('음식')) return '#FF9500';
+    if (name.includes('교통')) return '#5856D6';
+    if (name.includes('주거') || name.includes('집')) return '#34C759';
+    if (name.includes('쇼핑')) return '#AF52DE';
+    if (name.includes('의료')) return '#FF3B30';
+    if (name.includes('교육')) return '#007AFF';
+    return '#8E8E93';
+  };
+
+  // 금액 포맷팅
+  const formatAmount = (amount: number) => {
+    return new Intl.NumberFormat('ko-KR').format(amount);
+  };
+
+  // 날짜 포맷팅
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ko-KR', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  // 거래 내역 아이콘 매핑
+  const getTransactionIcon = (description: string) => {
+    const lowercaseDesc = description.toLowerCase();
+    if (lowercaseDesc.includes('식') || lowercaseDesc.includes('음식')) return 'restaurant';
+    if (lowercaseDesc.includes('급여') || lowercaseDesc.includes('월급')) return 'card';
+    if (lowercaseDesc.includes('주유') || lowercaseDesc.includes('기름')) return 'car';
+    if (lowercaseDesc.includes('교통') || lowercaseDesc.includes('지하철')) return 'train';
+    if (lowercaseDesc.includes('쇼핑') || lowercaseDesc.includes('구매')) return 'bag';
+    return 'wallet';
+  };
+
+  // 거래 내역 아이콘 색상 매핑
+  const getTransactionColor = (description: string) => {
+    const lowercaseDesc = description.toLowerCase();
+    if (lowercaseDesc.includes('식') || lowercaseDesc.includes('음식')) return '#FF9500';
+    if (lowercaseDesc.includes('급여') || lowercaseDesc.includes('월급')) return '#007AFF';
+    if (lowercaseDesc.includes('주유') || lowercaseDesc.includes('기름')) return '#5856D6';
+    if (lowercaseDesc.includes('교통') || lowercaseDesc.includes('지하철')) return '#FF3B30';
+    if (lowercaseDesc.includes('쇼핑') || lowercaseDesc.includes('구매')) return '#AF52DE';
+    return colors.tint;
+  };
+
+  // 내역 탭에서 표시할 거래 내역 필터링
+  const getFilteredLedgers = () => {
+    const filtered = historyLedgers.filter(ledger => {
+      const ledgerDate = new Date(ledger.date);
+      const isCurrentMonth = ledgerDate.getMonth() === currentDate.getMonth() && 
+                            ledgerDate.getFullYear() === currentDate.getFullYear();
+      const isCorrectType = selectedType === 0 ? ledger.amountType === 'INCOME' : ledger.amountType === 'EXPENSE';
+      return isCurrentMonth && isCorrectType;
+    });
+    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  };
+
+  // 렌더링할 거래 내역 아이템
+  const renderLedgerItem = ({ item }: { item: Ledger }) => (
+    <View style={[styles.transactionItem, { backgroundColor: colors.card }]}>
+      <View style={styles.transactionIcon}>
+        <Ionicons 
+          name={getTransactionIcon(item.description) as any} 
+          size={24} 
+          color={getTransactionColor(item.description)} 
+        />
+      </View>
+      <View style={styles.transactionInfo}>
+        <ThemedText type="defaultSemiBold">{item.description}</ThemedText>
+        <ThemedText style={styles.transactionDate}>
+          {formatDate(item.date)}
+        </ThemedText>
+        {item.memo && (
+          <ThemedText style={styles.transactionMemo}>{item.memo}</ThemedText>
+        )}
+      </View>
+      <View style={styles.transactionRight}>
+        <ThemedText style={[
+          styles.transactionAmount, 
+          { color: item.amountType === 'INCOME' ? '#4CAF50' : '#FF3B30' }
+        ]}>
+          {item.amountType === 'INCOME' ? '+' : '-'}₩{formatAmount(item.amount)}
+        </ThemedText>
+        {item.spender && (
+          <ThemedText style={styles.transactionSpender}>{item.spender}</ThemedText>
+        )}
+      </View>
+    </View>
+  );
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
@@ -23,11 +192,11 @@ export default function ExploreScreen() {
         <ScrollView style={styles.scrollView} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
           {/* 상단 월 선택 */}
           <View style={styles.monthRow}>
-            <TouchableOpacity style={styles.arrowButton}>
+            <TouchableOpacity style={styles.arrowButton} onPress={() => changeMonth('prev')}>
               <Ionicons name="chevron-back" size={24} color={colors.icon} />
             </TouchableOpacity>
             <ThemedText type="subtitle" style={styles.month}>{month}</ThemedText>
-            <TouchableOpacity style={styles.arrowButton}>
+            <TouchableOpacity style={styles.arrowButton} onPress={() => changeMonth('next')}>
               <Ionicons name="chevron-forward" size={24} color={colors.icon} />
             </TouchableOpacity>
           </View>
@@ -81,58 +250,44 @@ export default function ExploreScreen() {
               <View style={styles.statsContainer}>
                 <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                   <View style={styles.statHeader}>
-                    <Ionicons name="trending-up" size={24} color="#4CAF50" />
+                    <Ionicons name="trending-down" size={24} color="#FF3B30" />
                     <ThemedText type="subtitle">이번 달 총 지출</ThemedText>
                   </View>
-                  <ThemedText type="title" style={styles.statAmount}>₩1,250,000</ThemedText>
-                  <ThemedText style={[styles.statChange, { color: '#4CAF50' }]}>
-                    지난 달 대비 +12%
+                  <ThemedText type="title" style={styles.statAmount}>₩{formatAmount(expenseAmount)}</ThemedText>
+                  <ThemedText style={[styles.statChange, { color: '#8E8E93' }]}>
+                    {currentMonthLedgers.filter(l => l.amountType === 'EXPENSE').length}건의 지출
                   </ThemedText>
                 </View>
 
                 <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                   <View style={styles.statHeader}>
-                    <Ionicons name="trending-down" size={24} color="#FF3B30" />
+                    <Ionicons name="trending-up" size={24} color="#4CAF50" />
                     <ThemedText type="subtitle">이번 달 총 수입</ThemedText>
                   </View>
-                  <ThemedText type="title" style={styles.statAmount}>₩3,500,000</ThemedText>
-                  <ThemedText style={[styles.statChange, { color: '#FF3B30' }]}>
-                    지난 달 대비 -5%
+                  <ThemedText type="title" style={styles.statAmount}>₩{formatAmount(incomeAmount)}</ThemedText>
+                  <ThemedText style={[styles.statChange, { color: '#8E8E93' }]}>
+                    {currentMonthLedgers.filter(l => l.amountType === 'INCOME').length}건의 수입
                   </ThemedText>
                 </View>
 
                 <View style={[styles.categoryCard, { backgroundColor: colors.card }]}>
                   <ThemedText type="subtitle" style={styles.categoryTitle}>카테고리별 지출</ThemedText>
-                  <View style={styles.categoryItem}>
-                    <View style={styles.categoryIcon}>
-                      <Ionicons name="restaurant" size={20} color="#FF9500" />
-                    </View>
-                    <View style={styles.categoryInfo}>
-                      <ThemedText type="defaultSemiBold">식비</ThemedText>
-                      <ThemedText style={styles.categoryPercent}>35%</ThemedText>
-                    </View>
-                    <ThemedText type="defaultSemiBold">₩437,500</ThemedText>
-                  </View>
-                  <View style={styles.categoryItem}>
-                    <View style={styles.categoryIcon}>
-                      <Ionicons name="car" size={20} color="#5856D6" />
-                    </View>
-                    <View style={styles.categoryInfo}>
-                      <ThemedText type="defaultSemiBold">교통비</ThemedText>
-                      <ThemedText style={styles.categoryPercent}>25%</ThemedText>
-                    </View>
-                    <ThemedText type="defaultSemiBold">₩312,500</ThemedText>
-                  </View>
-                  <View style={styles.categoryItem}>
-                    <View style={styles.categoryIcon}>
-                      <Ionicons name="home" size={20} color="#34C759" />
-                    </View>
-                    <View style={styles.categoryInfo}>
-                      <ThemedText type="defaultSemiBold">주거비</ThemedText>
-                      <ThemedText style={styles.categoryPercent}>20%</ThemedText>
-                    </View>
-                    <ThemedText type="defaultSemiBold">₩250,000</ThemedText>
-                  </View>
+                  {categoryStats.length === 0 ? (
+                    <ThemedText style={styles.emptyText}>이번 달 지출 내역이 없습니다.</ThemedText>
+                  ) : (
+                    categoryStats.slice(0, 5).map((stat, index) => (
+                      <View key={index} style={styles.categoryItem}>
+                        <View style={styles.categoryIcon}>
+                          <Ionicons name={stat.icon as any} size={20} color={stat.color} />
+                        </View>
+                        <View style={styles.categoryInfo}>
+                          <ThemedText type="defaultSemiBold">{stat.category}</ThemedText>
+                          <ThemedText style={styles.categoryPercent}>{stat.percentage}%</ThemedText>
+                        </View>
+                        <ThemedText type="defaultSemiBold">₩{formatAmount(stat.total)}</ThemedText>
+                      </View>
+                    ))
+                  )}
                 </View>
               </View>
             )}
@@ -143,16 +298,39 @@ export default function ExploreScreen() {
                   <ThemedText type="subtitle">이번 달 예산</ThemedText>
                   <ThemedText type="title" style={styles.budgetAmount}>₩2,000,000</ThemedText>
                   <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: '62.5%', backgroundColor: '#FF3B30' }]} />
+                    <View style={[
+                      styles.progressFill, 
+                      { 
+                        width: `${Math.min((expenseAmount / 2000000) * 100, 100)}%`, 
+                        backgroundColor: expenseAmount > 2000000 ? '#FF3B30' : '#4CAF50' 
+                      }
+                    ]} />
                   </View>
-                  <ThemedText style={styles.budgetStatus}>62.5% 사용됨 (₩1,250,000)</ThemedText>
+                  <ThemedText style={styles.budgetStatus}>
+                    {Math.round((expenseAmount / 2000000) * 100)}% 사용됨 (₩{formatAmount(expenseAmount)})
+                  </ThemedText>
+                  <ThemedText style={styles.budgetRemaining}>
+                    잔여 예산: ₩{formatAmount(Math.max(2000000 - expenseAmount, 0))}
+                  </ThemedText>
                 </View>
               </View>
             )}
 
             {selectedTab === 2 && (
               <View style={styles.historyContainer}>
-                <ThemedText style={styles.emptyText}>거래 내역이 없습니다.</ThemedText>
+                {getFilteredLedgers().length === 0 ? (
+                  <ThemedText style={styles.emptyText}>
+                    {selectedType === 0 ? '수입' : '지출'} 내역이 없습니다.
+                  </ThemedText>
+                ) : (
+                  <FlatList
+                    data={getFilteredLedgers()}
+                    renderItem={renderLedgerItem}
+                    keyExtractor={(item) => item.id.toString()}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 20 }}
+                  />
+                )}
               </View>
             )}
           </View>
@@ -325,13 +503,69 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
   },
+  budgetRemaining: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginTop: 4,
+  },
   historyContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    minHeight: 300,
   },
   emptyText: { 
     color: '#bbb', 
     fontSize: 16,
+    textAlign: 'center',
+    marginTop: 40,
+  },
+  transactionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  transactionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  transactionInfo: {
+    flex: 1,
+  },
+  transactionDate: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
+  },
+  transactionMemo: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  transactionRight: {
+    alignItems: 'flex-end',
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  transactionSpender: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
   },
 }); 

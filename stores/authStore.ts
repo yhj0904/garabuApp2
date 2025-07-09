@@ -1,26 +1,21 @@
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-}
+import { Member } from '@/services/api';
 
 interface AuthState {
-  user: User | null;
+  user: Member | null;
   token: string | null;
   refreshToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   
   // Actions
-  setUser: (user: User | null) => void;
+  setUser: (user: Member | null) => void;
   setToken: (token: string | null) => void;
   setRefreshToken: (refreshToken: string | null) => void;
   setLoading: (loading: boolean) => void;
   login: (email: string, password: string) => Promise<boolean>;
-  signup: (email: string, username: string, password: string) => Promise<boolean>;
+  signup: (email: string, username: string, password: string, name: string) => Promise<boolean>;
   oauthLogin: (provider: 'google' | 'naver', accessToken: string, refreshToken?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   initializeAuth: () => Promise<void>;
@@ -74,6 +69,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       console.log('로그인 성공:', response);
       
+      // 토큰과 사용자 정보 저장
+      await secureStorage.setItem('auth-token', response.token);
+      await secureStorage.setItem('user-data', JSON.stringify(response.user));
+      
       set({
         user: response.user,
         token: response.token,
@@ -89,16 +88,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signup: async (email: string, username: string, password: string) => {
-    console.log('회원가입 시작:', email, username);
+  signup: async (email: string, username: string, password: string, name: string) => {
+    console.log('회원가입 시작:', email, username, name);
     set({ isLoading: true });
     
     try {
       // 동적 import로 API 호출
       const { api } = await import('@/services/api');
-      const response = await api.signup({ email, username, password });
+      const response = await api.signup({ email, username, password, name });
       
       console.log('회원가입 성공:', response);
+      
+      // 토큰과 사용자 정보 저장
+      await secureStorage.setItem('auth-token', response.token);
+      await secureStorage.setItem('user-data', JSON.stringify(response.user));
       
       set({
         user: response.user,
@@ -125,6 +128,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { api } = await import('@/services/api');
       const response = await api.oauthLogin({ provider, accessToken });
       console.log('API 응답:', response);
+      
+      // 토큰과 사용자 정보 저장
+      await secureStorage.setItem('auth-token', response.token);
+      await secureStorage.setItem('user-data', JSON.stringify(response.user));
+      if (refreshToken) {
+        await secureStorage.setItem('refresh-token', refreshToken);
+      }
       
       set({
         user: response.user,
