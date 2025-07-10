@@ -46,7 +46,7 @@ const secureStorage = {
   },
 };
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set, _get) => ({
   user: null,
   token: null,
   refreshToken: null,
@@ -73,10 +73,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 토큰과 사용자 정보 저장
       await secureStorage.setItem('auth-token', response.token);
       await secureStorage.setItem('user-data', JSON.stringify(response.user));
+      if (response.refreshToken) {
+        await secureStorage.setItem('refresh-token', response.refreshToken);
+      }
       
       set({
         user: response.user,
         token: response.token,
+        refreshToken: response.refreshToken || null,
         isAuthenticated: true,
         isLoading: false,
       });
@@ -104,10 +108,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 토큰과 사용자 정보 저장
       await secureStorage.setItem('auth-token', response.token);
       await secureStorage.setItem('user-data', JSON.stringify(response.user));
+      if (response.refreshToken) {
+        await secureStorage.setItem('refresh-token', response.refreshToken);
+      }
       
       set({
         user: response.user,
         token: response.token,
+        refreshToken: response.refreshToken || null,
         isAuthenticated: true,
         isLoading: false,
       });

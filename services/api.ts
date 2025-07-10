@@ -64,6 +64,7 @@ interface LoginRequest {
 interface LoginResponse {
   user: Member;
   token: string;
+  refreshToken?: string;
 }
 
 interface SignupRequest {
@@ -76,6 +77,7 @@ interface SignupRequest {
 interface SignupResponse {
   user: Member;
   token: string;
+  refreshToken?: string;
 }
 
 interface OAuthRequest {
@@ -173,7 +175,7 @@ class ApiService {
     options: RequestInit = {},
     token?: string
   ): Promise<T> {
-    const url = `${this.baseURL}/api/${config.API_VERSION}${endpoint}`;
+    const url = `${this.baseURL}/api${endpoint}`;
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -206,6 +208,16 @@ class ApiService {
 
           if (reissueResponse.ok) {
             const newAccessToken = reissueResponse.headers.get('access');
+            
+            // 새로운 refresh token도 쿠키에서 확인
+            const newSetCookieHeader = reissueResponse.headers.get('set-cookie');
+            if (newSetCookieHeader) {
+              const newRefreshMatch = newSetCookieHeader.match(/refresh=([^;]+)/);
+              if (newRefreshMatch) {
+                await AsyncStorage.setItem('refreshToken', newRefreshMatch[1]);
+              }
+            }
+            
             if (newAccessToken) {
               await AsyncStorage.setItem('token', newAccessToken);
               // 원래 요청 재시도
@@ -271,7 +283,16 @@ class ApiService {
 
     // JWT 토큰은 헤더에서 추출
     const accessToken = response.headers.get('access');
-    const refreshToken = response.headers.get('refresh');
+    
+    // Refresh token은 쿠키에서 추출
+    let refreshToken = null;
+    const setCookieHeader = response.headers.get('set-cookie');
+    if (setCookieHeader) {
+      const refreshMatch = setCookieHeader.match(/refresh=([^;]+)/);
+      if (refreshMatch) {
+        refreshToken = refreshMatch[1];
+      }
+    }
 
     if (!accessToken) {
       throw new Error('No access token received');
@@ -302,6 +323,7 @@ class ApiService {
         role: userResponse.role ? userResponse.role.replace('ROLE_', '') : 'USER', // role이 null일 때 기본값 처리
       },
       token: accessToken,
+      refreshToken: refreshToken || undefined,
     };
   }
 
