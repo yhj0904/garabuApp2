@@ -1,39 +1,97 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# -----------------------------------------------------------
+# Node / Dependencies
+# -----------------------------------------------------------
 node_modules/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
 
-# Expo
+# -----------------------------------------------------------
+# Expo Specific
+# -----------------------------------------------------------
 .expo/
 dist/
 web-build/
 expo-env.d.ts
+eas-build-info.json
+.eas/
+.expo-shared/
 
-# Native
-.kotlin/
-*.orig.*
+# -----------------------------------------------------------
+# Native (Android & iOS)
+# -----------------------------------------------------------
+
+# Android
+android/.gradle/
+android/app/.cxx/
+android/app/build/
+android/app/src/debug/
+android/app/src/release/
+android/local.properties
+android/.idea/
+android/.vscode/
+android/app/src/main/assets/
+android/app/src/main/res/raw/
+!android/app/src/main/res/raw/keep.xml 
+!android/gradle/wrapper/gradle-wrapper.jar 
+.kotlin/ 
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/.build/
+ios/*.xcworkspace 
+ios/DerivedData/
+ios/build/
+ios/.xccheckout
+ios/.idea/
+ios/.vscode/
+
+# Native Secrets/Keys (Crucial for Security)
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
 
-# Metro
-.metro-health-check*
+# -----------------------------------------------------------
+# Local Environment & Configuration
+# -----------------------------------------------------------
+.env*
+!.env.example 
 
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
+# -----------------------------------------------------------
+# IDE & Editor Specific
+# -----------------------------------------------------------
+.idea/
+.vscode/
+*.iml
+.DS_Store # macOS specific
+Thumbs.db # Windows specific
+.history/ # VS Code local history
 
-# macOS
-.DS_Store
-*.pem
+# VS Code specific (more granular)
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
 
-# local env files
-.env*.local
-
-# typescript
-*.tsbuildinfo
-
-app-example
+# -----------------------------------------------------------
+# Build / Cache / Temp Files
+# -----------------------------------------------------------
+build/
+*.tsbuildinfo 
+.metro-health-check* 
+.git/HEAD 
+.watchmanconfig 
+*~
+*.bak
+*.swp
+.fusebox/
+.next/ 
+app-example/ 
+*.pem 
+*.orig.* 
