@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
-  const [name, setName] = useState('');
+  // const [name, setName] = useState(''); // 서버 API에서 받지 않으므로 제거
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -39,7 +39,7 @@ export default function SignupScreen() {
   }, [isAuthenticated, router]);
 
   const handleSignup = async () => {
-    if (!email || !username || !name || !password || !confirmPassword) {
+    if (!email || !username || !password || !confirmPassword) {
       Alert.alert('오류', '모든 필드를 입력해주세요.');
       return;
     }
@@ -54,7 +54,7 @@ export default function SignupScreen() {
       return;
     }
 
-    const success = await signup(email, username, password, name);
+    const success = await signup(email, username, password, username); // name 대신 username 사용
     
     if (!success) {
       Alert.alert('회원가입 실패', '회원가입 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -185,30 +185,6 @@ export default function SignupScreen() {
               <View style={styles.inputContainer}>
                 <View style={styles.inputLabelContainer}>
                   <Ionicons name="person" size={16} color={colors.icon} />
-                  <Text style={[styles.label, { color: colors.text }]}>사용자명</Text>
-                </View>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
-                      color: colors.text,
-                      borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
-                    },
-                  ]}
-                  placeholder="사용자명을 입력하세요"
-                  placeholderTextColor={colors.icon}
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="username"
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <View style={styles.inputLabelContainer}>
-                  <Ionicons name="person-circle" size={16} color={colors.icon} />
                   <Text style={[styles.label, { color: colors.text }]}>이름</Text>
                 </View>
                 <TextInput
@@ -220,10 +196,10 @@ export default function SignupScreen() {
                       borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
                     },
                   ]}
-                  placeholder="실명을 입력하세요"
+                  placeholder="이름을 입력하세요"
                   placeholderTextColor={colors.icon}
-                  value={name}
-                  onChangeText={setName}
+                  value={username}
+                  onChangeText={setUsername}
                   autoCapitalize="words"
                   autoCorrect={false}
                   autoComplete="name"

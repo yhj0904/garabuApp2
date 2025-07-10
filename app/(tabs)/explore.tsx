@@ -1,18 +1,64 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState, useEffect } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View, FlatList } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ledger } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
-import { Ledger } from '@/services/api';
 
 const tabs = ['통계', '예산', '내역'];
 const types = ['수입', '지출'];
+
+// 카테고리 아이콘 매핑
+const getCategoryIcon = (categoryName: string) => {
+  const name = categoryName.toLowerCase();
+  if (name.includes('식') || name.includes('음식')) return 'restaurant';
+  if (name.includes('교통')) return 'car';
+  if (name.includes('주거') || name.includes('집')) return 'home';
+  if (name.includes('쇼핑')) return 'bag';
+  if (name.includes('의료')) return 'medical';
+  if (name.includes('교육')) return 'school';
+  return 'wallet';
+};
+
+// 카테고리 색상 매핑
+const getCategoryColor = (categoryName: string) => {
+  const name = categoryName.toLowerCase();
+  if (name.includes('식') || name.includes('음식')) return '#FF9500';
+  if (name.includes('교통')) return '#5856D6';
+  if (name.includes('주거') || name.includes('집')) return '#34C759';
+  if (name.includes('쇼핑')) return '#AF52DE';
+  if (name.includes('의료')) return '#FF3B30';
+  if (name.includes('교육')) return '#007AFF';
+  return '#8E8E93';
+};
+
+// 거래 내역 아이콘 매핑
+const getTransactionIcon = (description: string) => {
+  const lowercaseDesc = description.toLowerCase();
+  if (lowercaseDesc.includes('식') || lowercaseDesc.includes('음식')) return 'restaurant';
+  if (lowercaseDesc.includes('급여') || lowercaseDesc.includes('월급')) return 'card';
+  if (lowercaseDesc.includes('주유') || lowercaseDesc.includes('기름')) return 'car';
+  if (lowercaseDesc.includes('교통') || lowercaseDesc.includes('지하철')) return 'train';
+  if (lowercaseDesc.includes('쇼핑') || lowercaseDesc.includes('구매')) return 'bag';
+  return 'wallet';
+};
+
+// 거래 내역 아이콘 색상 매핑
+const getTransactionColor = (description: string, colors: any) => {
+  const lowercaseDesc = description.toLowerCase();
+  if (lowercaseDesc.includes('식') || lowercaseDesc.includes('음식')) return '#FF9500';
+  if (lowercaseDesc.includes('급여') || lowercaseDesc.includes('월급')) return '#007AFF';
+  if (lowercaseDesc.includes('주유') || lowercaseDesc.includes('기름')) return '#5856D6';
+  if (lowercaseDesc.includes('교통') || lowercaseDesc.includes('지하철')) return '#FF3B30';
+  if (lowercaseDesc.includes('쇼핑') || lowercaseDesc.includes('구매')) return '#AF52DE';
+  return colors.tint;
+};
 
 export default function ExploreScreen() {
   const [selectedTab, setSelectedTab] = useState(0);
@@ -81,29 +127,7 @@ export default function ExploreScreen() {
     setCurrentDate(newDate);
   };
 
-  // 카테고리 아이콘 매핑
-  const getCategoryIcon = (categoryName: string) => {
-    const name = categoryName.toLowerCase();
-    if (name.includes('식') || name.includes('음식')) return 'restaurant';
-    if (name.includes('교통')) return 'car';
-    if (name.includes('주거') || name.includes('집')) return 'home';
-    if (name.includes('쇼핑')) return 'bag';
-    if (name.includes('의료')) return 'medical';
-    if (name.includes('교육')) return 'school';
-    return 'wallet';
-  };
 
-  // 카테고리 색상 매핑
-  const getCategoryColor = (categoryName: string) => {
-    const name = categoryName.toLowerCase();
-    if (name.includes('식') || name.includes('음식')) return '#FF9500';
-    if (name.includes('교통')) return '#5856D6';
-    if (name.includes('주거') || name.includes('집')) return '#34C759';
-    if (name.includes('쇼핑')) return '#AF52DE';
-    if (name.includes('의료')) return '#FF3B30';
-    if (name.includes('교육')) return '#007AFF';
-    return '#8E8E93';
-  };
 
   // 금액 포맷팅
   const formatAmount = (amount: number) => {
@@ -117,28 +141,6 @@ export default function ExploreScreen() {
       month: 'short', 
       day: 'numeric' 
     });
-  };
-
-  // 거래 내역 아이콘 매핑
-  const getTransactionIcon = (description: string) => {
-    const lowercaseDesc = description.toLowerCase();
-    if (lowercaseDesc.includes('식') || lowercaseDesc.includes('음식')) return 'restaurant';
-    if (lowercaseDesc.includes('급여') || lowercaseDesc.includes('월급')) return 'card';
-    if (lowercaseDesc.includes('주유') || lowercaseDesc.includes('기름')) return 'car';
-    if (lowercaseDesc.includes('교통') || lowercaseDesc.includes('지하철')) return 'train';
-    if (lowercaseDesc.includes('쇼핑') || lowercaseDesc.includes('구매')) return 'bag';
-    return 'wallet';
-  };
-
-  // 거래 내역 아이콘 색상 매핑
-  const getTransactionColor = (description: string) => {
-    const lowercaseDesc = description.toLowerCase();
-    if (lowercaseDesc.includes('식') || lowercaseDesc.includes('음식')) return '#FF9500';
-    if (lowercaseDesc.includes('급여') || lowercaseDesc.includes('월급')) return '#007AFF';
-    if (lowercaseDesc.includes('주유') || lowercaseDesc.includes('기름')) return '#5856D6';
-    if (lowercaseDesc.includes('교통') || lowercaseDesc.includes('지하철')) return '#FF3B30';
-    if (lowercaseDesc.includes('쇼핑') || lowercaseDesc.includes('구매')) return '#AF52DE';
-    return colors.tint;
   };
 
   // 내역 탭에서 표시할 거래 내역 필터링
@@ -160,7 +162,7 @@ export default function ExploreScreen() {
         <Ionicons 
           name={getTransactionIcon(item.description) as any} 
           size={24} 
-          color={getTransactionColor(item.description)} 
+          color={getTransactionColor(item.description, colors)} 
         />
       </View>
       <View style={styles.transactionInfo}>

@@ -1,5 +1,5 @@
-import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 // FCM 토큰 관련 인터페이스
@@ -27,6 +27,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -75,9 +77,14 @@ class NotificationService {
       }
 
       // Push 토큰 가져오기
-      const token = await Notifications.getExpoPushTokenAsync({
-        projectId: 'your-expo-project-id', // 실제 프로젝트 ID로 변경
-      });
+      // Expo Go에서는 푸시 알림이 제한되므로 개발 중에는 스킵
+      if (__DEV__) {
+        console.log('개발 환경에서는 푸시 알림을 건너뜁니다');
+        this.pushToken = 'dev-token-' + Date.now();
+        return this.pushToken;
+      }
+      
+      const token = await Notifications.getExpoPushTokenAsync();
 
       this.pushToken = token.data;
       console.log('FCM Token:', this.pushToken);
@@ -101,12 +108,12 @@ class NotificationService {
         useAt: 'Y'
       };
 
-      const { api } = await import('@/services/api');
+      const apiService = (await import('@/services/api')).default;
       // 실제 서버 API 호출 (현재는 mock으로 시뮬레이션)
       console.log('Registering FCM token with server:', tokenData);
       
       // TODO: 실제 서버 API 구현 시 활성화
-      // await api.registerFCMToken(tokenData);
+      // await apiService.registerFCMToken(tokenData);
       
       return true;
     } catch (error) {
@@ -198,12 +205,12 @@ class NotificationService {
         type: 'PUSH'
       };
 
-      const { api } = await import('@/services/api');
+      const apiService = (await import('@/services/api')).default;
       // 실제 서버 API 호출 (현재는 mock으로 시뮬레이션)
       console.log('Sending notification to user:', notificationData);
       
       // TODO: 실제 서버 API 구현 시 활성화
-      // await api.sendNotification(notificationData);
+      // await apiService.sendNotification(notificationData);
       
       return true;
     } catch (error) {
@@ -367,93 +374,6 @@ class NotificationService {
   }
 }
 
+// 알림 서비스 인스턴스 생성 - 실제 서비스만 사용
 export const notificationService = new NotificationService();
-
-// Mock Notification Service (개발용)
-export class MockNotificationService {
-  private pushToken: string | null = null;
-
-  async requestPermissions(): Promise<boolean> {
-    console.log('Mock: Requesting notification permissions');
-    return true;
-  }
-
-  async registerForPushNotifications(): Promise<string | null> {
-    console.log('Mock: Registering for push notifications');
-    this.pushToken = `mock-fcm-token-${Date.now()}`;
-    return this.pushToken;
-  }
-
-  async registerTokenWithServer(userId: string, token: string): Promise<boolean> {
-    console.log('Mock: Registering token with server:', { userId, token });
-    return true;
-  }
-
-  async showLocalNotification(title: string, body: string, data?: any): Promise<void> {
-    console.log('Mock: Showing local notification:', { title, body, data });
-  }
-
-  registerNotificationListeners() {
-    console.log('Mock: Registering notification listeners');
-    return {
-      notificationListener: null,
-      responseListener: null
-    };
-  }
-
-  async sendNotificationToUser(userId: string, title: string, body: string, data?: any): Promise<boolean> {
-    console.log('Mock: Sending notification to user:', { userId, title, body, data });
-    return true;
-  }
-
-  async sendBudgetAlert(userId: string, currentAmount: number, budgetAmount: number): Promise<boolean> {
-    console.log('Mock: Sending budget alert:', { userId, currentAmount, budgetAmount });
-    return true;
-  }
-
-  async sendNewTransactionAlert(userId: string, transaction: any): Promise<boolean> {
-    console.log('Mock: Sending new transaction alert:', { userId, transaction });
-    return true;
-  }
-
-  async sendBookSharedAlert(userId: string, bookTitle: string, sharedBy: string): Promise<boolean> {
-    console.log('Mock: Sending book shared alert:', { userId, bookTitle, sharedBy });
-    return true;
-  }
-
-  async sendBookInvitationAlert(userId: string, bookTitle: string, invitedBy: string, role: string): Promise<boolean> {
-    console.log('Mock: Sending book invitation alert:', { userId, bookTitle, invitedBy, role });
-    return true;
-  }
-
-  async sendMemberRemovedAlert(userId: string, bookTitle: string, removedBy: string): Promise<boolean> {
-    console.log('Mock: Sending member removed alert:', { userId, bookTitle, removedBy });
-    return true;
-  }
-
-  async sendRoleChangedAlert(userId: string, bookTitle: string, changedBy: string, newRole: string): Promise<boolean> {
-    console.log('Mock: Sending role changed alert:', { userId, bookTitle, changedBy, newRole });
-    return true;
-  }
-
-  async sendMemberLeftAlert(userIds: string[], bookTitle: string, leftMember: string): Promise<boolean> {
-    console.log('Mock: Sending member left alert:', { userIds, bookTitle, leftMember });
-    return true;
-  }
-
-  async sendNewLedgerEntryAlert(userIds: string[], bookTitle: string, authorName: string, description: string, amount: number): Promise<boolean> {
-    console.log('Mock: Sending new ledger entry alert:', { userIds, bookTitle, authorName, description, amount });
-    return true;
-  }
-
-  getCurrentToken(): string | null {
-    return this.pushToken;
-  }
-
-  removeNotificationListeners(listeners: any) {
-    console.log('Mock: Removing notification listeners');
-  }
-}
-
-// 개발 환경에서는 Mock 서비스 사용
-export const notification = new MockNotificationService();
+export const notification = notificationService;

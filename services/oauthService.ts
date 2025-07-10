@@ -1,8 +1,9 @@
+import config from '@/config/config';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
 // 백엔드 서버 OAuth 설정
-const BACKEND_BASE_URL = 'http://localhost:8080';
+const BACKEND_BASE_URL = config.API_BASE_URL;
 
 interface OAuthResult {
   success: boolean;
@@ -115,47 +116,7 @@ class OAuthService {
   }
 }
 
-export const oauthService = new OAuthService();
+// OAuth 서비스 인스턴스 생성 - 실제 서비스만 사용
+const oauthService = new OAuthService();
 
-// 개발용 Mock OAuth 서비스
-export class MockOAuthService {
-  async googleLogin(): Promise<OAuthResult> {
-    console.log('Mock Google OAuth 시작');
-    
-    // Mock 지연
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    console.log('Mock Google OAuth 완료');
-    
-    return {
-      success: true,
-      accessToken: `mock-google-access-token-${Date.now()}`,
-      refreshToken: `mock-google-refresh-token-${Date.now()}`,
-    };
-  }
-
-  async naverLogin(): Promise<OAuthResult> {
-    console.log('Mock Naver OAuth 시작');
-    
-    // Mock 지연
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    console.log('Mock Naver OAuth 완료');
-    
-    return {
-      success: true,
-      accessToken: `mock-naver-access-token-${Date.now()}`,
-      refreshToken: `mock-naver-refresh-token-${Date.now()}`,
-    };
-  }
-
-  initializeOAuth() {
-    console.log('Mock OAuth 초기화');
-  }
-}
-
-// 개발 환경에서는 Mock 서비스 사용
-// 현재는 강제로 Mock 서비스 사용
-console.log('OAuth 서비스: Mock 서비스 사용');
-
-export const oauth = new MockOAuthService(); 
+export const oauth = oauthService; 

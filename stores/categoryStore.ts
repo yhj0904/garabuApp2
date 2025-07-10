@@ -1,5 +1,5 @@
+import { Category, CreateCategoryRequest, CreatePaymentRequest, PaymentMethod } from '@/services/api';
 import { create } from 'zustand';
-import { Category, CreateCategoryRequest, PaymentMethod, CreatePaymentRequest } from '@/services/api';
 
 interface CategoryState {
   categories: Category[];
@@ -32,8 +32,8 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      const categories = await api.getCategoryList(token);
+      const apiService = (await import('@/services/api')).default;
+      const categories = await apiService.getCategoryList(token);
       
       console.log('카테고리 목록 조회 성공:', categories);
       
@@ -55,8 +55,8 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      const newCategory = await api.createCategory(data, token);
+      const apiService = (await import('@/services/api')).default;
+      const newCategory = await apiService.createCategory(data, token);
       
       console.log('카테고리 생성 성공:', newCategory);
       
@@ -81,8 +81,8 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      const payments = await api.getPaymentList(token);
+      const apiService = (await import('@/services/api')).default;
+      const payments = await apiService.getPaymentList(token);
       
       console.log('결제 수단 목록 조회 성공:', payments);
       
@@ -104,8 +104,8 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      const newPayment = await api.createPayment(data, token);
+      const apiService = (await import('@/services/api')).default;
+      const newPayment = await apiService.createPayment(data, token);
       
       console.log('결제 수단 생성 성공:', newPayment);
       

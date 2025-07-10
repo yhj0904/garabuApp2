@@ -1,15 +1,15 @@
-import { create } from 'zustand';
-import { 
-  Book, 
-  CreateBookRequest, 
-  Member, 
-  Ledger, 
-  GetLedgerListRequest, 
-  CreateLedgerRequest,
+import {
+  Book,
   BookMember,
+  ChangeRoleRequest,
+  CreateBookRequest,
+  CreateLedgerRequest,
+  GetLedgerListRequest,
   InviteUserRequest,
-  ChangeRoleRequest
+  Ledger,
+  Member
 } from '@/services/api';
+import { create } from 'zustand';
 
 interface BookState {
   books: Book[];
@@ -58,8 +58,8 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      const books = await api.getMyBooks(token);
+      const apiService = (await import('@/services/api')).default;
+      const books = await apiService.getMyBooks(token);
       
       console.log('가계부 목록 조회 성공:', books);
       
@@ -82,8 +82,8 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      const newBook = await api.createBook(data, token);
+      const apiService = (await import('@/services/api')).default;
+      const newBook = await apiService.createBook(data, token);
       
       console.log('가계부 생성 성공:', newBook);
       
@@ -109,8 +109,8 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      const ledgers = await api.getLedgerList(params, token);
+      const apiService = (await import('@/services/api')).default;
+      const ledgers = await apiService.getLedgerList(params, token);
       
       console.log('가계부 기록 조회 성공:', ledgers);
       
@@ -132,8 +132,8 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      const newLedger = await api.createLedger(data, token);
+      const apiService = (await import('@/services/api')).default;
+      const newLedger = await apiService.createLedger(data, token);
       
       console.log('가계부 기록 생성 성공:', newLedger);
       
@@ -157,8 +157,8 @@ export const useBookStore = create<BookState>((set, get) => ({
     console.log('가계부 소유자 조회 시작:', bookId);
     
     try {
-      const { api } = await import('@/services/api');
-      const owners = await api.getBookOwners(bookId, token);
+      const apiService = (await import('@/services/api')).default;
+      const owners = await apiService.getBookOwners(bookId, token);
       
       console.log('가계부 소유자 조회 성공:', owners);
       
@@ -175,8 +175,8 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      const members = await api.getBookMembersWithRoles(bookId, token);
+      const apiService = (await import('@/services/api')).default;
+      const members = await apiService.getBookMembersWithRoles(bookId, token);
       
       console.log('가계부 멤버 조회 성공:', members);
       
@@ -198,8 +198,8 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      await api.inviteUser(bookId, data, token);
+      const apiService = (await import('@/services/api')).default;
+      await apiService.inviteUser(bookId, data, token);
       
       console.log('사용자 초대 성공');
       
@@ -221,8 +221,8 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      await api.removeMember(bookId, memberId, token);
+      const apiService = (await import('@/services/api')).default;
+      await apiService.removeMember(bookId, memberId, token);
       
       console.log('멤버 제거 성공');
       
@@ -248,8 +248,8 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      await api.changeRole(bookId, memberId, data, token);
+      const apiService = (await import('@/services/api')).default;
+      await apiService.changeRole(bookId, memberId, data, token);
       
       console.log('권한 변경 성공');
       
@@ -279,8 +279,8 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const { api } = await import('@/services/api');
-      await api.leaveBook(bookId, token);
+      const apiService = (await import('@/services/api')).default;
+      await apiService.leaveBook(bookId, token);
       
       console.log('가계부 나가기 성공');
       

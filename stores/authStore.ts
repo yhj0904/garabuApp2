@@ -64,8 +64,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     try {
       // 동적 import로 API 호출
-      const { api } = await import('@/services/api');
-      const response = await api.login({ email, password });
+      const apiModule = await import('@/services/api');
+      const apiService = apiModule.default;
+      const response = await apiService.login({ email, password });
       
       console.log('로그인 성공:', response);
       
@@ -94,8 +95,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     try {
       // 동적 import로 API 호출
-      const { api } = await import('@/services/api');
-      const response = await api.signup({ email, username, password, name });
+      const apiModule = await import('@/services/api');
+      const apiService = apiModule.default;
+      const response = await apiService.signup({ email, username, password, name });
       
       console.log('회원가입 성공:', response);
       
@@ -125,8 +127,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       // 동적 import로 API 호출
       console.log('API 호출 중...');
-      const { api } = await import('@/services/api');
-      const response = await api.oauthLogin({ provider, accessToken });
+      const apiModule = await import('@/services/api');
+      const apiService = apiModule.default;
+      const response = await apiService.oauthLogin({ provider, accessToken });
       console.log('API 응답:', response);
       
       // 토큰과 사용자 정보 저장
