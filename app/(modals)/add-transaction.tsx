@@ -1,16 +1,17 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRouter } from 'expo-router';
+import { notification } from '@/services/notificationService';
+import { sync } from '@/services/syncService';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
-import { notification } from '@/services/notificationService';
-import { sync } from '@/services/syncService';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState, useEffect } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -18,9 +19,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
 
 export default function AddTransactionScreen() {
   const [amount, setAmount] = useState('');
@@ -150,7 +150,7 @@ export default function AddTransactionScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
@@ -422,7 +422,7 @@ export default function AddTransactionScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

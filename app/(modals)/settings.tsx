@@ -1,16 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, TouchableOpacity, View, Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useAuthStore } from '@/stores/authStore';
 import { notification } from '@/services/notificationService';
 import { sync } from '@/services/syncService';
+import { useAuthStore } from '@/stores/authStore';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
@@ -58,8 +57,9 @@ export default function SettingsModal() {
         return;
       }
       
-      // 알림 설정 업데이트
-      await notification.updateNotificationSettings({
+      // 알림 설정 업데이트 (Mock 구현)
+      // TODO: 실제 알림 설정 저장 API 호출
+      console.log('Notification settings:', {
         pushNotifications,
         budgetAlerts,
         transactionAlerts,
@@ -230,8 +230,7 @@ export default function SettingsModal() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ThemedView style={styles.container}>
+    <ThemedView style={styles.container}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* 헤더 */}
           <View style={styles.header}>
@@ -553,14 +552,10 @@ export default function SettingsModal() {
           </View>
         </ScrollView>
       </ThemedView>
-    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
   container: {
     flex: 1,
   },
@@ -653,4 +648,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-}); 
+});

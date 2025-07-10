@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import config from '../config/config';
 
 // API 기본 설정
-const API_BASE_URL = config.API_BASE_URL; // config에서 가져오도록 수정
 // const API_BASE_URL = 'http://localhost:8080'; // 실제 API 서버 URL
 // const API_BASE_URL = 'http://192.168.1.100:8080'; // 모바일 디바이스에서 사용할 경우
 
@@ -175,7 +174,7 @@ class ApiService {
     options: RequestInit = {},
     token?: string
   ): Promise<T> {
-    const url = `${this.baseURL}/api${endpoint}`;
+    const url = `${this.baseURL}/api/${config.API_VERSION}${endpoint}`;
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

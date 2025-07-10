@@ -1,0 +1,227 @@
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { useAuthStore } from '@/stores/authStore';
+import { useBookStore } from '@/stores/bookStore';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+export default function SelectBookScreen() {
+  const { token } = useAuthStore();
+  const { books, currentBook, setCurrentBook, fetchBooks, isLoading } = useBookStore();
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+
+  useEffect(() => {
+    if (token) {
+      fetchBooks(token);
+    }
+  }, [token]);
+
+  const handleSelectBook = (book: any) => {
+    setCurrentBook(book);
+    router.back();
+  };
+
+  const handleAddBook = () => {
+    router.push('/(modals)/add-book');
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={colors.tint} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>가계부 선택</Text>
+        <TouchableOpacity onPress={handleAddBook} style={styles.addButton}>
+          <Ionicons name="add" size={24} color={colors.tint} />
+        </TouchableOpacity>
+      </View>
+
+      {/* 현재 선택된 가계부 */}
+      {currentBook && (
+        <View style={styles.currentBookSection}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>현재 선택된 가계부</Text>
+          <View style={[styles.currentBookCard, { backgroundColor: colors.tint }]}>
+            <Ionicons name="bookmark" size={24} color="white" />
+            <Text style={styles.currentBookTitle}>{currentBook.title}</Text>
+            <Ionicons name="checkmark-circle" size={24} color="white" />
+          </View>
+        </View>
+      )}
+
+      {/* 가계부 목록 */}
+      <View style={styles.bookListSection}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>가계부 목록</Text>
+        
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={[styles.loadingText, { color: colors.icon }]}>가계부 목록을 불러오는 중...</Text>
+          </View>
+        ) : (
+          <ScrollView style={styles.bookList}>
+            {books.map((book) => (
+              <TouchableOpacity
+                key={book.id}
+                style={[
+                  styles.bookCard,
+                  { backgroundColor: colors.card },
+                  currentBook?.id === book.id && styles.selectedBookCard
+                ]}
+                onPress={() => handleSelectBook(book)}
+              >
+                <View style={styles.bookCardContent}>
+                  <Ionicons 
+                    name="book" 
+                    size={24} 
+                    color={currentBook?.id === book.id ? colors.tint : colors.icon} 
+                  />
+                  <Text style={[
+                    styles.bookTitle,
+                    { color: currentBook?.id === book.id ? colors.tint : colors.text }
+                  ]}>
+                    {book.title}
+                  </Text>
+                </View>
+                {currentBook?.id === book.id && (
+                  <Ionicons name="checkmark-circle" size={24} color={colors.tint} />
+                )}
+              </TouchableOpacity>
+            ))}
+            
+            {books.length === 0 && (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="book-outline" size={64} color={colors.icon} />
+                <Text style={[styles.emptyText, { color: colors.icon }]}>
+                  아직 가계부가 없습니다.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.addBookButton, { backgroundColor: colors.tint }]}
+                  onPress={handleAddBook}
+                >
+                  <Ionicons name="add" size={20} color="white" />
+                  <Text style={styles.addBookButtonText}>가계부 추가</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  addButton: {
+    padding: 8,
+  },
+  currentBookSection: {
+    padding: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  currentBookCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  currentBookTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  bookListSection: {
+    flex: 1,
+    padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+  },
+  bookList: {
+    flex: 1,
+  },
+  bookCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  selectedBookCard: {
+    borderWidth: 2,
+    borderColor: '#007AFF',
+  },
+  bookCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  bookTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  emptyText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  addBookButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  addBookButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});

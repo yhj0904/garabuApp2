@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -38,8 +37,7 @@ export default function HelpModal() {
   ];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ThemedView style={styles.container}>
+    <ThemedView style={styles.container}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* 헤더 */}
           <View style={styles.header}>
@@ -78,14 +76,10 @@ export default function HelpModal() {
           </View>
         </ScrollView>
       </ThemedView>
-    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
   container: {
     flex: 1,
   },
@@ -160,4 +154,4 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
   },
-}); 
+});

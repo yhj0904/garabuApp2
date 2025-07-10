@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -25,74 +24,69 @@ export default function ProfileModal() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ThemedView style={styles.container}>
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* 헤더 */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()}>
-              <Ionicons name="close" size={24} color={colors.text} />
-            </TouchableOpacity>
-            <ThemedText type="subtitle">프로필</ThemedText>
-            <TouchableOpacity onPress={handleSave}>
-              <ThemedText style={[styles.saveButton, { color: colors.tint }]}>저장</ThemedText>
-            </TouchableOpacity>
+    <ThemedView style={styles.container}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* 헤더 */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="close" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <ThemedText type="subtitle">프로필</ThemedText>
+          <TouchableOpacity onPress={handleSave}>
+            <ThemedText style={[styles.saveButton, { color: colors.tint }]}>저장</ThemedText>
+          </TouchableOpacity>
+        </View>
+
+        {/* 프로필 정보 */}
+        <View style={styles.profileSection}>
+          <View style={styles.profileImage}>
+            <Ionicons name="person" size={48} color={colors.tint} />
+          </View>
+          
+          <View style={styles.inputContainer}>
+            <ThemedText style={styles.label}>사용자명</ThemedText>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
+                  color: colors.text,
+                  borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
+                },
+              ]}
+              value={username}
+              onChangeText={setUsername}
+              placeholder="사용자명을 입력하세요"
+              placeholderTextColor={colors.icon}
+            />
           </View>
 
-          {/* 프로필 정보 */}
-          <View style={styles.profileSection}>
-            <View style={styles.profileImage}>
-              <Ionicons name="person" size={48} color={colors.tint} />
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.label}>사용자명</ThemedText>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
-                    color: colors.text,
-                    borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
-                  },
-                ]}
-                value={username}
-                onChangeText={setUsername}
-                placeholder="사용자명을 입력하세요"
-                placeholderTextColor={colors.icon}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.label}>이메일</ThemedText>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
-                    color: colors.text,
-                    borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
-                  },
-                ]}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="이메일을 입력하세요"
-                placeholderTextColor={colors.icon}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
+          <View style={styles.inputContainer}>
+            <ThemedText style={styles.label}>이메일</ThemedText>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
+                  color: colors.text,
+                  borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
+                },
+              ]}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="이메일을 입력하세요"
+              placeholderTextColor={colors.icon}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
           </View>
-        </ScrollView>
-      </ThemedView>
-    </SafeAreaView>
+        </View>
+      </ScrollView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
   container: {
     flex: 1,
   },

@@ -1,23 +1,23 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRouter } from 'expo-router';
+import { notification } from '@/services/notificationService';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
-import { notification } from '@/services/notificationService';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState, useEffect } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  FlatList,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Modal,
-  FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Member } from '@/services/api';
 
 interface BookMemberWithJoinDate {
@@ -91,12 +91,29 @@ export default function BookSharingScreen() {
     if (!token) return;
     
     try {
-      const { api } = await import('@/services/api');
-      const members = await api.getMembers(token);
+      // Mock 데이터 사용 (실제 API가 구현되면 변경 필요)
+      const mockMembers: Member[] = [
+        {
+          id: 2,
+          username: 'user2',
+          email: 'user2@example.com',
+          name: '사용자2',
+          role: 'USER',
+          providerId: undefined
+        },
+        {
+          id: 3,
+          username: 'user3',
+          email: 'user3@example.com',
+          name: '사용자3',
+          role: 'USER',
+          providerId: undefined
+        }
+      ];
       
       // 현재 가계부에 없는 멤버들만 필터링
       const currentMemberIds = bookMembersWithJoinDate.map(bm => bm.member.id);
-      const available = members.filter(member => !currentMemberIds.includes(member.id));
+      const available = mockMembers.filter((member: Member) => !currentMemberIds.includes(member.id));
       
       setAvailableMembers(available);
     } catch (error) {
@@ -352,7 +369,7 @@ export default function BookSharingScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -507,7 +524,7 @@ export default function BookSharingScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
