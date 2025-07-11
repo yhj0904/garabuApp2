@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
@@ -25,6 +24,24 @@ export default function MoreScreen() {
       title: '프로필',
       subtitle: '개인정보 관리',
       onPress: () => router.push('/(modals)/profile'),
+    },
+    {
+      icon: 'book',
+      title: '가계부 선택',
+      subtitle: '가계부 변경',
+      onPress: () => router.push('/(modals)/select-book'),
+    },
+    {
+      icon: 'add-circle',
+      title: '가계부 추가',
+      subtitle: '새 가계부 생성',
+      onPress: () => router.push('/(modals)/add-book'),
+    },
+    {
+      icon: 'pricetag',
+      title: '카테고리 추가',
+      subtitle: '새 카테고리 생성',
+      onPress: () => router.push('/(modals)/add-category'),
     },
     {
       icon: 'notifications',
@@ -53,8 +70,7 @@ export default function MoreScreen() {
   ];
 
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
-      <View style={styles.container}>
+    <View style={styles.container}>
         <ScrollView style={styles.scrollView} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
           {/* 사용자 프로필 카드 */}
           <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
@@ -104,7 +120,6 @@ export default function MoreScreen() {
           </View>
         </ScrollView>
       </View>
-    </SafeAreaView>
   );
 }
 

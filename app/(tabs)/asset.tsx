@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
@@ -12,8 +11,7 @@ export default function AssetScreen() {
   const colors = Colors[colorScheme ?? 'light'];
 
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
-      <View style={styles.container}>
+    <View style={styles.container}>
         <ScrollView style={styles.scrollView} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
           {/* 총 자산 카드 */}
           <View style={[styles.totalAssetCard, { backgroundColor: colors.card }]}>
@@ -112,7 +110,6 @@ export default function AssetScreen() {
           </View>
         </ScrollView>
       </View>
-    </SafeAreaView>
   );
 }
 

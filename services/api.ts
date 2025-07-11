@@ -110,10 +110,18 @@ interface CreateLedgerRequest {
 
 // 가계부 기록 조회 요청
 interface GetLedgerListRequest {
+  bookId: number;
+  page?: number;
+  size?: number;
+}
+
+interface SearchLedgerRequest {
+  bookId: number;
   startDate?: string;
   endDate?: string;
   amountType?: 'INCOME' | 'EXPENSE';
   category?: string;
+  payment?: string;
   page?: number;
   size?: number;
 }
@@ -196,43 +204,129 @@ class ApiService {
       if (response.status === 401) {
         const refreshToken = await AsyncStorage.getItem('refreshToken');
         if (refreshToken) {
-          // 토큰 재발급 시도
-          const reissueResponse = await fetch(`${this.baseURL}/reissue`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Cookie': `refresh=${refreshToken}`,
-            },
-          });
-
-          if (reissueResponse.ok) {
-            const newAccessToken = reissueResponse.headers.get('access');
+          try {
+            console.log('Attempting token reissue with refresh token');
             
-            // 새로운 refresh token도 쿠키에서 확인
-            const newSetCookieHeader = reissueResponse.headers.get('set-cookie');
-            if (newSetCookieHeader) {
-              const newRefreshMatch = newSetCookieHeader.match(/refresh=([^;]+)/);
-              if (newRefreshMatch) {
-                await AsyncStorage.setItem('refreshToken', newRefreshMatch[1]);
-              }
-            }
+            // 토큰 재발급 시도 - 서버가 지원하는 여러 방식 시도
+            let reissueResponse;
             
-            if (newAccessToken) {
-              await AsyncStorage.setItem('token', newAccessToken);
-              // 원래 요청 재시도
-              headers['Authorization'] = `Bearer ${newAccessToken}`;
-              const retryResponse = await fetch(url, {
-                ...options,
-                headers,
+            // 방법 1: Authorization 헤더 방식 (추천)
+            try {
+              reissueResponse = await fetch(`${this.baseURL}/reissue`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${refreshToken}`,
+                },
               });
-              if (!retryResponse.ok) {
-                throw new Error(`HTTP error! status: ${retryResponse.status}`);
-              }
-              return retryResponse.json();
+              console.log('Authorization header method response status:', reissueResponse.status);
+            } catch (authError) {
+              console.log('Authorization header method failed, trying request body method');
+              
+              // 방법 2: Request Body 방식
+              reissueResponse = await fetch(`${this.baseURL}/reissue`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ refreshToken }),
+              });
+              console.log('Request body method response status:', reissueResponse.status);
             }
+
+            if (reissueResponse.ok) {
+              console.log('Token reissue successful');
+              
+              // 응답에서 토큰 추출 - JSON 우선, 헤더도 확인
+              let reissueData = null;
+              try {
+                reissueData = await reissueResponse.json();
+                console.log('Reissue response data:', reissueData);
+              } catch (jsonError) {
+                console.log('No JSON response from reissue, checking headers only');
+              }
+              
+              // 새 토큰 추출 - JSON 우선, 그 다음 헤더
+              const newAccessToken = reissueData?.accessToken || 
+                                   reissueData?.access || 
+                                   reissueResponse.headers.get('access') ||
+                                   reissueResponse.headers.get('Authorization')?.replace('Bearer ', '');
+              
+              const newRefreshToken = reissueData?.refreshToken || 
+                                     reissueData?.refresh ||
+                                     reissueResponse.headers.get('refresh');
+              
+              // Set-Cookie 헤더에서 refresh token 추출 (브라우저용)
+              let cookieRefreshToken = null;
+              const setCookieHeader = reissueResponse.headers.get('set-cookie');
+              if (setCookieHeader) {
+                const refreshMatch = setCookieHeader.match(/refresh=([^;]+)/);
+                if (refreshMatch) {
+                  cookieRefreshToken = refreshMatch[1];
+                }
+              }
+              
+              console.log('New access token:', newAccessToken ? 'Found' : 'Not found');
+              console.log('New refresh token from JSON:', newRefreshToken ? 'Found' : 'Not found');
+              console.log('New refresh token from cookie:', cookieRefreshToken ? 'Found' : 'Not found');
+              
+              if (newAccessToken) {
+                await AsyncStorage.setItem('token', newAccessToken);
+                
+                // 새로운 refresh token이 있으면 저장
+                const finalRefreshToken = newRefreshToken || cookieRefreshToken;
+                if (finalRefreshToken) {
+                  await AsyncStorage.setItem('refreshToken', finalRefreshToken);
+                  console.log('Refresh token updated');
+                }
+                
+                console.log('Retrying original request with new token');
+                
+                // 원래 요청 재시도
+                headers['Authorization'] = `Bearer ${newAccessToken}`;
+                const retryResponse = await fetch(url, {
+                  ...options,
+                  headers,
+                });
+                
+                if (!retryResponse.ok) {
+                  throw new Error(`HTTP error! status: ${retryResponse.status}`);
+                }
+                
+                const contentType = retryResponse.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                  return retryResponse.json();
+                } else {
+                  return retryResponse.text();
+                }
+              } else {
+                console.error('No new access token received from reissue');
+                console.error('Response headers:', Object.fromEntries(reissueResponse.headers.entries()));
+                throw new Error('No access token in reissue response');
+              }
+            } else {
+              console.log('Token reissue failed:', reissueResponse.status);
+              console.log('Response headers:', Object.fromEntries(reissueResponse.headers.entries()));
+              
+              // 에러 응답 바디 로그
+              try {
+                const errorText = await reissueResponse.text();
+                console.log('Error response body:', errorText);
+              } catch (e) {
+                console.log('Could not read error response body');
+              }
+              
+              throw new Error(`Token reissue failed: ${reissueResponse.status}`);
+            }
+          } catch (reissueError) {
+            console.error('Token reissue error:', reissueError);
+            // reissue 실패시 refresh token 제거
+            await AsyncStorage.removeItem('refreshToken');
+            await AsyncStorage.removeItem('token');
+            throw new Error('Authentication failed - please login again');
           }
         }
-        throw new Error('Authentication failed');
+        throw new Error('Authentication failed - no refresh token');
       }
 
       if (!response.ok) {
@@ -452,33 +546,78 @@ class ApiService {
     };
   }
 
+  // 기본 가계부 목록 조회
   async getLedgerList(params: GetLedgerListRequest, token: string): Promise<Ledger[]> {
+    const queryParams = new URLSearchParams();
+    if (params.page !== undefined) queryParams.append('page', params.page.toString());
+    if (params.size !== undefined) queryParams.append('size', params.size.toString());
+
+    const response = await this.request<{ dtoList: Array<{
+      id: number;
+      date: string;
+      amount: number;
+      description: string;
+      memo?: string;
+      amountType: 'INCOME' | 'EXPENSE';
+      spender?: string;
+      titleId: number;
+      memberId: number;
+      categoryId: number;
+      paymentId: number;
+    }>, totalElements: number }>(`/api/v2/ledger/${params.bookId}?${queryParams.toString()}`, {}, token);
+    
+    return response.dtoList.map(ledger => ({
+      id: ledger.id,
+      date: ledger.date,
+      amount: ledger.amount,
+      description: ledger.description,
+      memo: ledger.memo,
+      amountType: ledger.amountType,
+      spender: ledger.spender,
+      memberId: ledger.memberId,
+      bookId: ledger.titleId,
+      categoryId: ledger.categoryId,
+      paymentId: ledger.paymentId,
+    }));
+  }
+
+  // 검색 조건이 있는 가계부 기록 검색
+  async searchLedgers(params: SearchLedgerRequest, token: string): Promise<Ledger[]> {
     const queryParams = new URLSearchParams();
     if (params.startDate) queryParams.append('startDate', params.startDate);
     if (params.endDate) queryParams.append('endDate', params.endDate);
     if (params.amountType) queryParams.append('amountType', params.amountType);
     if (params.category) queryParams.append('category', params.category);
+    if (params.payment) queryParams.append('payment', params.payment);
     if (params.page !== undefined) queryParams.append('page', params.page.toString());
     if (params.size !== undefined) queryParams.append('size', params.size.toString());
 
-    const response = await this.request<{ ledgers: Array<{
+    const response = await this.request<{ dtoList: Array<{
       id: number;
       date: string;
       amount: number;
-      category: string;
+      description: string;
+      memo?: string;
       amountType: 'INCOME' | 'EXPENSE';
-    }> }>(`/ledger/list?${queryParams.toString()}`, {}, token);
+      spender?: string;
+      titleId: number;
+      memberId: number;
+      categoryId: number;
+      paymentId: number;
+    }>, totalElements: number }>(`/api/v2/ledger/${params.bookId}/search?${queryParams.toString()}`, {}, token);
     
-    return response.ledgers.map(ledger => ({
+    return response.dtoList.map(ledger => ({
       id: ledger.id,
       date: ledger.date,
       amount: ledger.amount,
-      description: ledger.category,
+      description: ledger.description,
+      memo: ledger.memo,
       amountType: ledger.amountType,
-      memberId: 0,
-      bookId: 0,
-      categoryId: 0,
-      paymentId: 0,
+      spender: ledger.spender,
+      memberId: ledger.memberId,
+      bookId: ledger.titleId,
+      categoryId: ledger.categoryId,
+      paymentId: ledger.paymentId,
     }));
   }
 
@@ -569,7 +708,7 @@ export default apiService;
 export { ApiService };
 export type {
   Book, BookMember, Category, ChangeRoleRequest,
-  ChangeRoleResponse, CreateBookRequest, CreateCategoryRequest, CreateLedgerRequest, CreatePaymentRequest, GetLedgerListRequest, InviteUserRequest,
+  ChangeRoleResponse, CreateBookRequest, CreateCategoryRequest, CreateLedgerRequest, CreatePaymentRequest, GetLedgerListRequest, SearchLedgerRequest, InviteUserRequest,
   InviteUserResponse, LeaveBookResponse, Ledger, LoginRequest,
   LoginResponse, Member, OAuthRequest,
   OAuthResponse, PaymentMethod, RemoveMemberResponse, SignupRequest,

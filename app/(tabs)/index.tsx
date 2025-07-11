@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -194,8 +193,7 @@ export default function HomeScreen() {
   const monthlyChange = calculateMonthlyChange();
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ThemedView style={styles.container}>
+    <ThemedView style={styles.container}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* 헤더 */}
           <View style={styles.header}>
@@ -258,6 +256,31 @@ export default function HomeScreen() {
           </View>
 
           {/* 추가 기능 버튼들 */}
+          <View style={styles.quickActions}>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: colors.card }]}
+              onPress={() => router.push('/(modals)/select-book')}
+            >
+              <Ionicons name="book" size={32} color={colors.tint} />
+              <ThemedText type="defaultSemiBold">가계부 선택</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: colors.card }]}
+              onPress={() => router.push('/(modals)/add-book')}
+            >
+              <Ionicons name="add" size={32} color={colors.tint} />
+              <ThemedText type="defaultSemiBold">가계부 추가</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: colors.card }]}
+              onPress={() => router.push('/(modals)/add-category')}
+            >
+              <Ionicons name="pricetag" size={32} color={colors.tint} />
+              <ThemedText type="defaultSemiBold">카테고리 추가</ThemedText>
+            </TouchableOpacity>
+          </View>
+
+          {/* 관리 기능 버튼들 */}
           <View style={styles.quickActions}>
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: colors.card }]}
@@ -358,7 +381,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </ScrollView>
       </ThemedView>
-    </SafeAreaView>
   );
 }
 

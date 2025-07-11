@@ -1,8 +1,10 @@
 import { Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ModalLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false, presentation: 'modal' }}>
+    <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+      <Stack screenOptions={{ headerShown: false, presentation: 'modal' }}>
         <Stack.Screen name="index"         options={{ title: '모달' }} />
         <Stack.Screen name="profile"       options={{ title: '프로필' }} />
         <Stack.Screen name="notifications" options={{ title: '알림 설정' }} />
@@ -17,5 +19,6 @@ export default function ModalLayout() {
         <Stack.Screen name="advanced-stats" options={{ title: '고급 통계' }} />
         <Stack.Screen name="change-password" options={{ title: '비밀번호 변경' }} />
       </Stack>
+    </SafeAreaView>
   );
 }
