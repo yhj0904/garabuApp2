@@ -292,4 +292,68 @@ const logger = {
 
 ---
 
+## 📋 최신 업데이트 (2025-07-11)
+
+### 🎨 카테고리 시스템 연동
+
+**새로운 API 엔드포인트:**
+```typescript
+// 기본 제공 카테고리 조회
+GET /api/v2/category/default
+
+// 가계부별 통합 카테고리 조회 (기본 + 사용자 정의)
+GET /api/v2/category/book/{bookId}
+
+// 사용자 정의 카테고리 생성 (OWNER/EDITOR만 가능)
+POST /api/v2/category/book/{bookId}
+```
+
+**Category 인터페이스 업데이트:**
+```typescript
+interface Category {
+  id: number;
+  category: string;
+  emoji?: string;        // 새로 추가
+  isDefault?: boolean;   // 새로 추가
+}
+```
+
+**CategorySelector 컴포넌트 사용법:**
+```typescript
+import CategorySelector from '@/components/CategorySelector';
+
+// 사용 예시
+<CategorySelector
+  selectedCategoryId={selectedCategory?.id}
+  onCategorySelect={handleCategorySelect}
+  bookId={currentBookId}
+/>
+```
+
+**권한별 동작:**
+- **OWNER/EDITOR**: 카테고리 조회 + 생성 가능
+- **VIEWER**: 카테고리 조회만 가능
+- **비멤버**: 403 Forbidden 에러
+
+**에러 처리 예시:**
+```typescript
+try {
+  const categories = await categoryStore.fetchCategoriesByBook(bookId, token);
+} catch (error) {
+  if (error.status === 403) {
+    Alert.alert('권한 없음', '해당 가계부의 카테고리에 접근할 권한이 없습니다.');
+  } else if (error.status === 404) {
+    Alert.alert('오류', '가계부를 찾을 수 없습니다.');
+  }
+}
+```
+
+### 🔐 보안 강화 사항
+
+- **권한 기반 접근 제어**: UserBook 테이블 기반 실제 권한 검증
+- **구체적 에러 메시지**: 현재 권한과 필요 권한 명시
+- **캐시 보안**: 가계부별 카테고리 데이터 격리
+
+---
+
 이 가이드를 통해 가라부 앱을 백엔드와 성공적으로 연동할 수 있습니다! 🎉

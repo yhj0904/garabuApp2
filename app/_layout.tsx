@@ -8,10 +8,12 @@ import 'react-native-reanimated';
 
 import SplashScreen from '@/components/SplashScreen';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isAppReady, setIsAppReady] = useState(false);
+  const { checkAuthStatus } = useAuthStore();
   
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -24,13 +26,23 @@ export default function RootLayout() {
   );
 
   useEffect(() => {
-    // 간단한 앱 초기화
-    const timer = setTimeout(() => {
-      setIsAppReady(true);
-    }, 2000); // 스플래시 화면과 동일한 시간으로 설정
+    // 앱 초기화 및 인증 상태 확인
+    const initializeApp = async () => {
+      try {
+        // 인증 상태 확인
+        await checkAuthStatus();
+      } catch (error) {
+        console.error('앱 초기화 실패:', error);
+      } finally {
+        // 최소 2초는 스플래시 화면 표시
+        setTimeout(() => {
+          setIsAppReady(true);
+        }, 2000);
+      }
+    };
 
-    return () => clearTimeout(timer);
-  }, []);
+    initializeApp();
+  }, [checkAuthStatus]);
 
   // 폰트 로딩 중이거나 앱 초기화 중일 때 스플래시 화면 표시
   if (!loaded || !isAppReady) {

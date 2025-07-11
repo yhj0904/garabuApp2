@@ -38,17 +38,17 @@ export default function AddTransactionScreen() {
 
   const { token, user } = useAuthStore();
   const { currentBook, createLedger, isLoading } = useBookStore();
-  const { categories, payments, fetchCategories, fetchPayments, createCategory, createPayment } = useCategoryStore();
+  const { categories, payments, fetchCategoriesByBook, fetchPaymentsByBook, createCategoryForBook, createPaymentForBook } = useCategoryStore();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
   useEffect(() => {
-    if (token) {
-      fetchCategories(token);
-      fetchPayments(token);
+    if (token && currentBook) {
+      fetchCategoriesByBook(currentBook.id, token);
+      fetchPaymentsByBook(currentBook.id, token);
     }
-  }, [token]);
+  }, [token, currentBook]);
 
   const handleSubmit = async () => {
     if (!amount || !description || !selectedCategory || !selectedPayment) {
@@ -67,17 +67,32 @@ export default function AddTransactionScreen() {
       return;
     }
 
+    // Validate date is not in the future for server @PastOrPresent validation
+    const selectedDate = new Date(date);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Set to end of today
+    
+    if (selectedDate > today) {
+      Alert.alert('오류', '기록 날짜는 오늘 이전 날짜여야 합니다.');
+      return;
+    }
+
     const ledgerData = {
-      date,
-      amount: numericAmount,
-      description,
-      memo: memo || undefined,
+      date, // Keep as string in YYYY-MM-DD format - server will parse to LocalDate
+      amount: Math.floor(numericAmount), // Convert to integer for server validation
+      description: description.trim(),
+      memo: memo && memo.trim() ? memo.trim() : undefined,
       amountType,
       bookId: currentBook.id,
-      payment: selectedPayment,
-      category: selectedCategory,
-      spender: spender || undefined,
+      payment: selectedPayment.trim(),
+      category: selectedCategory.trim(),
+      spender: spender && spender.trim() ? spender.trim() : undefined,
     };
+
+    console.log('=== 거래 생성 데이터 ===');
+    console.log('ledgerData:', JSON.stringify(ledgerData, null, 2));
+    console.log('token 존재:', !!token);
+    console.log('======================');
 
     const success = await createLedger(ledgerData, token!);
     
@@ -115,7 +130,7 @@ export default function AddTransactionScreen() {
       return;
     }
 
-    const success = await createCategory({ category: newCategory.trim() }, token!);
+    const success = await createCategoryForBook(currentBook!.id, { category: newCategory.trim() }, token!);
     
     if (success) {
       setNewCategory('');
@@ -132,7 +147,7 @@ export default function AddTransactionScreen() {
       return;
     }
 
-    const success = await createPayment({ payment: newPayment.trim() }, token!);
+    const success = await createPaymentForBook(currentBook!.id, { payment: newPayment.trim() }, token!);
     
     if (success) {
       setNewPayment('');
@@ -270,9 +285,16 @@ export default function AddTransactionScreen() {
               <TextInput
                 style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
                 value={date}
-                onChangeText={setDate}
+                onChangeText={(text) => {
+                  // Basic format validation for YYYY-MM-DD
+                  if (text.length <= 10 && /^[0-9-]*$/.test(text)) {
+                    setDate(text);
+                  }
+                }}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor={colors.icon}
+                maxLength={10}
+                keyboardType="numeric"
               />
             </View>
 

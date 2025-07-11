@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosError, isAxiosError } from 'axios';
 import config from '../config/config';
 
 // API 기본 설정
@@ -40,6 +41,8 @@ interface Ledger {
 interface Category {
   id: number;
   category: string;
+  emoji?: string;
+  isDefault?: boolean;
 }
 
 interface PaymentMethod {
@@ -97,14 +100,14 @@ interface CreateBookRequest {
 
 // 가계부 기록 생성 요청
 interface CreateLedgerRequest {
-  date: string;
-  amount: number;
+  date: string; // YYYY-MM-DD format, will be parsed to LocalDate by server
+  amount: number; // Integer value for server validation
   description: string;
   memo?: string;
-  amountType: 'INCOME' | 'EXPENSE';
+  amountType: 'INCOME' | 'EXPENSE'; // Server supports TRANSFER but mobile only uses INCOME/EXPENSE
   bookId: number; // 가계부 ID
-  payment: string; // 결제 수단
-  category: string; // 카테고리
+  payment: string; // 결제 수단 name - server will look up by name
+  category: string; // 카테고리 name - server will look up by name
   spender?: string;
 }
 
@@ -171,252 +174,178 @@ interface BookMember {
 }
 
 class ApiService {
-  private baseURL: string;
+  private axiosInstance: AxiosInstance;
+  private authAxiosInstance: AxiosInstance;
+  private isRefreshing = false;
+  private failedQueue: Array<{
+    resolve: (value?: any) => void;
+    reject: (reason?: any) => void;
+  }> = [];
 
   constructor(baseURL: string) {
-    this.baseURL = baseURL;
-  }
+    // 인증이 필요 없는 요청용 인스턴스
+    this.authAxiosInstance = axios.create({
+      baseURL,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {},
-    token?: string
-  ): Promise<T> {
-    const url = `${this.baseURL}/api/${config.API_VERSION}${endpoint}`;
-    
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string> || {}),
-    };
+    // 인증이 필요한 요청용 인스턴스
+    this.axiosInstance = axios.create({
+      baseURL: `${baseURL}/api/${config.API_VERSION}`,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
 
-    // JWT 토큰 추가
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-      console.log('토큰 전송:', token.substring(0, 50) + '...');
-    } else {
-      console.log('토큰 없음');
-    }
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      // 토큰 갱신 처리
-      if (response.status === 401) {
-        const refreshToken = await AsyncStorage.getItem('refreshToken');
-        if (refreshToken) {
-          try {
-            console.log('Attempting token reissue with refresh token');
-            
-            // 토큰 재발급 시도 - 서버가 지원하는 여러 방식 시도
-            let reissueResponse;
-            
-            // 방법 1: Authorization 헤더 방식 (추천)
-            try {
-              reissueResponse = await fetch(`${this.baseURL}/reissue`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${refreshToken}`,
-                },
-              });
-              console.log('Authorization header method response status:', reissueResponse.status);
-            } catch (authError) {
-              console.log('Authorization header method failed, trying request body method');
-              
-              // 방법 2: Request Body 방식
-              reissueResponse = await fetch(`${this.baseURL}/reissue`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ refreshToken }),
-              });
-              console.log('Request body method response status:', reissueResponse.status);
+    // Request interceptor - 토큰 추가
+    this.axiosInstance.interceptors.request.use(
+      async (config) => {
+        const token = await AsyncStorage.getItem('auth-token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        
+        // POST, PUT, PATCH 요청의 경우 data를 JSON.stringify
+        if (config.data && ['post', 'put', 'patch'].includes(config.method?.toLowerCase() || '')) {
+          // data가 이미 string이 아닌 경우에만 변환
+          if (typeof config.data !== 'string') {
+            config.data = JSON.stringify(config.data);
+            // Content-Type 확인 및 설정
+            if (!config.headers['Content-Type']) {
+              config.headers['Content-Type'] = 'application/json';
             }
-
-            if (reissueResponse.ok) {
-              console.log('Token reissue successful');
-              
-              // 응답에서 토큰 추출 - JSON 우선, 헤더도 확인
-              let reissueData = null;
-              try {
-                reissueData = await reissueResponse.json();
-                console.log('Reissue response data:', reissueData);
-              } catch (jsonError) {
-                console.log('No JSON response from reissue, checking headers only');
-              }
-              
-              // 새 토큰 추출 - JSON 우선, 그 다음 헤더
-              const newAccessToken = reissueData?.accessToken || 
-                                   reissueData?.access || 
-                                   reissueResponse.headers.get('access') ||
-                                   reissueResponse.headers.get('Authorization')?.replace('Bearer ', '');
-              
-              const newRefreshToken = reissueData?.refreshToken || 
-                                     reissueData?.refresh ||
-                                     reissueResponse.headers.get('refresh');
-              
-              // Set-Cookie 헤더에서 refresh token 추출 (브라우저용)
-              let cookieRefreshToken = null;
-              const setCookieHeader = reissueResponse.headers.get('set-cookie');
-              if (setCookieHeader) {
-                const refreshMatch = setCookieHeader.match(/refresh=([^;]+)/);
-                if (refreshMatch) {
-                  cookieRefreshToken = refreshMatch[1];
-                }
-              }
-              
-              console.log('New access token:', newAccessToken ? 'Found' : 'Not found');
-              console.log('New refresh token from JSON:', newRefreshToken ? 'Found' : 'Not found');
-              console.log('New refresh token from cookie:', cookieRefreshToken ? 'Found' : 'Not found');
-              
-              if (newAccessToken) {
-                await AsyncStorage.setItem('token', newAccessToken);
-                
-                // 새로운 refresh token이 있으면 저장
-                const finalRefreshToken = newRefreshToken || cookieRefreshToken;
-                if (finalRefreshToken) {
-                  await AsyncStorage.setItem('refreshToken', finalRefreshToken);
-                  console.log('Refresh token updated');
-                }
-                
-                console.log('Retrying original request with new token');
-                
-                // 원래 요청 재시도
-                headers['Authorization'] = `Bearer ${newAccessToken}`;
-                const retryResponse = await fetch(url, {
-                  ...options,
-                  headers,
-                });
-                
-                if (!retryResponse.ok) {
-                  throw new Error(`HTTP error! status: ${retryResponse.status}`);
-                }
-                
-                const contentType = retryResponse.headers.get("content-type");
-                if (contentType && contentType.indexOf("application/json") !== -1) {
-                  return retryResponse.json();
-                } else {
-                  return retryResponse.text();
-                }
-              } else {
-                console.error('No new access token received from reissue');
-                console.error('Response headers:', Object.fromEntries(reissueResponse.headers.entries()));
-                throw new Error('No access token in reissue response');
-              }
-            } else {
-              console.log('Token reissue failed:', reissueResponse.status);
-              console.log('Response headers:', Object.fromEntries(reissueResponse.headers.entries()));
-              
-              // 에러 응답 바디 로그
-              try {
-                const errorText = await reissueResponse.text();
-                console.log('Error response body:', errorText);
-              } catch (e) {
-                console.log('Could not read error response body');
-              }
-              
-              throw new Error(`Token reissue failed: ${reissueResponse.status}`);
-            }
-          } catch (reissueError) {
-            console.error('Token reissue error:', reissueError);
-            // reissue 실패시 refresh token 제거
-            await AsyncStorage.removeItem('refreshToken');
-            await AsyncStorage.removeItem('token');
-            throw new Error('Authentication failed - please login again');
           }
         }
-        throw new Error('Authentication failed - no refresh token');
+        
+        // 디버깅: 요청 정보 로그
+        console.log('=== Axios Request Debug ===');
+        console.log('URL:', config.url);
+        console.log('Method:', config.method);
+        console.log('Headers:', JSON.stringify(config.headers, null, 2));
+        console.log('Data type:', typeof config.data);
+        console.log('Data:', config.data);
+        console.log('Content-Type:', config.headers['Content-Type']);
+        console.log('==========================');
+        
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
       }
+    );
 
-      if (!response.ok) {
-        const contentType = response.headers.get("content-type");
-        let errorData;
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-          errorData = await response.json();
-        } else {
-          errorData = await response.text();
+    // Response interceptor - 토큰 갱신
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      async (error: AxiosError) => {
+        const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          if (this.isRefreshing) {
+            // 이미 토큰 갱신 중이면 대기
+            return new Promise((resolve, reject) => {
+              this.failedQueue.push({ resolve, reject });
+            }).then(() => {
+              return this.axiosInstance(originalRequest);
+            }).catch((err) => {
+              return Promise.reject(err);
+            });
+          }
+
+          originalRequest._retry = true;
+          this.isRefreshing = true;
+
+          try {
+            const refreshToken = await AsyncStorage.getItem('refreshToken');
+            if (!refreshToken) {
+              throw new Error('No refresh token');
+            }
+
+            // 토큰 재발급
+            const response = await this.authAxiosInstance.post('/reissue', null, {
+              headers: {
+                'Authorization': `Bearer ${refreshToken}`,
+              },
+            });
+
+            const newAccessToken = response.headers['access'];
+            if (newAccessToken) {
+              await AsyncStorage.setItem('auth-token', newAccessToken);
+              
+              // 대기 중인 요청들 처리
+              this.processQueue(null);
+              
+              // 원래 요청 재시도
+              originalRequest.headers!.Authorization = `Bearer ${newAccessToken}`;
+              return this.axiosInstance(originalRequest);
+            } else {
+              throw new Error('No access token in response');
+            }
+          } catch (refreshError) {
+            this.processQueue(refreshError);
+            // 토큰 재발급 실패시 로그아웃 처리
+            await AsyncStorage.removeItem('auth-token');
+            await AsyncStorage.removeItem('refreshToken');
+            return Promise.reject(refreshError);
+          } finally {
+            this.isRefreshing = false;
+          }
         }
-        console.error(`HTTP error! status: ${response.status}, url: ${url}, message:`, errorData);
-        throw new Error(`HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)}`);
-      }
 
-      // 응답 처리
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-        return response.json();
-      } else {
-        const text = await response.text();
-        console.error('Non-JSON response received:', text);
-        throw new Error('Expected JSON response but received: ' + text.substring(0, 100));
+        return Promise.reject(error);
       }
-    } catch (error) {
-      console.error('API request failed:', error);
-      throw error;
-    }
+    );
+  }
+
+  private processQueue(error: any) {
+    this.failedQueue.forEach((prom) => {
+      if (error) {
+        prom.reject(error);
+      } else {
+        prom.resolve();
+      }
+    });
+    this.failedQueue = [];
   }
 
   // Auth endpoints
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    // Spring Security 로그인 엔드포인트 사용
-    const response = await fetch(`${this.baseURL}/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: credentials.email, // Spring Security는 username 필드 사용
-        password: credentials.password,
-      }),
+    const response = await this.authAxiosInstance.post('/login', {
+      username: credentials.email, // Spring Security는 username 필드 사용
+      password: credentials.password,
     });
 
-    if (!response.ok) {
-      throw new Error('Login failed');
-    }
-
-    // JWT 토큰은 헤더에서 추출
-    const accessToken = response.headers.get('access');
-    
-    // Refresh token은 쿠키에서 추출
-    let refreshToken = null;
-    const setCookieHeader = response.headers.get('set-cookie');
-    if (setCookieHeader) {
-      const refreshMatch = setCookieHeader.match(/refresh=([^;]+)/);
-      if (refreshMatch) {
-        refreshToken = refreshMatch[1];
-      }
-    }
+    const accessToken = response.headers['access'];
+    const refreshToken = response.headers['refresh'];
 
     if (!accessToken) {
       throw new Error('No access token received');
     }
 
     // 토큰 저장
-    await AsyncStorage.setItem('token', accessToken);
+    await AsyncStorage.setItem('auth-token', accessToken);
     if (refreshToken) {
       await AsyncStorage.setItem('refreshToken', refreshToken);
     }
 
     // 사용자 정보 가져오기
-    const userResponse = await this.request<{ 
+    const userResponse = await this.axiosInstance.get<{
       id: number;
       username: string;
       email: string;
       role: string;
-    }>('/user/me', {}, accessToken);
-    
-    console.log('User info from /user/me:', userResponse);
-    
+    }>('/user/me');
+
     return {
       user: {
-        id: userResponse.id,
-        username: userResponse.username,
-        email: userResponse.email,
-        name: userResponse.username, // username을 name으로도 사용
-        role: userResponse.role ? userResponse.role.replace('ROLE_', '') : 'USER', // role이 null일 때 기본값 처리
+        id: userResponse.data.id,
+        username: userResponse.data.username,
+        email: userResponse.data.email,
+        name: userResponse.data.username,
+        role: userResponse.data.role ? userResponse.data.role.replace('ROLE_', '') : 'USER',
       },
       token: accessToken,
       refreshToken: refreshToken || undefined,
@@ -424,83 +353,64 @@ class ApiService {
   }
 
   async signup(userData: SignupRequest): Promise<SignupResponse> {
-    try {
-      // 서버의 /api/v2/join 엔드포인트 호출
-      const response = await this.request<{ id: number }>('/join', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: userData.email,
-          username: userData.name, // 서버는 username만 받으므로 name을 username으로 전송
-          password: userData.password,
-          // name 필드는 서버에서 받지 않으므로 제거
-        }),
-      });
+    const response = await this.axiosInstance.post<{ id: number }>('/join', {
+      email: userData.email,
+      username: userData.name, // 서버는 username만 받으므로 name을 username으로 전송
+      password: userData.password,
+    });
 
-      console.log('Signup successful, member ID:', response.id);
+    console.log('Signup successful, member ID:', response.data.id);
 
-      // 회원가입 후 자동 로그인
-      return this.login({
-        email: userData.email,
-        password: userData.password,
-      });
-    } catch (error) {
-      console.error('Signup error:', error);
-      throw error;
-    }
+    // 회원가입 후 자동 로그인
+    return this.login({
+      email: userData.email,
+      password: userData.password,
+    });
   }
 
   async oauthLogin(oauthData: OAuthRequest): Promise<OAuthResponse> {
-    // OAuth2 로그인은 웹뷰를 통해 처리되므로 토큰 교환만 수행
-    const response = await this.request<OAuthResponse>('/oauth2/token', {
-      method: 'POST',
-      body: JSON.stringify(oauthData),
-    });
-    return response;
+    const response = await this.axiosInstance.post<OAuthResponse>('/oauth2/token', oauthData);
+    return response.data;
   }
 
   async getProfile(token: string): Promise<{ user: Member }> {
-    const response = await this.request<{ 
+    const response = await this.axiosInstance.get<{
       id: number;
       username: string;
       email: string;
       role: string;
-    }>('/user/me', {}, token);
-    
+    }>('/user/me');
+
     return {
       user: {
-        id: response.id,
-        username: response.username,
-        email: response.email,
-        name: response.username, // username을 name으로도 사용
-        role: response.role ? response.role.replace('ROLE_', '') : 'USER', // role이 null일 때 기본값 처리
+        id: response.data.id,
+        username: response.data.username,
+        email: response.data.email,
+        name: response.data.username,
+        role: response.data.role ? response.data.role.replace('ROLE_', '') : 'USER',
       },
     };
   }
 
   async logout(token: string): Promise<void> {
-    await this.request('/logout', {
-      method: 'POST',
-    }, token);
-    await AsyncStorage.removeItem('token');
+    await this.axiosInstance.post('/logout');
+    await AsyncStorage.removeItem('auth-token');
     await AsyncStorage.removeItem('refreshToken');
   }
 
   // Member endpoints
   async getMembers(token: string): Promise<Member[]> {
-    const response = await this.request<{ data: Member[] }>('/members', {}, token);
-    return response.data;
+    const response = await this.axiosInstance.get<{ data: Member[] }>('/members');
+    return response.data.data;
   }
 
   // Book endpoints
   async createBook(data: CreateBookRequest, token: string): Promise<Book> {
-    const response = await this.request<{ id: number; title: string }>('/book', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }, token);
+    const response = await this.axiosInstance.post<{ id: number; title: string }>('/book', data);
     
     return {
-      id: response.id,
-      title: response.title,
+      id: response.data.id,
+      title: response.data.title,
       ownerId: 0, // 서버에서 자동 설정
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -509,20 +419,17 @@ class ApiService {
 
   async getMyBooks(token: string): Promise<Book[]> {
     console.log('API: getMyBooks 호출');
-    console.log('토큰:', token ? '존재함' : '없음');
-    const result = await this.request<Book[]>('/book/mybooks', {}, token);
-    console.log('API: getMyBooks 결과:', result);
-    return result;
+    const response = await this.axiosInstance.get<Book[]>('/book/mybooks');
+    console.log('API: getMyBooks 결과:', response.data);
+    return response.data;
   }
 
   async getBookOwners(bookId: number, token: string): Promise<Member[]> {
-    const response = await this.request<{ owners: Array<{ memberId: number; username: string; email: string }> }>(
-      `/book/${bookId}/owners`,
-      {},
-      token
-    );
-    
-    return response.owners.map(owner => ({
+    const response = await this.axiosInstance.get<{
+      owners: Array<{ memberId: number; username: string; email: string }>;
+    }>(`/book/${bookId}/owners`);
+
+    return response.data.owners.map(owner => ({
       id: owner.memberId,
       username: owner.username,
       email: owner.email,
@@ -533,77 +440,99 @@ class ApiService {
 
   // Ledger endpoints
   async createLedger(data: CreateLedgerRequest, token: string): Promise<Ledger> {
-    const response = await this.request<{ id: number }>('/ledger/ledgers', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }, token);
+    console.log('=== createLedger API 호출 ===');
+    console.log('전송 데이터:', JSON.stringify(data, null, 2));
+    console.log('데이터 타입:', typeof data);
+    console.log('데이터 키:', Object.keys(data));
     
-    return {
-      id: response.id,
-      date: data.date,
-      amount: data.amount,
-      description: data.description,
-      memo: data.memo,
-      amountType: data.amountType,
-      spender: data.spender,
-      memberId: 0,
-      bookId: data.bookId,
-      categoryId: 0,
-      paymentId: 0,
-    };
+    // 데이터 유효성 검증
+    if (!data.date || !data.amount || !data.description || !data.amountType || 
+        !data.bookId || !data.payment || !data.category) {
+      console.error('필수 필드 누락:', {
+        date: data.date,
+        amount: data.amount,
+        description: data.description,
+        amountType: data.amountType,
+        bookId: data.bookId,
+        payment: data.payment,
+        category: data.category
+      });
+      throw new Error('필수 필드가 누락되었습니다.');
+    }
+    
+    try {
+      const response = await this.axiosInstance.post<{
+        id: number;
+        date: string;
+        amount: number;
+        description: string;
+        amountType: string;
+        category: string;
+        payment: string;
+      }>('/ledger/ledgers', data);
+
+      console.log('=== createLedger 응답 ===');
+      console.log('응답:', response.data);
+
+      return {
+        id: response.data.id,
+        date: data.date,
+        amount: data.amount,
+        description: data.description,
+        memo: data.memo,
+        amountType: data.amountType,
+        spender: data.spender,
+        memberId: 0,
+        bookId: data.bookId,
+        categoryId: 0,
+        paymentId: 0,
+      };
+    } catch (error) {
+      console.error('=== createLedger 에러 ===');
+      if (isAxiosError(error)) {
+        console.error('Response data:', error.response?.data);
+        console.error('Response status:', error.response?.status);
+        console.error('Response headers:', error.response?.headers);
+        console.error('Request config:', {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: error.config?.headers,
+          data: error.config?.data,
+        });
+      }
+      throw error;
+    }
   }
 
   // 기본 가계부 목록 조회
   async getLedgerList(params: GetLedgerListRequest, token: string): Promise<Ledger[]> {
-    const queryParams = new URLSearchParams();
-    if (params.page !== undefined) queryParams.append('page', params.page.toString());
-    if (params.size !== undefined) queryParams.append('size', params.size.toString());
+    const response = await this.axiosInstance.get<{
+      dtoList: Array<{
+        id: number;
+        date: string;
+        amount: number;
+        description: string;
+        memo?: string;
+        amountType: 'INCOME' | 'EXPENSE';
+        spender?: string;
+        titleId: number;
+        memberId: number;
+        categoryId: number;
+        paymentId: number;
+      }>;
+      totalElements: number;
+    }>(`/ledger/${params.bookId}`, {
+      params: {
+        page: params.page,
+        size: params.size,
+      },
+    });
 
-    const response = await this.request<{ dtoList: Array<{
-      id: number;
-      date: string;
-      amount: number;
-      description: string;
-      memo?: string;
-      amountType: 'INCOME' | 'EXPENSE';
-      spender?: string;
-      titleId: number;
-      memberId: number;
-      categoryId: number;
-      paymentId: number;
-    }>, totalElements: number }>(`/ledger/${params.bookId}?${queryParams.toString()}`, {}, token);
-    
-    console.log('서버 응답:', response);
-    
-    // 응답 구조 확인 및 안전한 처리
-    if (!response) {
-      console.log('응답이 없습니다');
+    if (!response.data.dtoList) {
       return [];
     }
-    
-    if (!response.dtoList) {
-      console.log('dtoList가 없습니다. 응답 구조:', response);
-      // 다른 가능한 응답 구조들 확인
-      if (Array.isArray(response)) {
-        console.log('응답이 배열입니다');
-        return response.map((ledger: any) => ({
-          id: ledger.id,
-          date: ledger.date,
-          amount: ledger.amount,
-          description: ledger.description,
-          memo: ledger.memo,
-          amountType: ledger.amountType,
-          spender: ledger.spender,
-          memberId: ledger.memberId,
-          bookId: ledger.titleId || ledger.bookId,
-          categoryId: ledger.categoryId,
-          paymentId: ledger.paymentId,
-        }));
-      }
-      return [];
-    }
-    
-    return response.dtoList.map(ledger => ({
+
+    return response.data.dtoList.map(ledger => ({
       id: ledger.id,
       date: ledger.date,
       amount: ledger.amount,
@@ -620,30 +549,34 @@ class ApiService {
 
   // 검색 조건이 있는 가계부 기록 검색
   async searchLedgers(params: SearchLedgerRequest, token: string): Promise<Ledger[]> {
-    const queryParams = new URLSearchParams();
-    if (params.startDate) queryParams.append('startDate', params.startDate);
-    if (params.endDate) queryParams.append('endDate', params.endDate);
-    if (params.amountType) queryParams.append('amountType', params.amountType);
-    if (params.category) queryParams.append('category', params.category);
-    if (params.payment) queryParams.append('payment', params.payment);
-    if (params.page !== undefined) queryParams.append('page', params.page.toString());
-    if (params.size !== undefined) queryParams.append('size', params.size.toString());
+    const response = await this.axiosInstance.get<{
+      dtoList: Array<{
+        id: number;
+        date: string;
+        amount: number;
+        description: string;
+        memo?: string;
+        amountType: 'INCOME' | 'EXPENSE';
+        spender?: string;
+        titleId: number;
+        memberId: number;
+        categoryId: number;
+        paymentId: number;
+      }>;
+      totalElements: number;
+    }>(`/ledger/${params.bookId}/search`, {
+      params: {
+        startDate: params.startDate,
+        endDate: params.endDate,
+        amountType: params.amountType,
+        category: params.category,
+        payment: params.payment,
+        page: params.page,
+        size: params.size,
+      },
+    });
 
-    const response = await this.request<{ dtoList: Array<{
-      id: number;
-      date: string;
-      amount: number;
-      description: string;
-      memo?: string;
-      amountType: 'INCOME' | 'EXPENSE';
-      spender?: string;
-      titleId: number;
-      memberId: number;
-      categoryId: number;
-      paymentId: number;
-    }>, totalElements: number }>(`/ledger/${params.bookId}/search?${queryParams.toString()}`, {}, token);
-    
-    return response.dtoList.map(ledger => ({
+    return response.data.dtoList.map(ledger => ({
       id: ledger.id,
       date: ledger.date,
       amount: ledger.amount,
@@ -660,76 +593,118 @@ class ApiService {
 
   // Category endpoints
   async createCategory(data: CreateCategoryRequest, token: string): Promise<Category> {
-    const response = await this.request<{ id: number }>('/category', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }, token);
+    const response = await this.axiosInstance.post<{ id: number }>('/category', data);
     
     return {
-      id: response.id,
+      id: response.data.id,
       category: data.category,
     };
   }
 
   async getCategoryList(token: string): Promise<Category[]> {
-    const response = await this.request<{ categories: Array<{ id: number; category: string }> }>('/category/list', {}, token);
-    return response.categories;
+    const response = await this.axiosInstance.get<{
+      categories: Array<{ id: number; category: string }>;
+    }>('/category/list');
+    return response.data.categories;
+  }
+
+  async getCategoryListByBook(bookId: number, token: string): Promise<Category[]> {
+    const response = await this.axiosInstance.get<{
+      categories: Array<{ id: number; category: string }>;
+    }>(`/category/book/${bookId}`);
+    return response.data.categories;
+  }
+
+  async createCategoryForBook(bookId: number, data: CreateCategoryRequest, token: string): Promise<Category> {
+    const response = await this.axiosInstance.post<{ id: number; category: string }>(
+      `/category/book/${bookId}`,
+      data
+    );
+    
+    return {
+      id: response.data.id,
+      category: response.data.category,
+    };
   }
 
   // Payment endpoints
   async createPayment(data: CreatePaymentRequest, token: string): Promise<PaymentMethod> {
-    const response = await this.request<{ id: number }>('/payment', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }, token);
+    const response = await this.axiosInstance.post<{ id: number }>('/payment', data);
     
     return {
-      id: response.id,
+      id: response.data.id,
       payment: data.payment,
     };
   }
 
   async getPaymentList(token: string): Promise<PaymentMethod[]> {
-    const response = await this.request<{ payments: Array<{ id: number; payment: string }> }>('/payment/list', {}, token);
-    return response.payments;
+    const response = await this.axiosInstance.get<{
+      payments: Array<{ id: number; payment: string }>;
+    }>('/payment/list');
+    return response.data.payments;
+  }
+
+  async getPaymentListByBook(bookId: number, token: string): Promise<PaymentMethod[]> {
+    const response = await this.axiosInstance.get<{
+      payments: Array<{ id: number; payment: string }>;
+    }>(`/payment/book/${bookId}`);
+    return response.data.payments;
+  }
+
+  async createPaymentForBook(bookId: number, data: CreatePaymentRequest, token: string): Promise<PaymentMethod> {
+    const response = await this.axiosInstance.post<{ id: number; payment: string }>(
+      `/payment/book/${bookId}`,
+      data
+    );
+    
+    return {
+      id: response.data.id,
+      payment: response.data.payment,
+    };
   }
 
   // UserBook endpoints
   async inviteUser(bookId: number, data: InviteUserRequest, token: string): Promise<InviteUserResponse> {
-    return this.request<InviteUserResponse>(`/book/${bookId}/invite`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }, token);
+    const response = await this.axiosInstance.post<InviteUserResponse>(
+      `/book/${bookId}/invite`,
+      data
+    );
+    return response.data;
   }
 
   async removeMember(bookId: number, memberId: number, token: string): Promise<RemoveMemberResponse> {
-    return this.request<RemoveMemberResponse>(`/book/${bookId}/members/${memberId}`, {
-      method: 'DELETE',
-    }, token);
+    const response = await this.axiosInstance.delete<RemoveMemberResponse>(
+      `/book/${bookId}/members/${memberId}`
+    );
+    return response.data;
   }
 
   async changeRole(bookId: number, memberId: number, data: ChangeRoleRequest, token: string): Promise<ChangeRoleResponse> {
-    return this.request<ChangeRoleResponse>(`/book/${bookId}/members/${memberId}/role`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }, token);
+    const response = await this.axiosInstance.put<ChangeRoleResponse>(
+      `/book/${bookId}/members/${memberId}/role`,
+      data
+    );
+    return response.data;
   }
 
   async leaveBook(bookId: number, token: string): Promise<LeaveBookResponse> {
-    return this.request<LeaveBookResponse>(`/book/${bookId}/leave`, {
-      method: 'POST',
-    }, token);
+    const response = await this.axiosInstance.post<LeaveBookResponse>(
+      `/book/${bookId}/leave`
+    );
+    return response.data;
   }
 
   async getBookMembersWithRoles(bookId: number, token: string): Promise<BookMember[]> {
-    const response = await this.request<{ owners: Array<{
-      memberId: number;
-      username: string;
-      email: string;
-    }> }>(`/book/${bookId}/owners`, {}, token);
-    
+    const response = await this.axiosInstance.get<{
+      owners: Array<{
+        memberId: number;
+        username: string;
+        email: string;
+      }>;
+    }>(`/book/${bookId}/owners`);
+
     // 서버 API가 role 정보를 제공하지 않으므로 임시로 첫 번째를 OWNER로 설정
-    return response.owners.map((owner, index) => ({
+    return response.data.owners.map((owner, index) => ({
       memberId: owner.memberId,
       username: owner.username,
       email: owner.email,
