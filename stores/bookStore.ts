@@ -55,6 +55,7 @@ export const useBookStore = create<BookState>((set, get) => ({
 
   fetchBooks: async (token: string) => {
     console.log('가계부 목록 조회 시작');
+    console.log('토큰:', token ? '존재함' : '없음');
     set({ isLoading: true });
     
     try {
@@ -62,6 +63,7 @@ export const useBookStore = create<BookState>((set, get) => ({
       const books = await apiService.getMyBooks(token);
       
       console.log('가계부 목록 조회 성공:', books);
+      console.log('조회된 가계부 수:', books.length);
       
       set({ 
         books,
@@ -72,6 +74,7 @@ export const useBookStore = create<BookState>((set, get) => ({
       return true;
     } catch (error) {
       console.error('가계부 목록 조회 실패:', error);
+      console.error('에러 상세:', error instanceof Error ? error.message : String(error));
       set({ isLoading: false });
       return false;
     }
@@ -79,6 +82,7 @@ export const useBookStore = create<BookState>((set, get) => ({
 
   createBook: async (data: CreateBookRequest, token: string) => {
     console.log('가계부 생성 시작:', data);
+    console.log('토큰:', token ? '존재함' : '없음');
     set({ isLoading: true });
     
     try {
@@ -87,18 +91,18 @@ export const useBookStore = create<BookState>((set, get) => ({
       
       console.log('가계부 생성 성공:', newBook);
       
-      const { books } = get();
-      const updatedBooks = [...books, newBook];
+      // 가계부 생성 후 목록을 새로고침하여 최신 데이터 가져오기
+      console.log('가계부 목록 새로고침 시작');
+      const { fetchBooks } = get();
+      const refreshSuccess = await fetchBooks(token);
+      console.log('가계부 목록 새로고침 결과:', refreshSuccess ? '성공' : '실패');
       
-      set({ 
-        books: updatedBooks,
-        currentBook: newBook,
-        isLoading: false 
-      });
+      set({ isLoading: false });
       
       return true;
     } catch (error) {
       console.error('가계부 생성 실패:', error);
+      console.error('에러 상세:', error instanceof Error ? error.message : String(error));
       set({ isLoading: false });
       return false;
     }

@@ -76,7 +76,7 @@ export default function ExploreScreen() {
   // 내역 탭일 때 전체 거래 내역 로드
   useEffect(() => {
     if (selectedTab === 2 && token && currentBook) {
-      fetchLedgers({ page: 0, size: 100 }, token).then(() => {
+      fetchLedgers({ bookId: currentBook.id, page: 0, size: 100 }, token).then(() => {
         setHistoryLedgers(ledgers);
       });
     }

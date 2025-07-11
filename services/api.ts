@@ -102,7 +102,7 @@ interface CreateLedgerRequest {
   description: string;
   memo?: string;
   amountType: 'INCOME' | 'EXPENSE';
-  title: string; // 가계부 제목
+  bookId: number; // 가계부 ID
   payment: string; // 결제 수단
   category: string; // 카테고리
   spender?: string;
@@ -192,6 +192,9 @@ class ApiService {
     // JWT 토큰 추가
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      console.log('토큰 전송:', token.substring(0, 50) + '...');
+    } else {
+      console.log('토큰 없음');
     }
 
     try {
@@ -490,14 +493,14 @@ class ApiService {
 
   // Book endpoints
   async createBook(data: CreateBookRequest, token: string): Promise<Book> {
-    const response = await this.request<{ id: number }>('/book', {
+    const response = await this.request<{ id: number; title: string }>('/book', {
       method: 'POST',
       body: JSON.stringify(data),
     }, token);
     
     return {
       id: response.id,
-      title: data.title,
+      title: response.title,
       ownerId: 0, // 서버에서 자동 설정
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -505,7 +508,11 @@ class ApiService {
   }
 
   async getMyBooks(token: string): Promise<Book[]> {
-    return this.request<Book[]>('/book/mybooks', {}, token);
+    console.log('API: getMyBooks 호출');
+    console.log('토큰:', token ? '존재함' : '없음');
+    const result = await this.request<Book[]>('/book/mybooks', {}, token);
+    console.log('API: getMyBooks 결과:', result);
+    return result;
   }
 
   async getBookOwners(bookId: number, token: string): Promise<Member[]> {
@@ -526,7 +533,7 @@ class ApiService {
 
   // Ledger endpoints
   async createLedger(data: CreateLedgerRequest, token: string): Promise<Ledger> {
-    const response = await this.request<{ id: number }>('/ledger', {
+    const response = await this.request<{ id: number }>('/ledger/ledgers', {
       method: 'POST',
       body: JSON.stringify(data),
     }, token);
@@ -540,7 +547,7 @@ class ApiService {
       amountType: data.amountType,
       spender: data.spender,
       memberId: 0,
-      bookId: 0,
+      bookId: data.bookId,
       categoryId: 0,
       paymentId: 0,
     };
@@ -564,7 +571,37 @@ class ApiService {
       memberId: number;
       categoryId: number;
       paymentId: number;
-    }>, totalElements: number }>(`/api/v2/ledger/${params.bookId}?${queryParams.toString()}`, {}, token);
+    }>, totalElements: number }>(`/ledger/${params.bookId}?${queryParams.toString()}`, {}, token);
+    
+    console.log('서버 응답:', response);
+    
+    // 응답 구조 확인 및 안전한 처리
+    if (!response) {
+      console.log('응답이 없습니다');
+      return [];
+    }
+    
+    if (!response.dtoList) {
+      console.log('dtoList가 없습니다. 응답 구조:', response);
+      // 다른 가능한 응답 구조들 확인
+      if (Array.isArray(response)) {
+        console.log('응답이 배열입니다');
+        return response.map((ledger: any) => ({
+          id: ledger.id,
+          date: ledger.date,
+          amount: ledger.amount,
+          description: ledger.description,
+          memo: ledger.memo,
+          amountType: ledger.amountType,
+          spender: ledger.spender,
+          memberId: ledger.memberId,
+          bookId: ledger.titleId || ledger.bookId,
+          categoryId: ledger.categoryId,
+          paymentId: ledger.paymentId,
+        }));
+      }
+      return [];
+    }
     
     return response.dtoList.map(ledger => ({
       id: ledger.id,
@@ -604,7 +641,7 @@ class ApiService {
       memberId: number;
       categoryId: number;
       paymentId: number;
-    }>, totalElements: number }>(`/api/v2/ledger/${params.bookId}/search?${queryParams.toString()}`, {}, token);
+    }>, totalElements: number }>(`/ledger/${params.bookId}/search?${queryParams.toString()}`, {}, token);
     
     return response.dtoList.map(ledger => ({
       id: ledger.id,
@@ -708,10 +745,10 @@ export default apiService;
 export { ApiService };
 export type {
   Book, BookMember, Category, ChangeRoleRequest,
-  ChangeRoleResponse, CreateBookRequest, CreateCategoryRequest, CreateLedgerRequest, CreatePaymentRequest, GetLedgerListRequest, SearchLedgerRequest, InviteUserRequest,
+  ChangeRoleResponse, CreateBookRequest, CreateCategoryRequest, CreateLedgerRequest, CreatePaymentRequest, GetLedgerListRequest, InviteUserRequest,
   InviteUserResponse, LeaveBookResponse, Ledger, LoginRequest,
   LoginResponse, Member, OAuthRequest,
-  OAuthResponse, PaymentMethod, RemoveMemberResponse, SignupRequest,
+  OAuthResponse, PaymentMethod, RemoveMemberResponse, SearchLedgerRequest, SignupRequest,
   SignupResponse, UserBook
 };
 

@@ -73,7 +73,7 @@ export default function AddTransactionScreen() {
       description,
       memo: memo || undefined,
       amountType,
-      title: currentBook.title,
+      bookId: currentBook.id,
       payment: selectedPayment,
       category: selectedCategory,
       spender: spender || undefined,

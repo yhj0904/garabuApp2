@@ -1,17 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useEffect } from 'react';
+import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { notification } from '@/services/notificationService';
+import { sync } from '@/services/syncService';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
-import { notification } from '@/services/notificationService';
-import { sync } from '@/services/syncService';
 
 export default function HomeScreen() {
   const { user, token, logout } = useAuthStore();
@@ -37,6 +37,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (token && currentBook) {
       fetchLedgers({
+        bookId: currentBook.id,
         page: 0,
         size: 5
       }, token);
@@ -53,8 +54,8 @@ export default function HomeScreen() {
     const handleLedgerCreated = (ledger: any) => {
       console.log('New ledger created:', ledger);
       // 거래 목록 새로고침
-      if (token) {
-        fetchLedgers({ page: 0, size: 5 }, token);
+      if (token && currentBook) {
+        fetchLedgers({ bookId: currentBook.id, page: 0, size: 5 }, token);
       }
     };
 
