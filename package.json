@@ -22,6 +22,7 @@
     "expo": "53.0.19",
     "expo-auth-session": "^6.2.1",
     "expo-blur": "~14.1.5",
+    "expo-clipboard": "^7.1.5",
     "expo-constants": "~17.1.6",
     "expo-crypto": "^14.1.5",
     "expo-device": "^7.1.4",

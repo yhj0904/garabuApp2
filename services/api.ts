@@ -208,15 +208,11 @@ class ApiService {
           config.headers.Authorization = `Bearer ${token}`;
         }
         
-        // POST, PUT, PATCH 요청의 경우 data를 JSON.stringify
+        // Let Axios handle JSON serialization automatically
+        // Only set Content-Type if not already set
         if (config.data && ['post', 'put', 'patch'].includes(config.method?.toLowerCase() || '')) {
-          // data가 이미 string이 아닌 경우에만 변환
-          if (typeof config.data !== 'string') {
-            config.data = JSON.stringify(config.data);
-            // Content-Type 확인 및 설정
-            if (!config.headers['Content-Type']) {
-              config.headers['Content-Type'] = 'application/json';
-            }
+          if (!config.headers['Content-Type']) {
+            config.headers['Content-Type'] = 'application/json';
           }
         }
         
@@ -226,7 +222,8 @@ class ApiService {
         console.log('Method:', config.method);
         console.log('Headers:', JSON.stringify(config.headers, null, 2));
         console.log('Data type:', typeof config.data);
-        console.log('Data:', config.data);
+        console.log('Data (raw):', config.data);
+        console.log('Data (stringified):', JSON.stringify(config.data));
         console.log('Content-Type:', config.headers['Content-Type']);
         console.log('==========================');
         
@@ -710,6 +707,54 @@ class ApiService {
       email: owner.email,
       role: index === 0 ? 'OWNER' as const : 'EDITOR' as const,
     }));
+  }
+
+  // Book Invite endpoints
+  async createBookInviteCode(bookId: number, role: string): Promise<{ code: string; ttlSeconds: number }> {
+    const response = await this.axiosInstance.post(`/book/invite/${bookId}/code`, { role });
+    return response.data;
+  }
+
+  async createUserIdCode(): Promise<{ code: string; ttlSeconds: number }> {
+    const response = await this.axiosInstance.post('/book/invite/user/code');
+    return response.data;
+  }
+
+  async requestJoinBook(inviteCode: string): Promise<any> {
+    const response = await this.axiosInstance.post('/book/invite/join', { inviteCode });
+    return response.data;
+  }
+
+  async acceptJoinRequest(requestId: number): Promise<void> {
+    await this.axiosInstance.put(`/book/invite/request/${requestId}/accept`);
+  }
+
+  async rejectJoinRequest(requestId: number): Promise<void> {
+    await this.axiosInstance.put(`/book/invite/request/${requestId}/reject`);
+  }
+
+  async getBookJoinRequests(bookId: number): Promise<any[]> {
+    const response = await this.axiosInstance.get(`/book/invite/${bookId}/requests`);
+    return response.data;
+  }
+
+  async getMyJoinRequests(): Promise<any[]> {
+    const response = await this.axiosInstance.get('/book/invite/my-requests');
+    return response.data;
+  }
+
+  async createGroup(bookId: number, groupName: string, description?: string): Promise<any> {
+    const response = await this.axiosInstance.post(`/book/invite/${bookId}/group`, { groupName, description });
+    return response.data;
+  }
+
+  async addMemberToGroup(groupId: number, userBookId: number): Promise<void> {
+    await this.axiosInstance.post(`/book/invite/group/${groupId}/member`, { userBookId });
+  }
+
+  async getBookGroups(bookId: number): Promise<any[]> {
+    const response = await this.axiosInstance.get(`/book/invite/${bookId}/groups`);
+    return response.data;
   }
 }
 

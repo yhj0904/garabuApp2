@@ -19,9 +19,9 @@ interface CategoryState {
   
   // 가계부별 API Actions
   fetchCategoriesByBook: (bookId: number, token: string) => Promise<boolean>;
-  createCategoryForBook: (bookId: number, data: CreateCategoryRequest, token: string) => Promise<boolean>;
+  createCategoryForBook: (bookId: number, data: CreateCategoryRequest, token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   fetchPaymentsByBook: (bookId: number, token: string) => Promise<boolean>;
-  createPaymentForBook: (bookId: number, data: CreatePaymentRequest, token: string) => Promise<boolean>;
+  createPaymentForBook: (bookId: number, data: CreatePaymentRequest, token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
 }
 
 export const useCategoryStore = create<CategoryState>((set, get) => ({
@@ -174,11 +174,22 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
         isLoading: false 
       });
       
-      return true;
-    } catch (error) {
+      return { success: true };
+    } catch (error: any) {
       console.error('가계부별 카테고리 생성 실패:', error);
       set({ isLoading: false });
-      return false;
+      
+      // Check if it's an axios error with a response
+      if (error?.response?.data?.message) {
+        const errorMessage = error.response.data.message;
+        // Check for duplicate category error
+        if (errorMessage.includes('이미 존재하는') && errorMessage.includes('카테고리')) {
+          return { success: false, error: 'duplicate', message: '이미 존재하는 카테고리입니다.' };
+        }
+        return { success: false, error: 'server', message: errorMessage };
+      }
+      
+      return { success: false, error: 'network', message: '네트워크 오류가 발생했습니다.' };
     }
   },
 
@@ -225,11 +236,22 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
         isLoading: false 
       });
       
-      return true;
-    } catch (error) {
+      return { success: true };
+    } catch (error: any) {
       console.error('가계부별 결제 수단 생성 실패:', error);
       set({ isLoading: false });
-      return false;
+      
+      // Check if it's an axios error with a response
+      if (error?.response?.data?.message) {
+        const errorMessage = error.response.data.message;
+        // Check for duplicate payment method error
+        if (errorMessage.includes('이미 존재하는 결제 수단입니다')) {
+          return { success: false, error: 'duplicate', message: '이미 존재하는 결제 수단입니다.' };
+        }
+        return { success: false, error: 'server', message: errorMessage };
+      }
+      
+      return { success: false, error: 'network', message: '네트워크 오류가 발생했습니다.' };
     }
   },
 }));

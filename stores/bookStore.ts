@@ -29,7 +29,7 @@ interface BookState {
   fetchBooks: (token: string) => Promise<boolean>;
   createBook: (data: CreateBookRequest, token: string) => Promise<boolean>;
   fetchLedgers: (params: GetLedgerListRequest, token: string) => Promise<boolean>;
-  createLedger: (data: CreateLedgerRequest, token: string) => Promise<boolean>;
+  createLedger: (data: CreateLedgerRequest, token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   getBookOwners: (bookId: number, token: string) => Promise<Member[]>;
   
   // 공유 가계부 관련 Actions
@@ -149,11 +149,21 @@ export const useBookStore = create<BookState>((set, get) => ({
         isLoading: false 
       });
       
-      return true;
-    } catch (error) {
+      return { success: true };
+    } catch (error: any) {
       console.error('가계부 기록 생성 실패:', error);
       set({ isLoading: false });
-      return false;
+      
+      // Check if it's an axios error with a response
+      if (error?.response?.data?.message) {
+        const errorMessage = error.response.data.message;
+        if (error.response.status === 400) {
+          return { success: false, error: 'validation', message: errorMessage };
+        }
+        return { success: false, error: 'server', message: errorMessage };
+      }
+      
+      return { success: false, error: 'network', message: '네트워크 오류가 발생했습니다.' };
     }
   },
 

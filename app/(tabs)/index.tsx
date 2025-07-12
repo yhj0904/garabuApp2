@@ -267,22 +267,44 @@ export default function HomeScreen() {
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: colors.card }]}
+              onPress={() => {
+                if (currentBook) {
+                  // 현재 가계부의 역할 확인 (임시로 OWNER로 설정)
+                  const userRole = 'OWNER'; // 실제로는 userBook에서 가져와야 함
+                  router.push({
+                    pathname: '/(modals)/settings',
+                    params: { 
+                      bookId: currentBook.id.toString(), 
+                      bookTitle: currentBook.title,
+                      userRole: userRole
+                    }
+                  });
+                } else {
+                  Alert.alert('알림', '먼저 가계부를 선택해주세요.');
+                }
+              }}
+            >
+              <Ionicons name="settings" size={32} color={colors.tint} />
+              <ThemedText type="defaultSemiBold">가계부 설정</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: colors.card }]}
               onPress={() => router.push('/(modals)/add-book')}
             >
               <Ionicons name="add" size={32} color={colors.tint} />
               <ThemedText type="defaultSemiBold">가계부 추가</ThemedText>
             </TouchableOpacity>
+          </View>
+
+          {/* 관리 기능 버튼들 - 한 줄에 3개씩 */}
+          <View style={styles.quickActions}>
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: colors.card }]}
               onPress={() => router.push('/(modals)/add-category')}
             >
               <Ionicons name="pricetag" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">카테고리 추가</ThemedText>
+              <ThemedText type="defaultSemiBold">카테고리</ThemedText>
             </TouchableOpacity>
-          </View>
-
-          {/* 관리 기능 버튼들 */}
-          <View style={styles.quickActions}>
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: colors.card }]}
               onPress={() => router.push('/(modals)/book-sharing')}
@@ -306,6 +328,10 @@ export default function HomeScreen() {
               <Ionicons name="notifications" size={32} color={colors.tint} />
               <ThemedText type="defaultSemiBold">알림 설정</ThemedText>
             </TouchableOpacity>
+          </View>
+
+          {/* 동기화 버튼 */}
+          <View style={styles.quickActions}>
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: colors.card }]}
               onPress={() => {

@@ -1,6 +1,8 @@
-import { EventEmitter } from 'eventemitter3';
-import { Ledger, Book, Member } from '@/services/api';
+import config from '@/config/config';
+import { Book, Ledger, Member } from '@/services/api';
 import { notification } from '@/services/notificationService';
+import { EventEmitter } from 'eventemitter3';
+import * as SecureStore from 'expo-secure-store';
 
 // 동기화 이벤트 타입
 type SyncEvent = 
@@ -34,7 +36,7 @@ class SyncService extends EventEmitter {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
-  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private heartbeatInterval: number | null = null;
   private syncStatus: SyncStatus = {
     isConnected: false,
     lastSyncTime: 0,
@@ -42,6 +44,7 @@ class SyncService extends EventEmitter {
   };
   private currentUserId: number | null = null;
   private currentBookId: number | null = null;
+  private currentToken: string | null = null;
   private pendingEvents: SyncEventData[] = [];
 
   // WebSocket 연결 시작
@@ -52,15 +55,16 @@ class SyncService extends EventEmitter {
 
     this.currentUserId = userId;
     this.currentBookId = bookId;
+    this.currentToken = token;
 
     try {
-      // 실제 WebSocket 서버 URL (현재는 mock)
-      const wsUrl = `ws://localhost:8080/ws?token=${token}&userId=${userId}&bookId=${bookId}`;
+      // 실제 WebSocket 서버 URL
+      const wsUrl = `${config.WS_BASE_URL}?token=${token}&userId=${userId}&bookId=${bookId}`;
       
-      console.log('Mock: Connecting to WebSocket:', wsUrl);
+      console.log('Connecting to WebSocket:', wsUrl);
       
-      // Mock WebSocket 연결
-      this.simulateWebSocketConnection();
+      // WebSocket 연결
+      this.connectWebSocket(wsUrl);
       
     } catch (error) {
       console.error('WebSocket connection failed:', error);
@@ -68,9 +72,9 @@ class SyncService extends EventEmitter {
     }
   }
 
-  // Mock WebSocket 연결 시뮬레이션
+  // WebSocket 연결 시뮬레이션 (백업용)
   private simulateWebSocketConnection(): void {
-    console.log('Mock: WebSocket connected');
+    console.log('Simulating WebSocket connection');
     
     this.syncStatus.isConnected = true;
     this.syncStatus.lastSyncTime = Date.now();
@@ -125,7 +129,9 @@ class SyncService extends EventEmitter {
       }
       
       // 재연결 시도
-      this.attemptReconnect();
+      this.attemptReconnect().catch(error => {
+        console.error('Reconnection attempt failed:', error);
+      });
     };
   }
 
@@ -266,13 +272,8 @@ class SyncService extends EventEmitter {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify(eventData));
       } else {
-        // Mock 전송
-        console.log('Mock: Sending sync event:', eventData);
-        
-        // 다른 클라이언트에게 전송되었다고 시뮬레이션
-        setTimeout(() => {
-          this.simulateEventFromOtherUser(eventData);
-        }, 1000);
+        // 디버그 로그
+        console.log('WebSocket not ready, event not sent:', eventData);
       }
     } else {
       // 연결되지 않은 경우 펜딩
@@ -311,7 +312,7 @@ class SyncService extends EventEmitter {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify(event));
       } else {
-        console.log('Mock: Sending pending event:', event);
+        console.log('WebSocket not ready for pending event:', event);
       }
     });
     
@@ -330,7 +331,7 @@ class SyncService extends EventEmitter {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'HEARTBEAT' }));
       } else {
-        console.log('Mock: Heartbeat');
+        console.log('WebSocket not ready for heartbeat');
       }
     }, 30000); // 30초마다 하트비트
   }
@@ -345,11 +346,14 @@ class SyncService extends EventEmitter {
       this.heartbeatInterval = null;
     }
     
-    this.attemptReconnect();
+    // 재연결 시도 (async 호출을 위해 wrapper 사용)
+    this.attemptReconnect().catch(error => {
+      console.error('Reconnection attempt failed:', error);
+    });
   }
 
   // 재연결 시도
-  private attemptReconnect(): void {
+  private async attemptReconnect(): Promise<void> {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('Max reconnection attempts reached');
       return;
@@ -360,9 +364,30 @@ class SyncService extends EventEmitter {
     
     console.log(`Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
     
-    setTimeout(() => {
-      if (this.currentUserId && this.currentBookId) {
-        this.connect(this.currentUserId, this.currentBookId, 'mock-token');
+    setTimeout(async () => {
+      try {
+        // 저장된 토큰을 사용하여 재연결 시도
+        let token = this.currentToken;
+        
+        // 현재 토큰이 없으면 SecureStore에서 가져오기
+        if (!token) {
+          token = await SecureStore.getItemAsync('auth-token');
+        }
+        
+        if (this.currentUserId && this.currentBookId && token) {
+          console.log('Attempting reconnection with saved credentials');
+          const wsUrl = `${config.WS_BASE_URL}?token=${token}&userId=${this.currentUserId}&bookId=${this.currentBookId}`;
+          this.connectWebSocket(wsUrl);
+        } else {
+          console.error('Reconnection failed: Missing credentials (userId, bookId, or token)');
+          console.log('Available credentials:', {
+            userId: !!this.currentUserId,
+            bookId: !!this.currentBookId,
+            token: !!token
+          });
+        }
+      } catch (error) {
+        console.error('Error during reconnection attempt:', error);
       }
     }, delay);
   }
@@ -384,6 +409,7 @@ class SyncService extends EventEmitter {
     
     this.currentUserId = null;
     this.currentBookId = null;
+    this.currentToken = null;
     this.reconnectAttempts = 0;
   }
 
@@ -414,8 +440,6 @@ class SyncService extends EventEmitter {
   }
 }
 
-export const syncService = new SyncService();
-
 // Mock Sync Service (개발용)
 export class MockSyncService extends EventEmitter {
   private syncStatus: SyncStatus = {
@@ -426,7 +450,7 @@ export class MockSyncService extends EventEmitter {
   
   private currentUserId: number | null = null;
   private currentBookId: number | null = null;
-  private mockInterval: NodeJS.Timeout | null = null;
+  private mockInterval: number | null = null;
 
   async connect(userId: number, bookId: number, token: string): Promise<void> {
     console.log('Mock Sync: Connecting...', { userId, bookId });
@@ -492,7 +516,7 @@ export class MockSyncService extends EventEmitter {
       ...randomEvent,
       timestamp: Date.now(),
       userId: 2, // 다른 사용자로 시뮬레이션
-      bookId: this.currentBookId
+      bookId: this.currentBookId || undefined
     };
     
     console.log('Mock Sync: Generated event:', eventData);
@@ -566,5 +590,5 @@ export class MockSyncService extends EventEmitter {
   }
 }
 
-// 개발 환경에서는 Mock 서비스 사용
-export const sync = new MockSyncService();
+// 실제 SyncService 사용
+export const sync = new SyncService();

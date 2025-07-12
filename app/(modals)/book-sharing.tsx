@@ -91,73 +91,21 @@ export default function BookSharingScreen() {
     if (!token) return;
     
     try {
-      // Mock 데이터 사용 (실제 API가 구현되면 변경 필요)
-      const mockMembers: Member[] = [
-        {
-          id: 2,
-          username: 'user2',
-          email: 'user2@example.com',
-          name: '사용자2',
-          role: 'USER',
-          providerId: undefined
-        },
-        {
-          id: 3,
-          username: 'user3',
-          email: 'user3@example.com',
-          name: '사용자3',
-          role: 'USER',
-          providerId: undefined
-        }
-      ];
+      // TODO: 실제 API 구현 필요 - 사용 가능한 멤버 목록 조회
+      // const apiService = (await import('@/services/api')).default;
+      // const allMembers = await apiService.getMembers(token);
       
-      // 현재 가계부에 없는 멤버들만 필터링
-      const currentMemberIds = bookMembersWithJoinDate.map(bm => bm.member.id);
-      const available = mockMembers.filter((member: Member) => !currentMemberIds.includes(member.id));
-      
-      setAvailableMembers(available);
+      // 현재는 빈 배열 반환
+      setAvailableMembers([]);
     } catch (error) {
       console.error('Error loading available members:', error);
     }
   };
 
   const handleAddMember = async () => {
-    if (!selectedMember || !token || !currentBook) return;
-    
-    try {
-      setIsLoading(true);
-      
-      const success = await inviteUser(currentBook.id, {
-        email: selectedMember.email,
-        role: selectedRole
-      }, token);
-      
-      if (success) {
-        // 성공 시 멤버 목록 새로고침
-        await loadBookMembers();
-        setAvailableMembers(availableMembers.filter(m => m.id !== selectedMember.id));
-        
-        // 푸시 알림 전송
-        await notification.sendBookSharedAlert(
-          selectedMember.id.toString(),
-          currentBook.title,
-          user?.name || user?.username || '사용자'
-        );
-        
-        setShowAddMemberModal(false);
-        setSelectedMember(null);
-        setSelectedRole('EDITOR');
-        
-        Alert.alert('성공', '멤버가 가계부에 추가되었습니다.');
-      } else {
-        Alert.alert('오류', '멤버 추가에 실패했습니다.');
-      }
-    } catch (error) {
-      console.error('Error adding member:', error);
-      Alert.alert('오류', '멤버 추가에 실패했습니다.');
-    } finally {
-      setIsLoading(false);
-    }
+    // 이메일 초대 방식은 초대 코드 방식과 충돌하므로 제거
+    Alert.alert('알림', '멤버 추가는 초대 코드를 통해서만 가능합니다.\n가계부 설정에서 초대 코드를 생성해주세요.');
+    setShowAddMemberModal(false);
   };
 
   const handleRemoveMember = (memberId: number) => {
@@ -259,22 +207,10 @@ export default function BookSharingScreen() {
     try {
       setIsLoading(true);
       
-      // Mock 검색 결과
-      const mockSearchResult: Member[] = [
-        {
-          id: Date.now(),
-          username: searchEmail.split('@')[0],
-          email: searchEmail,
-          name: searchEmail.split('@')[0],
-          role: 'USER',
-          providerId: undefined
-        }
-      ];
-      
-      setAvailableMembers(mockSearchResult);
+      // TODO: 실제 API 구현 필요 - 이메일로 사용자 검색
+      Alert.alert('알림', '사용자 검색 기능은 아직 구현되지 않았습니다.');
       setSearchEmail('');
-      
-      Alert.alert('검색 완료', `${mockSearchResult.length}명의 사용자를 찾았습니다.`);
+      setAvailableMembers([]);
     } catch (error) {
       console.error('Error searching members:', error);
       Alert.alert('오류', '사용자 검색에 실패했습니다.');
@@ -378,9 +314,14 @@ export default function BookSharingScreen() {
         <Text style={[styles.headerTitle, { color: colors.text }]}>가계부 공유</Text>
         <TouchableOpacity 
           style={styles.addButton}
-          onPress={() => setShowAddMemberModal(true)}
+          onPress={() => {
+            router.push({
+              pathname: '/(modals)/settings',
+              params: { bookId: currentBook?.id.toString(), bookTitle: currentBook?.title, userRole: bookMembers.find(m => m.memberId === user?.id)?.role || 'VIEWER' }
+            });
+          }}
         >
-          <Ionicons name="person-add" size={24} color={colors.tint} />
+          <Ionicons name="settings" size={24} color={colors.tint} />
         </TouchableOpacity>
       </View>
 

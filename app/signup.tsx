@@ -4,15 +4,15 @@ import { useAuthStore } from '@/stores/authStore';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -51,7 +51,7 @@ export default function SignupScreen() {
       return;
     }
 
-    const success = await signup(email, username, password);
+    const success = await signup(email, username, password, username);
     
     if (!success) {
       Alert.alert('회원가입 실패', '회원가입 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -60,14 +60,18 @@ export default function SignupScreen() {
 
   const handleOAuthLogin = async (provider: 'google' | 'naver') => {
     try {
-      // 실제 OAuth 로그인 구현
-      // 여기서는 Mock 토큰을 사용합니다
-      const mockToken = `mock-${provider}-token-${Date.now()}`;
-      const success = await oauthLogin(provider, mockToken);
+      // TODO: 실제 OAuth 회원가입 구현 필요
+      // 현재는 OAuth 플로우가 구현되지 않아 회원가입할 수 없습니다
+      Alert.alert('알림', `${provider} OAuth 회원가입은 아직 구현되지 않았습니다.`);
+      return;
       
-      if (!success) {
-        Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
-      }
+      // OAuth 구현 후 아래 코드 사용
+      // const token = await getOAuthToken(provider);
+      // const success = await oauthLogin(provider, token);
+      
+      // if (!success) {
+      //   Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
+      // }
     } catch (error) {
       Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
     }

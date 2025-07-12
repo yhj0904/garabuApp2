@@ -51,19 +51,29 @@ export default function AddTransactionScreen() {
   }, [token, currentBook]);
 
   const handleSubmit = async () => {
-    if (!amount || !description || !selectedCategory || !selectedPayment) {
-      Alert.alert('오류', '모든 필수 필드를 입력해주세요.');
+    // Validate all required fields
+    const validationErrors = [];
+    
+    if (!amount?.trim()) validationErrors.push('금액');
+    if (!description?.trim()) validationErrors.push('내용');
+    if (!selectedCategory?.trim()) validationErrors.push('카테고리');
+    if (!selectedPayment?.trim()) validationErrors.push('결제 수단');
+    if (!date) validationErrors.push('날짜');
+    if (!amountType) validationErrors.push('수입/지출 구분');
+    
+    if (validationErrors.length > 0) {
+      Alert.alert('입력 오류', `다음 필수 필드를 입력해주세요:\n• ${validationErrors.join('\n• ')}`);
       return;
     }
 
-    if (!currentBook) {
+    if (!currentBook?.id) {
       Alert.alert('오류', '가계부를 선택해주세요.');
       return;
     }
 
     const numericAmount = parseFloat(amount.replace(/,/g, ''));
     if (isNaN(numericAmount) || numericAmount <= 0) {
-      Alert.alert('오류', '올바른 금액을 입력해주세요.');
+      Alert.alert('오류', '올바른 금액을 입력해주세요. (0보다 큰 숫자)');
       return;
     }
 
@@ -81,22 +91,23 @@ export default function AddTransactionScreen() {
       date, // Keep as string in YYYY-MM-DD format - server will parse to LocalDate
       amount: Math.floor(numericAmount), // Convert to integer for server validation
       description: description.trim(),
-      memo: memo && memo.trim() ? memo.trim() : undefined,
+      memo: memo && memo.trim() ? memo.trim() : '',
       amountType,
       bookId: currentBook.id,
       payment: selectedPayment.trim(),
       category: selectedCategory.trim(),
-      spender: spender && spender.trim() ? spender.trim() : undefined,
+      spender: spender && spender.trim() ? spender.trim() : (user?.name || user?.username || ''),
     };
 
     console.log('=== 거래 생성 데이터 ===');
     console.log('ledgerData:', JSON.stringify(ledgerData, null, 2));
     console.log('token 존재:', !!token);
+    console.log('user 정보:', user ? { id: user.id, name: user.name, username: user.username } : 'null');
     console.log('======================');
 
-    const success = await createLedger(ledgerData, token!);
+    const result = await createLedger(ledgerData, token!);
     
-    if (success) {
+    if (result.success) {
       // 실시간 동기화 이벤트 전송
       await sync.sendSyncEvent('LEDGER_CREATED', {
         ...ledgerData,
@@ -120,7 +131,14 @@ export default function AddTransactionScreen() {
         { text: '확인', onPress: () => router.back() }
       ]);
     } else {
-      Alert.alert('오류', '거래 추가에 실패했습니다.');
+      // Show specific error messages based on error type
+      if (result.error === 'validation') {
+        Alert.alert('입력 오류', `입력 데이터를 확인해주세요:\n${result.message}`);
+      } else if (result.message) {
+        Alert.alert('오류', result.message);
+      } else {
+        Alert.alert('오류', '거래 추가에 실패했습니다.');
+      }
     }
   };
 
@@ -130,14 +148,21 @@ export default function AddTransactionScreen() {
       return;
     }
 
-    const success = await createCategoryForBook(currentBook!.id, { category: newCategory.trim() }, token!);
+    const result = await createCategoryForBook(currentBook!.id, { category: newCategory.trim() }, token!);
     
-    if (success) {
+    if (result.success) {
       setNewCategory('');
       setShowCategoryModal(false);
       setSelectedCategory(newCategory.trim());
     } else {
-      Alert.alert('오류', '카테고리 추가에 실패했습니다.');
+      // Show specific error messages based on error type
+      if (result.error === 'duplicate') {
+        Alert.alert('알림', '이미 존재하는 카테고리입니다.\n다른 이름을 사용해주세요.');
+      } else if (result.message) {
+        Alert.alert('오류', result.message);
+      } else {
+        Alert.alert('오류', '카테고리 추가에 실패했습니다.');
+      }
     }
   };
 
@@ -147,14 +172,21 @@ export default function AddTransactionScreen() {
       return;
     }
 
-    const success = await createPaymentForBook(currentBook!.id, { payment: newPayment.trim() }, token!);
+    const result = await createPaymentForBook(currentBook!.id, { payment: newPayment.trim() }, token!);
     
-    if (success) {
+    if (result.success) {
       setNewPayment('');
       setShowPaymentModal(false);
       setSelectedPayment(newPayment.trim());
     } else {
-      Alert.alert('오류', '결제 수단 추가에 실패했습니다.');
+      // Show specific error messages based on error type
+      if (result.error === 'duplicate') {
+        Alert.alert('알림', '이미 존재하는 결제 수단입니다.\n다른 이름을 사용해주세요.');
+      } else if (result.message) {
+        Alert.alert('오류', result.message);
+      } else {
+        Alert.alert('오류', '결제 수단 추가에 실패했습니다.');
+      }
     }
   };
 
