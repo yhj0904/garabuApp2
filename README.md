@@ -13,16 +13,18 @@
 
 ## 📱 프로젝트 개요
 
-**Garabu**는 React Native와 Expo를 기반으로 개발된 모던한 가계부 애플리케이션입니다. 사용자가 일상의 수입과 지출을 쉽게 관리하고, 자산 현황을 한눈에 파악할 수 있도록 도와주는 개인 금융 관리 도구입니다.
+**Garabu**는 React Native와 Expo를 기반으로 개발된 모던한 가계부 애플리케이션입니다. 다중 사용자 협업, 실시간 동기화, OAuth 소셜 로그인을 지원하여 개인 및 가족 단위의 종합적인 금융 관리를 제공합니다.
 
 ### 🎯 주요 특징
 
-- **🔐 안전한 인증 시스템**: OAuth 2.0 기반 Google/Naver 소셜 로그인
-- **📊 실시간 통계**: 직관적인 차트와 그래프로 지출 패턴 분석
+- **🔐 안전한 인증 시스템**: OAuth 2.0 기반 Google/Naver 소셜 로그인, JWT 토큰 자동 갱신
+- **👥 다중 사용자 협업**: 가계부 공유, 역할 기반 권한 관리 (OWNER/EDITOR/VIEWER)
+- **🔄 실시간 동기화**: WebSocket 기반 실시간 데이터 동기화
+- **📊 스마트 가계부 관리**: 카테고리별 분류, 결제 수단 관리, 고급 검색 기능
 - **💳 자산 관리**: 다양한 자산 유형별 통합 관리
 - **🌙 다크모드 지원**: 사용자 선호도에 따른 테마 자동 전환
 - **📱 크로스 플랫폼**: iOS, Android, Web 동시 지원
-- **⚡ 성능 최적화**: React Native New Architecture 활용
+- **⚡ 성능 최적화**: React Native New Architecture, Zustand 상태 관리
 
 ## 🛠 기술 스택
 
@@ -34,8 +36,8 @@
 - **Expo Router 5** - 파일 기반 라우팅
 
 ### State Management
-- **Zustand 5.0.6** - 경량 상태 관리 라이브러리
-- **React Context API** - 전역 상태 관리
+- **Zustand 5.0.6** - 경량 상태 관리 라이브러리 (주요 상태 관리)
+- **React Context API** - 레거시 인증 상태 관리 (단계적 마이그레이션)
 
 ### UI/UX
 - **Expo Vector Icons** - 아이콘 시스템
@@ -45,9 +47,10 @@
 - **Expo Linear Gradient** - 그라데이션 효과
 
 ### Authentication & Security
-- **Expo Auth Session** - OAuth 인증
-- **Expo Secure Store** - 안전한 토큰 저장
-- **Expo Crypto** - 암호화 기능
+- **Expo Auth Session** - OAuth 2.0 인증 (Google, Naver)
+- **Expo Secure Store** - JWT 토큰 안전 저장
+- **Axios Interceptors** - 자동 토큰 갱신 및 요청 인터셉션
+- **JWT 토큰 관리** - 액세스/리프레시 토큰 자동 관리
 
 ### Development Tools
 - **ESLint** - 코드 품질 관리
@@ -59,20 +62,26 @@
 ```
 garabuapp2/
 ├── app/                    # Expo Router 기반 페이지
-│   ├── (auth)/            # 인증 관련 페이지
-│   ├── (tabs)/            # 메인 탭 네비게이션
-│   ├── (modals)/          # 모달 페이지
+│   ├── (auth)/            # 인증 관련 페이지 (로그인, 회원가입)
+│   ├── (tabs)/            # 메인 탭 네비게이션 (홈, 탐색, 자산, 더보기)
+│   ├── (modals)/          # 모달 페이지 (거래 추가, 설정, 가계부 공유)
 │   └── _layout.tsx        # 루트 레이아웃
 ├── components/            # 재사용 가능한 컴포넌트
 │   ├── ui/               # UI 컴포넌트
 │   └── SplashScreen.tsx  # 스플래시 스크린
-├── contexts/             # React Context
-│   └── AuthContext.tsx   # 인증 컨텍스트
-├── stores/               # Zustand 스토어
-│   └── authStore.ts      # 인증 상태 관리
+├── contexts/             # React Context (레거시)
+│   └── AuthContext.tsx   # 인증 컨텍스트 (마이그레이션 예정)
+├── stores/               # Zustand 스토어 (주요 상태 관리)
+│   ├── authStore.ts      # 인증 상태 관리
+│   ├── bookStore.ts      # 가계부 상태 관리
+│   └── categoryStore.ts  # 카테고리 상태 관리
 ├── services/             # API 및 외부 서비스
-│   ├── api.ts           # API 클라이언트
-│   └── oauthService.ts  # OAuth 서비스
+│   ├── api.ts           # API 클라이언트 (JWT 토큰 관리)
+│   ├── oauthService.ts  # OAuth 서비스
+│   ├── syncService.ts   # 실시간 동기화 서비스
+│   └── notificationService.ts # 알림 서비스
+├── config/              # 설정 파일
+│   └── config.ts        # 환경별 API 설정
 ├── hooks/               # 커스텀 훅
 ├── constants/           # 상수 정의
 └── assets/             # 이미지, 폰트 등
@@ -82,18 +91,22 @@ garabuapp2/
 
 ### 1. 인증 시스템
 - **소셜 로그인**: Google, Naver OAuth 2.0 지원
-- **토큰 관리**: JWT 기반 인증 및 자동 갱신
+- **JWT 토큰 관리**: 자동 토큰 갱신 및 보안 저장
 - **보안 저장**: Expo Secure Store를 통한 안전한 토큰 저장
+- **인증 상태 동기화**: Zustand 기반 전역 인증 상태 관리
 
 ### 2. 가계부 관리
-- **수입/지출 기록**: 카테고리별 거래 내역 관리
-- **실시간 잔액**: 현재 자산 현황 실시간 표시
-- **거래 내역**: 최근 거래 내역 조회 및 필터링
+- **다중 가계부**: 여러 가계부 생성 및 관리
+- **공유 가계부**: 역할 기반 협업 (OWNER/EDITOR/VIEWER)
+- **수입/지출 기록**: 카테고리별 거래 내역 관리, 자동 지출자 정보 입력
+- **고급 검색**: 날짜, 카테고리, 결제 수단별 필터링
+- **실시간 동기화**: WebSocket 기반 실시간 데이터 업데이트
 
-### 3. 통계 및 분석
-- **지출 패턴**: 월별/카테고리별 지출 분석
-- **수입 추이**: 수입 변화 추이 그래프
-- **예산 관리**: 카테고리별 예산 설정 및 추적
+### 3. 협업 기능
+- **멤버 초대**: 이메일 기반 가계부 멤버 초대
+- **권한 관리**: 세분화된 역할 기반 접근 제어
+- **실시간 알림**: 가계부 변경 사항 즉시 알림
+- **멤버 관리**: 역할 변경, 멤버 제거 기능
 
 ### 4. 자산 관리
 - **다중 자산**: 현금, 카드, 투자 등 다양한 자산 유형
@@ -104,6 +117,7 @@ garabuapp2/
 - **다크모드**: 시스템 설정에 따른 자동 테마 전환
 - **햅틱 피드백**: 터치 시 진동 피드백
 - **애니메이션**: 부드러운 화면 전환 및 인터랙션
+- **오류 처리**: 사용자 친화적 오류 메시지 및 중복 데이터 처리
 
 ## 🔧 개발 환경 설정
 
@@ -112,6 +126,7 @@ garabuapp2/
 - npm 또는 yarn
 - Expo CLI
 - iOS Simulator (macOS) 또는 Android Studio
+- **백엔드 서버**: garabuserver가 실행 중이어야 함 (`./gradlew bootRun`)
 
 ### 설치 및 실행
 
@@ -139,12 +154,26 @@ npm run web
 ### 환경 변수 설정
 
 ```bash
-# .env 파일 생성
-cp .env.example .env
+# config/config.ts 파일에서 API 설정 확인
+# 개발 환경에서는 백엔드 서버 IP 설정 필요
 
-# 필요한 환경 변수 설정
-EXPO_PUBLIC_API_URL=your_api_url
-EXPO_PUBLIC_OAUTH_CLIENT_ID=your_oauth_client_id
+# 개발 환경 (로컬 네트워크)
+API_BASE_URL: 'http://192.168.10.54:8080'
+
+# 프로덕션 환경
+API_BASE_URL: 'https://api.garabu.com'
+```
+
+### 백엔드 서버 연동
+```bash
+# 1. 백엔드 서버 디렉토리로 이동
+cd ../garabuserver
+
+# 2. 백엔드 서버 실행
+./gradlew bootRun
+
+# 3. 모바일 앱에서 로컬 네트워크 IP로 API 연동
+# config/config.ts에서 개발용 IP 주소 설정
 ```
 
 ## 📱 앱 스크린샷
@@ -172,6 +201,16 @@ interface AuthState {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
 }
+
+// 가계부 상태 관리
+interface BookState {
+  currentBook: Book | null;
+  books: Book[];
+  bookMembers: BookMember[];
+  createLedger: (data: CreateLedgerRequest) => Promise<boolean>;
+  fetchBookMembers: (bookId: number, token: string) => Promise<boolean>;
+  inviteUser: (bookId: number, data: InviteUserRequest, token: string) => Promise<boolean>;
+}
 ```
 
 ### 컴포넌트 아키텍처
@@ -187,19 +226,22 @@ interface AuthState {
 ## 🔒 보안 고려사항
 
 ### 인증 보안
-- **JWT 토큰**: 안전한 토큰 기반 인증
-- **Secure Store**: 민감한 정보 암호화 저장
-- **OAuth 2.0**: 표준 인증 프로토콜 사용
+- **JWT 토큰**: 안전한 토큰 기반 인증 (액세스 10분, 리프레시 24시간)
+- **Expo Secure Store**: 민감한 정보 암호화 저장
+- **OAuth 2.0**: Google, Naver 표준 인증 프로토콜
+- **자동 토큰 갱신**: 401 응답 시 자동 리프레시 토큰으로 갱신
 
 ### 데이터 보안
 - **HTTPS 통신**: 모든 API 통신 암호화
-- **토큰 갱신**: 자동 토큰 갱신 메커니즘
-- **입력 검증**: 사용자 입력 데이터 검증
+- **토큰 재연결**: WebSocket 재연결 시 안전한 토큰 관리
+- **입력 검증**: 클라이언트 및 서버 양방향 데이터 검증
+- **오류 처리**: 민감한 정보 노출 방지를 위한 안전한 오류 메시지
 
 ## 📈 성능 최적화
 
 ### React Native 최적화
 - **New Architecture**: React Native 0.79.5 New Architecture 활용
+- **Zustand 상태 관리**: 가벼운 상태 관리로 성능 향상
 - **메모이제이션**: React.memo, useMemo, useCallback 활용
 - **이미지 최적화**: Expo Image 컴포넌트 사용
 
@@ -207,6 +249,11 @@ interface AuthState {
 - **Tree Shaking**: 사용하지 않는 코드 제거
 - **Code Splitting**: 동적 import를 통한 코드 분할
 - **Lazy Loading**: 필요시에만 컴포넌트 로드
+
+### API 최적화
+- **요청 최적화**: Axios 인터셉터를 통한 효율적 요청 관리
+- **토큰 관리**: 자동 토큰 갱신으로 불필요한 재인증 방지
+- **오류 처리**: 구조화된 오류 응답으로 사용자 경험 향상
 
 ## 🧪 테스트 전략
 
