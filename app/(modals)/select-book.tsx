@@ -4,27 +4,45 @@ import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 
 export default function SelectBookScreen() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
   const { books, currentBook, setCurrentBook, fetchBooks, isLoading } = useBookStore();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (token) {
-      fetchBooks(token);
-    }
+    loadBooks();
   }, [token]);
+
+  const loadBooks = async () => {
+    if (token) {
+      setLoadError(null);
+      console.log('가계부 목록 로드 시작');
+      const success = await fetchBooks(token);
+      if (!success) {
+        console.error('가계부 목록 로드 실패');
+        setLoadError('가계부 목록을 불러올 수 없습니다.');
+      } else {
+        console.log('가계부 목록 로드 성공, 개수:', books.length);
+      }
+    } else {
+      console.log('토큰이 없어서 가계부 목록을 로드할 수 없습니다.');
+      setLoadError('로그인이 필요합니다.');
+    }
+  };
 
   const handleSelectBook = (book: any) => {
     setCurrentBook(book);
@@ -33,6 +51,10 @@ export default function SelectBookScreen() {
 
   const handleAddBook = () => {
     router.push('/(modals)/add-book');
+  };
+
+  const handleRetry = () => {
+    loadBooks();
   };
 
   return (
@@ -66,40 +88,60 @@ export default function SelectBookScreen() {
         
         {isLoading ? (
           <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.tint} />
             <Text style={[styles.loadingText, { color: colors.icon }]}>가계부 목록을 불러오는 중...</Text>
           </View>
+        ) : loadError ? (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={48} color={colors.icon} />
+            <Text style={[styles.errorText, { color: colors.icon }]}>{loadError}</Text>
+            <TouchableOpacity
+              style={[styles.retryButton, { backgroundColor: colors.tint }]}
+              onPress={handleRetry}
+            >
+              <Text style={styles.retryButtonText}>다시 시도</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
-          <ScrollView style={styles.bookList}>
-            {books.map((book) => (
-              <TouchableOpacity
-                key={book.id}
-                style={[
-                  styles.bookCard,
-                  { backgroundColor: colors.card },
-                  currentBook?.id === book.id && styles.selectedBookCard
-                ]}
-                onPress={() => handleSelectBook(book)}
-              >
-                <View style={styles.bookCardContent}>
-                  <Ionicons 
-                    name="book" 
-                    size={24} 
-                    color={currentBook?.id === book.id ? colors.tint : colors.icon} 
-                  />
-                  <Text style={[
-                    styles.bookTitle,
-                    { color: currentBook?.id === book.id ? colors.tint : colors.text }
-                  ]}>
-                    {book.title}
-                  </Text>
-                </View>
-                {currentBook?.id === book.id && (
-                  <Ionicons name="checkmark-circle" size={24} color={colors.tint} />
-                )}
-              </TouchableOpacity>
-            ))}
+          <ScrollView style={styles.bookList} showsVerticalScrollIndicator={false}>
+            {Array.isArray(books) && books.map((book) => {
+              // book 객체가 유효한지 확인
+              if (!book || !book.id) {
+                console.warn('Invalid book object:', book);
+                return null;
+              }
+              
+              return (
+                <TouchableOpacity
+                  key={`book-${book.id}`}
+                  style={[
+                    styles.bookCard,
+                    { backgroundColor: colors.card },
+                    currentBook?.id === book.id && styles.selectedBookCard
+                  ]}
+                  onPress={() => handleSelectBook(book)}
+                >
+                  <View style={styles.bookCardContent}>
+                    <Ionicons 
+                      name="book" 
+                      size={24} 
+                      color={currentBook?.id === book.id ? colors.tint : colors.icon} 
+                    />
+                    <Text style={[
+                      styles.bookTitle,
+                      { color: currentBook?.id === book.id ? colors.tint : colors.text }
+                    ]}>
+                      {book.title || '제목 없음'}
+                    </Text>
+                  </View>
+                  {currentBook?.id === book.id && (
+                    <Ionicons name="checkmark-circle" size={24} color={colors.tint} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
             
-            {books.length === 0 && (
+            {(!Array.isArray(books) || books.length === 0) && (
               <View style={styles.emptyContainer}>
                 <Ionicons name="book-outline" size={64} color={colors.icon} />
                 <Text style={[styles.emptyText, { color: colors.icon }]}>
@@ -220,6 +262,27 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addBookButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    gap: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',

@@ -49,7 +49,18 @@ class SyncService extends EventEmitter {
 
   // WebSocket 연결 시작
   async connect(userId: number, bookId: number, token: string): Promise<void> {
+    // 파라미터 검증
+    if (!userId || !bookId || !token) {
+      console.error('WebSocket connection failed: Invalid parameters', {
+        userId: !!userId,
+        bookId: !!bookId,
+        token: !!token
+      });
+      return;
+    }
+    
     if (this.ws?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already connected');
       return;
     }
 
@@ -59,9 +70,14 @@ class SyncService extends EventEmitter {
 
     try {
       // 실제 WebSocket 서버 URL
-      const wsUrl = `${config.WS_BASE_URL}?token=${token}&userId=${userId}&bookId=${bookId}`;
+      const wsUrl = `${config.WS_BASE_URL}?token=${encodeURIComponent(token)}&userId=${userId}&bookId=${bookId}`;
       
-      console.log('Connecting to WebSocket:', wsUrl);
+      console.log('Connecting to WebSocket:', {
+        url: config.WS_BASE_URL,
+        userId,
+        bookId,
+        tokenLength: token.length
+      });
       
       // WebSocket 연결
       this.connectWebSocket(wsUrl);
@@ -376,15 +392,16 @@ class SyncService extends EventEmitter {
         
         if (this.currentUserId && this.currentBookId && token) {
           console.log('Attempting reconnection with saved credentials');
-          const wsUrl = `${config.WS_BASE_URL}?token=${token}&userId=${this.currentUserId}&bookId=${this.currentBookId}`;
+          const wsUrl = `${config.WS_BASE_URL}?token=${encodeURIComponent(token)}&userId=${this.currentUserId}&bookId=${this.currentBookId}`;
           this.connectWebSocket(wsUrl);
         } else {
-          console.error('Reconnection failed: Missing credentials (userId, bookId, or token)');
-          console.log('Available credentials:', {
-            userId: !!this.currentUserId,
-            bookId: !!this.currentBookId,
+          console.error('Reconnection failed: Missing credentials', {
+            userId: this.currentUserId,
+            bookId: this.currentBookId,
             token: !!token
           });
+          // 재연결 실패 시 재시도 카운터 리셋
+          this.reconnectAttempts = this.maxReconnectAttempts;
         }
       } catch (error) {
         console.error('Error during reconnection attempt:', error);

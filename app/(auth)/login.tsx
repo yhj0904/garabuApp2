@@ -239,13 +239,14 @@ export default function LoginScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* 테스트 계정 정보 */}
+              {/* 테스트 계정 정보 - 필요시 주석 해제
               <View style={[styles.testAccountContainer, { backgroundColor: colors.card }]}>
                 <Ionicons name="information-circle" size={16} color={colors.icon} />
                 <Text style={[styles.testAccountText, { color: colors.icon }]}>
                   테스트 계정: test@example.com / password
                 </Text>
               </View>
+              */}
 
               {/* 회원가입 링크 */}
               <View style={styles.signUpContainer}>

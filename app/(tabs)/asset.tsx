@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
@@ -9,10 +10,43 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 export default function AssetScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 새로고침 핸들러
+  const onRefresh = async () => {
+    try {
+      // 햅틱 피드백
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      setRefreshing(true);
+      
+      // 자산 데이터 새로고침 로직 (추후 API 연동 시 구현)
+      // 현재는 시뮬레이션을 위해 setTimeout 사용
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-        <ScrollView style={styles.scrollView} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={{ padding: 16, paddingBottom: 32 }} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.tint}
+              colors={[colors.tint]}
+              progressBackgroundColor={colors.background}
+            />
+          }
+        >
           {/* 총 자산 카드 */}
           <View style={[styles.totalAssetCard, { backgroundColor: colors.card }]}>
             <View style={styles.totalAssetHeader}>

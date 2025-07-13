@@ -203,44 +203,70 @@ class ApiService {
     // Request interceptor - 토큰 추가
     this.axiosInstance.interceptors.request.use(
       async (config) => {
-        const token = await AsyncStorage.getItem('auth-token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-        
-        // Let Axios handle JSON serialization automatically
-        // Only set Content-Type if not already set
-        if (config.data && ['post', 'put', 'patch'].includes(config.method?.toLowerCase() || '')) {
-          if (!config.headers['Content-Type']) {
-            config.headers['Content-Type'] = 'application/json';
+        try {
+          const token = await AsyncStorage.getItem('auth-token');
+          console.log('=== Request Interceptor ===');
+          console.log('URL:', config.url);
+          console.log('토큰 존재:', token ? '있음' : '없음');
+          
+          if (token) {
+            // Authorization Bearer 형식으로 토큰 설정
+            config.headers['Authorization'] = `Bearer ${token}`;
+            console.log('Authorization 헤더 설정 완료');
+          } else {
+            console.log('토큰이 없어서 헤더 설정 건너뜀');
           }
+          
+          // Let Axios handle JSON serialization automatically
+          // Only set Content-Type if not already set
+          if (config.data && ['post', 'put', 'patch'].includes(config.method?.toLowerCase() || '')) {
+            if (!config.headers['Content-Type']) {
+              config.headers['Content-Type'] = 'application/json';
+            }
+          }
+          
+          // 디버깅: 요청 정보 로그
+          console.log('=== Axios Request Debug ===');
+          console.log('URL:', config.url);
+          console.log('Method:', config.method);
+          console.log('Headers:', JSON.stringify(config.headers, null, 2));
+          console.log('Data type:', typeof config.data);
+          console.log('Data (raw):', config.data);
+          if (config.data && typeof config.data === 'object') {
+            console.log('Data (stringified):', JSON.stringify(config.data));
+          }
+          console.log('Content-Type:', config.headers['Content-Type']);
+          console.log('Authorization:', config.headers['Authorization'] ? '설정됨' : '없음');
+          console.log('==========================');
+        } catch (error) {
+          console.error('Request interceptor 에러:', error);
         }
-        
-        // 디버깅: 요청 정보 로그
-        console.log('=== Axios Request Debug ===');
-        console.log('URL:', config.url);
-        console.log('Method:', config.method);
-        console.log('Headers:', JSON.stringify(config.headers, null, 2));
-        console.log('Data type:', typeof config.data);
-        console.log('Data (raw):', config.data);
-        console.log('Data (stringified):', JSON.stringify(config.data));
-        console.log('Content-Type:', config.headers['Content-Type']);
-        console.log('==========================');
         
         return config;
       },
       (error) => {
+        console.error('Request interceptor 에러:', error);
         return Promise.reject(error);
       }
     );
 
     // Response interceptor - 토큰 갱신
     this.axiosInstance.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // HTML 응답이 온 경우 (로그인 페이지로 리다이렉트된 경우)
+        if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+          console.log('HTML 응답 감지 - 인증 실패로 간주');
+          const error = new Error('AUTH_FAILED') as any;
+          error.response = { ...response, status: 401 };
+          return Promise.reject(error);
+        }
+        return response;
+      },
       async (error: AxiosError) => {
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // 401 에러 또는 AUTH_FAILED 에러인 경우 토큰 갱신 시도
+        if ((error.response?.status === 401 || error.message === 'AUTH_FAILED') && !originalRequest._retry) {
           if (this.isRefreshing) {
             // 이미 토큰 갱신 중이면 대기
             return new Promise((resolve, reject) => {
@@ -261,31 +287,61 @@ class ApiService {
               throw new Error('No refresh token');
             }
 
-            // 토큰 재발급
-            const response = await this.authAxiosInstance.post('/reissue', null, {
+            // 토큰 재발급 - 쿠키 사용
+            const response = await this.authAxiosInstance.post('/reissue', {}, {
+              withCredentials: true,
               headers: {
-                'Authorization': `Bearer ${refreshToken}`,
-              },
+                'Cookie': `refresh=${refreshToken}`
+              }
             });
 
+            // 헤더에서 토큰 확인
             const newAccessToken = response.headers['access'];
-            if (newAccessToken) {
-              await AsyncStorage.setItem('auth-token', newAccessToken);
+            const newRefreshToken = response.headers['refresh'];
+            
+            // Response body에서도 토큰 확인 (fallback)
+            const bodyTokens = response.data as { accessToken?: string; refreshToken?: string };
+            
+            const finalAccessToken = newAccessToken || bodyTokens?.accessToken;
+            const finalRefreshToken = newRefreshToken || bodyTokens?.refreshToken;
+            
+            if (finalAccessToken) {
+              await AsyncStorage.setItem('auth-token', finalAccessToken);
+              
+              // 새로운 refresh token도 저장
+              if (finalRefreshToken) {
+                await AsyncStorage.setItem('refreshToken', finalRefreshToken);
+              }
               
               // 대기 중인 요청들 처리
               this.processQueue(null);
               
               // 원래 요청 재시도
-              originalRequest.headers!.Authorization = `Bearer ${newAccessToken}`;
+              originalRequest.headers!['Authorization'] = `Bearer ${finalAccessToken}`;
               return this.axiosInstance(originalRequest);
             } else {
               throw new Error('No access token in response');
             }
-          } catch (refreshError) {
+          } catch (refreshError: any) {
+            console.error('Token refresh failed:', refreshError);
             this.processQueue(refreshError);
+            
             // 토큰 재발급 실패시 로그아웃 처리
             await AsyncStorage.removeItem('auth-token');
             await AsyncStorage.removeItem('refreshToken');
+            
+            // 재사용 감지 또는 보안 침해인 경우
+            if (refreshError.response?.data?.message?.includes('security breach')) {
+              console.error('Security breach detected - all tokens revoked');
+              // 사용자에게 알림 표시 (필요시 구현)
+            }
+            
+            // 만료된 refresh token인 경우 로그인 화면으로 이동
+            if (refreshError.response?.data?.message?.includes('expired') || 
+                refreshError.response?.status === 400) {
+              console.log('Refresh token expired, need to re-login');
+            }
+            
             return Promise.reject(refreshError);
           } finally {
             this.isRefreshing = false;
@@ -310,6 +366,7 @@ class ApiService {
 
   // Auth endpoints
   async login(credentials: LoginRequest): Promise<LoginResponse> {
+    console.log('=== Login API 호출 ===');
     const response = await this.authAxiosInstance.post('/login', {
       username: credentials.email, // Spring Security는 username 필드 사용
       password: credentials.password,
@@ -317,6 +374,11 @@ class ApiService {
 
     const accessToken = response.headers['access'];
     const refreshToken = response.headers['refresh'];
+
+    console.log('로그인 응답 헤더:', {
+      access: accessToken ? '있음' : '없음',
+      refresh: refreshToken ? '있음' : '없음'
+    });
 
     if (!accessToken) {
       throw new Error('No access token received');
@@ -328,13 +390,24 @@ class ApiService {
       await AsyncStorage.setItem('refreshToken', refreshToken);
     }
 
-    // 사용자 정보 가져오기
+    // 토큰이 저장되었는지 확인
+    const savedToken = await AsyncStorage.getItem('auth-token');
+    console.log('저장된 토큰 확인:', savedToken === accessToken ? '일치' : '불일치');
+
+    // 사용자 정보 가져오기 - 토큰을 명시적으로 헤더에 설정
+    console.log('사용자 정보 요청 시작');
     const userResponse = await this.axiosInstance.get<{
       id: number;
       username: string;
       email: string;
       role: string;
-    }>('/user/me');
+    }>('/user/me', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}` // Bearer 형식으로 토큰 전달
+      }
+    });
+
+    console.log('사용자 정보 응답:', userResponse.data);
 
     return {
       user: {
@@ -390,7 +463,20 @@ class ApiService {
   }
 
   async logout(token: string): Promise<void> {
-    await this.axiosInstance.post('/logout');
+    const refreshToken = await AsyncStorage.getItem('refreshToken');
+    
+    try {
+      // refresh token을 Authorization 헤더로 전송
+      await this.authAxiosInstance.post('/logout', {}, {
+        headers: refreshToken ? {
+          'Authorization': `Bearer ${refreshToken}`
+        } : undefined
+      });
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+      // 서버 호출 실패해도 로컬 토큰은 삭제
+    }
+    
     await AsyncStorage.removeItem('auth-token');
     await AsyncStorage.removeItem('refreshToken');
   }
@@ -416,9 +502,42 @@ class ApiService {
 
   async getMyBooks(token: string): Promise<Book[]> {
     console.log('API: getMyBooks 호출');
-    const response = await this.axiosInstance.get<Book[]>('/book/mybooks');
-    console.log('API: getMyBooks 결과:', response.data);
-    return response.data;
+    const response = await this.axiosInstance.get<any>('/book/mybooks');
+    
+    // HTML 응답 체크 (로그인 페이지로 리다이렉트된 경우)
+    if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+      console.error('API: 인증 실패 - 로그인 페이지로 리다이렉트됨');
+      throw new Error('AUTH_FAILED');
+    }
+    
+    console.log('API: getMyBooks 원본 응답:', response.data);
+    
+    // 서버가 ["java.util.ImmutableCollections$ListN", [실제 데이터]] 형식으로 응답하는 경우 처리
+    let books: Book[] = [];
+    
+    if (Array.isArray(response.data)) {
+      // 첫 번째 요소가 Java 클래스 이름인 경우
+      if (response.data.length === 2 && typeof response.data[0] === 'string' && response.data[0].includes('java.util')) {
+        books = response.data[1] || [];
+      } else {
+        books = response.data;
+      }
+    } else {
+      console.error('API: 잘못된 응답 형식:', typeof response.data);
+      throw new Error('INVALID_RESPONSE');
+    }
+    
+    // Book 객체 형식으로 변환 (서버의 응답에서 필요한 필드만 추출)
+    const formattedBooks = books.map((book: any) => ({
+      id: book.id,
+      title: book.title,
+      ownerId: book.owner?.id || book.ownerId || 0,
+      createdAt: book.createdAt || new Date().toISOString(),
+      updatedAt: book.updatedAt || new Date().toISOString(),
+    }));
+    
+    console.log('API: getMyBooks 파싱된 결과:', formattedBooks);
+    return formattedBooks;
   }
 
   async getBookOwners(bookId: number, token: string): Promise<Member[]> {
@@ -599,10 +718,32 @@ class ApiService {
   }
 
   async getCategoryList(token: string): Promise<Category[]> {
-    const response = await this.axiosInstance.get<{
-      categories: Array<{ id: number; category: string }>;
-    }>('/category/list');
-    return response.data.categories;
+    try {
+      const response = await this.axiosInstance.get<any>('/category/list');
+      
+      // HTML 응답 체크
+      if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+        console.error('API: 인증 실패 - 로그인 페이지로 리다이렉트됨');
+        throw new Error('AUTH_FAILED');
+      }
+      
+      console.log('카테고리 목록 원본 응답:', response.data);
+      
+      // 응답 데이터 파싱
+      if (typeof response.data === 'object' && 'categories' in response.data) {
+        return response.data.categories || [];
+      }
+      
+      // 서버가 특이한 형식으로 응답하는 경우 처리
+      if (Array.isArray(response.data) && response.data.length === 2 && typeof response.data[0] === 'string') {
+        return response.data[1] || [];
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('카테고리 목록 조회 실패:', error);
+      return []; // 에러 시 빈 배열 반환
+    }
   }
 
   async getCategoryListByBook(bookId: number, token: string): Promise<Category[]> {
@@ -635,10 +776,32 @@ class ApiService {
   }
 
   async getPaymentList(token: string): Promise<PaymentMethod[]> {
-    const response = await this.axiosInstance.get<{
-      payments: Array<{ id: number; payment: string }>;
-    }>('/payment/list');
-    return response.data.payments;
+    try {
+      const response = await this.axiosInstance.get<any>('/payment/list');
+      
+      // HTML 응답 체크
+      if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+        console.error('API: 인증 실패 - 로그인 페이지로 리다이렉트됨');
+        throw new Error('AUTH_FAILED');
+      }
+      
+      console.log('결제 수단 목록 원본 응답:', response.data);
+      
+      // 응답 데이터 파싱
+      if (typeof response.data === 'object' && 'payments' in response.data) {
+        return response.data.payments || [];
+      }
+      
+      // 서버가 특이한 형식으로 응답하는 경우 처리
+      if (Array.isArray(response.data) && response.data.length === 2 && typeof response.data[0] === 'string') {
+        return response.data[1] || [];
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('결제 수단 목록 조회 실패:', error);
+      return []; // 에러 시 빈 배열 반환
+    }
   }
 
   async getPaymentListByBook(bookId: number, token: string): Promise<PaymentMethod[]> {
@@ -692,21 +855,65 @@ class ApiService {
   }
 
   async getBookMembersWithRoles(bookId: number, token: string): Promise<BookMember[]> {
-    const response = await this.axiosInstance.get<{
-      owners: Array<{
-        memberId: number;
-        username: string;
-        email: string;
-      }>;
-    }>(`/book/${bookId}/owners`);
-
-    // 서버 API가 role 정보를 제공하지 않으므로 임시로 첫 번째를 OWNER로 설정
-    return response.data.owners.map((owner, index) => ({
-      memberId: owner.memberId,
-      username: owner.username,
-      email: owner.email,
-      role: index === 0 ? 'OWNER' as const : 'EDITOR' as const,
-    }));
+    try {
+      const response = await this.axiosInstance.get<any>(`/book/${bookId}/owners`);
+      
+      console.log('가계부 멤버 조회 원본 응답:', JSON.stringify(response.data, null, 2));
+      
+      // 응답 데이터 파싱
+      let owners: any[] = [];
+      
+      // 서버가 {"@class": "...", "owners": ["java.util.ArrayList", [[{...}]]]} 형식으로 응답
+      if (response.data?.owners) {
+        // owners가 ["java.util.ArrayList", [{...}]] 형식인 경우
+        if (Array.isArray(response.data.owners) && response.data.owners.length === 2) {
+          const ownerData = response.data.owners[1];
+          // 중첩 배열 처리: [[{...}]] 또는 [{...}]
+          if (Array.isArray(ownerData) && ownerData.length > 0) {
+            // 첫 번째 요소가 또 배열인 경우
+            if (Array.isArray(ownerData[0])) {
+              owners = ownerData[0];
+            } else {
+              owners = ownerData;
+            }
+          }
+        } else if (Array.isArray(response.data.owners)) {
+          owners = response.data.owners;
+        }
+      } else if (Array.isArray(response.data)) {
+        // 서버가 특이한 형식으로 응답하는 경우 처리
+        if (response.data.length === 2 && typeof response.data[0] === 'string' && response.data[0].includes('java.util')) {
+          owners = response.data[1] || [];
+        } else {
+          owners = response.data;
+        }
+      }
+      
+      console.log('파싱된 owners:', JSON.stringify(owners, null, 2));
+      
+      // OwnerDto 구조에 맞게 매핑
+      return owners.map((owner, index) => {
+        // owner 객체가 문자열로 직렬화된 경우 처리
+        let ownerData = owner;
+        if (typeof owner === 'string') {
+          try {
+            ownerData = JSON.parse(owner);
+          } catch (e) {
+            console.error('Owner 데이터 파싱 실패:', owner);
+          }
+        }
+        
+        return {
+          memberId: ownerData.memberId || ownerData.member_id || ownerData.id || index,
+          username: ownerData.username || ownerData.name || `사용자${index + 1}`,
+          email: ownerData.email || '이메일 없음',
+          role: ownerData.role || ownerData.bookRole || (index === 0 ? 'OWNER' as const : 'EDITOR' as const),
+        };
+      });
+    } catch (error) {
+      console.error('가계부 멤버 조회 실패:', error);
+      return [];
+    }
   }
 
   // Book Invite endpoints

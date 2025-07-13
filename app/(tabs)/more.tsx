@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl, Alert } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
@@ -13,9 +14,29 @@ export default function MoreScreen() {
   const { user, logout } = useAuthStore();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleLogout = async () => {
     await logout();
+  };
+
+  // 새로고침 핸들러
+  const onRefresh = async () => {
+    try {
+      // 햅틱 피드백
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      setRefreshing(true);
+      
+      // 설정 데이터 새로고침 로직 (추후 필요시 구현)
+      // 현재는 시뮬레이션을 위해 setTimeout 사용
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const menuItems = [
@@ -71,7 +92,20 @@ export default function MoreScreen() {
 
   return (
     <View style={styles.container}>
-        <ScrollView style={styles.scrollView} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={{ padding: 16, paddingBottom: 32 }} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.tint}
+              colors={[colors.tint]}
+              progressBackgroundColor={colors.background}
+            />
+          }
+        >
           {/* 사용자 프로필 카드 */}
           <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
             <View style={styles.profileHeader}>

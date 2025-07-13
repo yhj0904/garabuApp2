@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
@@ -60,17 +61,18 @@ const getTransactionColor = (description: string, colors: any) => {
 };
 
 export default function ExploreScreen() {
-  const [selectedTab, setSelectedTab] = useState(0);
-  const [selectedType, setSelectedType] = useState(1); // 기본: 지출
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [historyLedgers, setHistoryLedgers] = useState<Ledger[]>([]);
-  
   const { token } = useAuthStore();
-  const { ledgers, fetchLedgers, currentBook } = useBookStore();
-  const { categories } = useCategoryStore();
+  const { currentBook, ledgers, fetchLedgers } = useBookStore();
+  const { categories, fetchCategories } = useCategoryStore();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-
+  
+  const [selectedTab, setSelectedTab] = useState(0);
+  const [selectedType, setSelectedType] = useState(1); // 기본값: 지출
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+  const [historyLedgers, setHistoryLedgers] = useState<Ledger[]>([]);
+  
   const month = currentDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
 
   // 내역 탭일 때 전체 거래 내역 로드
@@ -126,7 +128,31 @@ export default function ExploreScreen() {
     setCurrentDate(newDate);
   };
 
-
+  // 새로고침 핸들러
+  const onRefresh = async () => {
+    try {
+      // 햅틱 피드백
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      setRefreshing(true);
+      
+      if (token && currentBook) {
+        // 데이터 다시 불러오기
+        await Promise.all([
+          fetchLedgers({
+            bookId: currentBook.id,
+            page: 0,
+            size: 100
+          }, token),
+          fetchCategories(token)
+        ]);
+      }
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // 금액 포맷팅
   const formatAmount = (amount: number) => {
@@ -189,7 +215,20 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-        <ScrollView style={styles.scrollView} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={{ padding: 16, paddingBottom: 32 }} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.tint}
+              colors={[colors.tint]}
+              progressBackgroundColor={colors.background}
+            />
+          }
+        >
           {/* 상단 월 선택 */}
           <View style={styles.monthRow}>
             <TouchableOpacity style={styles.arrowButton} onPress={() => changeMonth('prev')}>

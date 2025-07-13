@@ -58,26 +58,77 @@ export const useBookStore = create<BookState>((set, get) => ({
     console.log('토큰:', token ? '존재함' : '없음');
     set({ isLoading: true });
     
-    try {
-      const apiService = (await import('@/services/api')).default;
-      const books = await apiService.getMyBooks(token);
-      
-      console.log('가계부 목록 조회 성공:', books);
-      console.log('조회된 가계부 수:', books.length);
-      
-      set({ 
-        books,
-        currentBook: books.length > 0 ? books[0] : null,
-        isLoading: false 
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('가계부 목록 조회 실패:', error);
-      console.error('에러 상세:', error instanceof Error ? error.message : String(error));
-      set({ isLoading: false });
-      return false;
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        const apiService = (await import('@/services/api')).default;
+        const books = await apiService.getMyBooks(token);
+        
+        console.log('가계부 목록 조회 성공:', books);
+        console.log('조회된 가계부 수:', books.length);
+        
+        // 현재 선택된 가계부가 없거나, 목록에 없는 경우에만 첫 번째 가계부 선택
+        const { currentBook } = get();
+        let newCurrentBook = currentBook;
+        
+        if (!currentBook || !books.find(b => b.id === currentBook.id)) {
+          newCurrentBook = books.length > 0 ? books[0] : null;
+          console.log('새로운 currentBook 설정:', newCurrentBook);
+        } else {
+          console.log('기존 currentBook 유지:', currentBook);
+        }
+        
+        set({ 
+          books,
+          currentBook: newCurrentBook,
+          isLoading: false 
+        });
+        
+        return true;
+      } catch (error: any) {
+        console.error(`가계부 목록 조회 실패 (시도 ${retryCount + 1}/${maxRetries + 1}):`, error);
+        console.error('에러 상세:', error instanceof Error ? error.message : String(error));
+        
+        // 인증 실패 처리
+        if (error.message === 'AUTH_FAILED') {
+          console.log('인증 실패 - 로그인 필요');
+          // authStore를 가져와서 로그아웃 처리
+          const authStore = (await import('@/stores/authStore')).useAuthStore.getState();
+          await authStore.logout();
+          // 로그인 화면으로 이동은 AuthNavigator에서 처리됨
+          break; // 인증 실패 시 재시도하지 않음
+        }
+        
+        // axios 에러인 경우 더 자세한 정보 출력
+        if (error?.response) {
+          console.error('응답 상태:', error.response.status);
+          console.error('응답 데이터:', error.response.data);
+          console.error('응답 헤더:', error.response.headers);
+          
+          // 500 에러인 경우 재시도
+          if (error.response.status === 500 && retryCount < maxRetries) {
+            retryCount++;
+            console.log(`${retryCount}초 후 재시도...`);
+            await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+            continue;
+          }
+        } else if (error?.request) {
+          console.error('요청 에러:', error.request);
+        }
+        
+        break; // 다른 에러의 경우 재시도하지 않음
+      }
     }
+    
+    // 모든 시도 실패
+    set({ 
+      books: [],
+      currentBook: null,
+      isLoading: false 
+    });
+    return false;
   },
 
   createBook: async (data: CreateBookRequest, token: string) => {

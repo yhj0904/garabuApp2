@@ -25,6 +25,8 @@
 - **🌙 다크모드 지원**: 사용자 선호도에 따른 테마 자동 전환
 - **📱 크로스 플랫폼**: iOS, Android, Web 동시 지원
 - **⚡ 성능 최적화**: React Native New Architecture, Zustand 상태 관리
+- **🔔 알림 시스템**: 푸시 알림 및 실시간 알림 지원
+- **🎯 햅틱 피드백**: 향상된 사용자 경험을 위한 진동 피드백
 
 ## 🛠 기술 스택
 
@@ -52,6 +54,11 @@
 - **Axios Interceptors** - 자동 토큰 갱신 및 요청 인터셉션
 - **JWT 토큰 관리** - 액세스/리프레시 토큰 자동 관리
 
+### Real-time & Notifications
+- **WebSocket** - 실시간 데이터 동기화
+- **Expo Notifications** - 푸시 알림 시스템
+- **EventEmitter3** - 이벤트 기반 통신
+
 ### Development Tools
 - **ESLint** - 코드 품질 관리
 - **TypeScript** - 정적 타입 검사
@@ -68,6 +75,7 @@ garabuapp2/
 │   └── _layout.tsx        # 루트 레이아웃
 ├── components/            # 재사용 가능한 컴포넌트
 │   ├── ui/               # UI 컴포넌트
+│   ├── CategorySelector.tsx # 카테고리 선택 컴포넌트
 │   └── SplashScreen.tsx  # 스플래시 스크린
 ├── contexts/             # React Context (레거시)
 │   └── AuthContext.tsx   # 인증 컨텍스트 (마이그레이션 예정)
@@ -101,23 +109,40 @@ garabuapp2/
 - **수입/지출 기록**: 카테고리별 거래 내역 관리, 자동 지출자 정보 입력
 - **고급 검색**: 날짜, 카테고리, 결제 수단별 필터링
 - **실시간 동기화**: WebSocket 기반 실시간 데이터 업데이트
+- **Pull-to-Refresh**: 모든 화면에서 당겨서 새로고침 지원
 
 ### 3. 협업 기능
 - **멤버 초대**: 이메일 기반 가계부 멤버 초대
 - **권한 관리**: 세분화된 역할 기반 접근 제어
+  - OWNER: 모든 권한 (멤버 관리, 가계부 삭제)
+  - EDITOR: 거래 추가/수정/삭제, 카테고리 관리
+  - VIEWER: 읽기 전용 권한
 - **실시간 알림**: 가계부 변경 사항 즉시 알림
 - **멤버 관리**: 역할 변경, 멤버 제거 기능
 
-### 4. 자산 관리
+### 4. 카테고리 시스템
+- **기본 카테고리**: 시스템 제공 기본 카테고리
+- **사용자 정의 카테고리**: 가계부별 커스텀 카테고리 생성
+- **이모지 지원**: 카테고리별 이모지 아이콘
+- **권한 기반 관리**: OWNER/EDITOR만 카테고리 생성 가능
+
+### 5. 자산 관리
 - **다중 자산**: 현금, 카드, 투자 등 다양한 자산 유형
 - **자산 현황**: 통합 자산 대시보드
 - **자산 변동**: 자산 변화 이력 추적
 
-### 5. 사용자 경험
+### 6. 실시간 기능
+- **WebSocket 연결**: 실시간 데이터 동기화
+- **동기화 상태 표시**: 연결 상태 및 동기화 현황
+- **오프라인 지원**: 오프라인 변경사항 자동 동기화
+- **충돌 해결**: 동시 편집 시 자동 충돌 해결
+
+### 7. 사용자 경험
 - **다크모드**: 시스템 설정에 따른 자동 테마 전환
 - **햅틱 피드백**: 터치 시 진동 피드백
 - **애니메이션**: 부드러운 화면 전환 및 인터랙션
 - **오류 처리**: 사용자 친화적 오류 메시지 및 중복 데이터 처리
+- **Pull-to-Refresh**: 직관적인 새로고침 인터페이스
 
 ## 🔧 개발 환경 설정
 
@@ -202,14 +227,26 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-// 가계부 상태 관리
+// 가계부 상태 관리 (확장됨)
 interface BookState {
   currentBook: Book | null;
   books: Book[];
   bookMembers: BookMember[];
+  ledgers: Ledger[];
   createLedger: (data: CreateLedgerRequest) => Promise<boolean>;
   fetchBookMembers: (bookId: number, token: string) => Promise<boolean>;
   inviteUser: (bookId: number, data: InviteUserRequest, token: string) => Promise<boolean>;
+  removeMember: (bookId: number, memberId: number, token: string) => Promise<boolean>;
+  changeRole: (bookId: number, memberId: number, data: ChangeRoleRequest, token: string) => Promise<boolean>;
+  leaveBook: (bookId: number, token: string) => Promise<boolean>;
+}
+
+// 카테고리 상태 관리 (새로 추가)
+interface CategoryState {
+  categories: Category[];
+  payments: PaymentMethod[];
+  fetchCategoriesByBook: (bookId: number, token: string) => Promise<boolean>;
+  createCategoryForBook: (bookId: number, data: CreateCategoryRequest, token: string) => Promise<boolean>;
 }
 ```
 
@@ -230,6 +267,7 @@ interface BookState {
 - **Expo Secure Store**: 민감한 정보 암호화 저장
 - **OAuth 2.0**: Google, Naver 표준 인증 프로토콜
 - **자동 토큰 갱신**: 401 응답 시 자동 리프레시 토큰으로 갱신
+- **역할 기반 접근 제어**: OWNER/EDITOR/VIEWER 권한 체크
 
 ### 데이터 보안
 - **HTTPS 통신**: 모든 API 통신 암호화
@@ -244,11 +282,12 @@ interface BookState {
 - **Zustand 상태 관리**: 가벼운 상태 관리로 성능 향상
 - **메모이제이션**: React.memo, useMemo, useCallback 활용
 - **이미지 최적화**: Expo Image 컴포넌트 사용
+- **Pull-to-Refresh**: 효율적인 데이터 새로고침
 
-### 번들 최적화
-- **Tree Shaking**: 사용하지 않는 코드 제거
-- **Code Splitting**: 동적 import를 통한 코드 분할
-- **Lazy Loading**: 필요시에만 컴포넌트 로드
+### 실시간 기능 최적화
+- **WebSocket 재연결**: 자동 재연결 및 백오프 전략
+- **이벤트 디바운싱**: 과도한 이벤트 처리 방지
+- **로컬 캐싱**: 오프라인 지원 및 성능 향상
 
 ### API 최적화
 - **요청 최적화**: Axios 인터셉터를 통한 효율적 요청 관리
@@ -261,10 +300,12 @@ interface BookState {
 - **Jest**: 테스트 프레임워크
 - **React Native Testing Library**: 컴포넌트 테스트
 - **Mock Service**: OAuth 서비스 모킹
+- **Zustand 테스트**: 상태 관리 로직 테스트
 
 ### 통합 테스트
 - **E2E 테스트**: 전체 사용자 플로우 테스트
 - **API 테스트**: 백엔드 API 연동 테스트
+- **실시간 동기화 테스트**: WebSocket 연결 테스트
 
 ## 🚀 배포 및 배포
 
@@ -276,11 +317,16 @@ eas build --platform android
 
 # 개발 빌드
 eas build --profile development
+
+# 내부 테스트 배포
+eas submit --platform ios
+eas submit --platform android
 ```
 
 ### 스토어 배포
 - **App Store Connect**: iOS 앱 배포
 - **Google Play Console**: Android 앱 배포
+- **버전 관리**: Semantic Versioning (현재 v1.0.0)
 
 ## 🤝 기여 가이드
 
@@ -295,6 +341,13 @@ eas build --profile development
 - **ESLint**: 코드 품질 검사
 - **Prettier**: 코드 포맷팅
 - **TypeScript**: 타입 안전성
+- **컴포넌트 구조**: Atomic Design 원칙 준수
+
+### 브랜치 전략
+- `main`: 프로덕션 배포 브랜치
+- `develop`: 개발 브랜치
+- `feature/*`: 새로운 기능 개발
+- `hotfix/*`: 긴급 버그 수정
 
 ## 📄 라이선스
 
@@ -305,15 +358,30 @@ eas build --profile development
 **이메일**: ujk6073@gmail.com  
 **GitHub 이슈페이지**: [이슈페이지](https://github.com/yhj0904)
 
-## 🙏 감사의 말
+## 🆕 최신 업데이트 (2025-01-11)
 
-- [Expo](https://expo.dev/) - 개발 플랫폼 제공
-- [React Native](https://reactnative.dev/) - 크로스 플랫폼 개발 프레임워크
-- [Zustand](https://zustand-demo.pmnd.rs/) - 상태 관리
-- [React Navigation](https://reactnavigation.org/) - 네비게이션 솔루션
+### 🔄 실시간 동기화 시스템
+- WebSocket 기반 실시간 데이터 동기화 구현
+- 오프라인 변경사항 자동 동기화
+- 동기화 상태 표시 및 관리
 
----
+### 👥 가계부 공유 관리 개선
+- 멤버 초대/제거 기능 강화
+- 역할 변경 기능 추가
+- 멤버별 권한 관리 UI 개선
 
-<div align="center">
-  <strong>⭐ 이 프로젝트가 도움이 되었다면 스타를 눌러주세요! ⭐</strong>
-</div>
+### 🏷️ 카테고리 시스템 업그레이드
+- 이모지 지원 추가
+- 기본/사용자 정의 카테고리 구분
+- 가계부별 독립적인 카테고리 관리
+
+### 📱 UX 개선사항
+- 모든 주요 화면에 Pull-to-Refresh 추가
+- 햅틱 피드백 적용
+- 에러 메시지 및 로딩 상태 개선
+
+### 🔔 알림 시스템
+- 푸시 알림 기능 구현
+- 예산 초과 알림
+- 새로운 거래 알림
+- 멤버 초대 알림

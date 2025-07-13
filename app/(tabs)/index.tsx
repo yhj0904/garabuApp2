@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -12,14 +13,52 @@ import { sync } from '@/services/syncService';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
+import type { Ledger } from '@/services/api';
 
 export default function HomeScreen() {
   const { user, token, logout } = useAuthStore();
-  const { books, currentBook, ledgers, fetchBooks, fetchLedgers } = useBookStore();
+  const { books, currentBook, ledgers, bookMembers, fetchBooks, fetchLedgers, fetchBookMembers } = useBookStore();
   const { fetchCategories, fetchPayments } = useCategoryStore();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 새로고침 핸들러
+  const onRefresh = async () => {
+    try {
+      // 햅틱 피드백
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      setRefreshing(true);
+      
+      if (token) {
+        // 모든 데이터 다시 불러오기
+        await Promise.all([
+          fetchBooks(token),
+          fetchCategories(token),
+          fetchPayments(token)
+        ]);
+        
+        // 현재 가계부의 최근 거래 내역 다시 로드
+        if (currentBook) {
+          await fetchLedgers({
+            bookId: currentBook.id,
+            page: 0,
+            size: 5
+          }, token);
+        }
+        
+        // 동기화 수행
+        await sync.syncOfflineChanges();
+      }
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+      Alert.alert('새로고침 실패', '데이터를 새로고침하는 중 오류가 발생했습니다.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -35,7 +74,8 @@ export default function HomeScreen() {
 
   // 현재 가계부의 최근 거래 내역 로드
   useEffect(() => {
-    if (token && currentBook) {
+    if (token && currentBook && currentBook.id) {
+      console.log('가계부 기록 조회 시작:', currentBook.id);
       fetchLedgers({
         bookId: currentBook.id,
         page: 0,
@@ -46,6 +86,12 @@ export default function HomeScreen() {
       if (user?.id) {
         sync.connect(user.id, currentBook.id, token);
       }
+    } else {
+      console.log('가계부 기록 조회 건너뜀:', { 
+        token: !!token, 
+        currentBook: !!currentBook, 
+        currentBookId: currentBook?.id 
+      });
     }
   }, [token, currentBook, user]);
 
@@ -195,7 +241,19 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.tint}
+              colors={[colors.tint]}
+              progressBackgroundColor={colors.background}
+            />
+          }
+        >
           {/* 헤더 */}
           <View style={styles.header}>
             <View style={styles.userInfo}>
@@ -267,18 +325,45 @@ export default function HomeScreen() {
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => {
-                if (currentBook) {
-                  // 현재 가계부의 역할 확인 (임시로 OWNER로 설정)
-                  const userRole = 'OWNER'; // 실제로는 userBook에서 가져와야 함
-                  router.push({
-                    pathname: '/(modals)/settings',
-                    params: { 
-                      bookId: currentBook.id.toString(), 
-                      bookTitle: currentBook.title,
-                      userRole: userRole
+              onPress={async () => {
+                if (currentBook && currentBook.id) {
+                  try {
+                    console.log('가계부 설정 버튼 클릭:', { currentBook });
+                    
+                    // 현재 가계부의 멤버 정보 가져오기
+                    let members = bookMembers;
+                    if (token) {
+                      const success = await fetchBookMembers(currentBook.id, token);
+                      if (success) {
+                        // fetchBookMembers가 성공하면 store에서 다시 가져오기
+                        members = useBookStore.getState().bookMembers;
+                      }
                     }
-                  });
+                    
+                    // 현재 사용자의 역할 찾기
+                    const currentUserMember = members.find(member => member.memberId === user?.id);
+                    const userRole = currentUserMember?.role || 'VIEWER';
+                    
+                    console.log('가계부 설정 열기:', {
+                      bookId: currentBook.id,
+                      bookTitle: currentBook.title,
+                      userRole: userRole,
+                      members: members,
+                      currentUser: user?.id
+                    });
+                    
+                    router.push({
+                      pathname: '/(modals)/settings',
+                      params: { 
+                        bookId: currentBook.id.toString(), 
+                        bookTitle: currentBook.title,
+                        userRole: userRole
+                      }
+                    });
+                  } catch (error) {
+                    console.error('가계부 설정 열기 실패:', error);
+                    Alert.alert('오류', '가계부 설정을 불러올 수 없습니다.');
+                  }
                 } else {
                   Alert.alert('알림', '먼저 가계부를 선택해주세요.');
                 }

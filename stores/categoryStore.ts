@@ -44,14 +44,18 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
       console.log('카테고리 목록 조회 성공:', categories);
       
       set({ 
-        categories,
+        categories: categories || [],
         isLoading: false 
       });
       
       return true;
     } catch (error) {
       console.error('카테고리 목록 조회 실패:', error);
-      set({ isLoading: false });
+      // 에러가 발생해도 빈 배열로 설정하여 앱이 멈추지 않도록 처리
+      set({ 
+        categories: [],
+        isLoading: false 
+      });
       return false;
     }
   },
@@ -93,14 +97,18 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
       console.log('결제 수단 목록 조회 성공:', payments);
       
       set({ 
-        payments,
+        payments: payments || [],
         isLoading: false 
       });
       
       return true;
     } catch (error) {
       console.error('결제 수단 목록 조회 실패:', error);
-      set({ isLoading: false });
+      // 에러가 발생해도 빈 배열로 설정하여 앱이 멈추지 않도록 처리
+      set({ 
+        payments: [],
+        isLoading: false 
+      });
       return false;
     }
   },

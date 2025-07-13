@@ -168,8 +168,8 @@ export default function BookSettingsModal() {
         {isOwner && joinRequests.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>참가 요청 ({joinRequests.length})</Text>
-            {joinRequests.map((request) => (
-              <View key={request.requestId} style={styles.requestItem}>
+            {joinRequests.map((request, index) => (
+              <View key={`request-${request.requestId || index}`} style={styles.requestItem}>
                 <View style={styles.requestInfo}>
                   <Text style={styles.requestName}>{request.memberName}</Text>
                   <Text style={styles.requestEmail}>{request.memberEmail}</Text>
@@ -201,8 +201,8 @@ export default function BookSettingsModal() {
         {/* 멤버 목록 섹션 */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>멤버 ({members.length})</Text>
-          {members.map((member) => (
-            <View key={member.memberId} style={styles.memberItem}>
+          {members.map((member, index) => (
+            <View key={`member-${member.memberId || index}`} style={styles.memberItem}>
               <View style={styles.memberInfo}>
                 <Text style={styles.memberName}>{member.username}</Text>
                 <Text style={styles.memberEmail}>{member.email}</Text>
