@@ -9,7 +9,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { notification } from '@/services/notificationService';
-import { sync } from '@/services/syncService';
+import syncService from '@/services/syncService';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
@@ -18,7 +18,7 @@ import type { Ledger } from '@/services/api';
 export default function HomeScreen() {
   const { user, token, logout } = useAuthStore();
   const { books, currentBook, ledgers, bookMembers, fetchBooks, fetchLedgers, fetchBookMembers } = useBookStore();
-  const { fetchCategories, fetchPayments } = useCategoryStore();
+  const { fetchCategories, fetchPayments, fetchCategoriesByBook, fetchPaymentsByBook } = useCategoryStore();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -34,11 +34,15 @@ export default function HomeScreen() {
       
       if (token) {
         // 모든 데이터 다시 불러오기
-        await Promise.all([
-          fetchBooks(token),
-          fetchCategories(token),
-          fetchPayments(token)
-        ]);
+        await fetchBooks(token);
+        
+        // 현재 가계부의 카테고리와 결제수단 다시 로드
+        if (currentBook) {
+          await Promise.all([
+            fetchCategoriesByBook(currentBook.id, token),
+            fetchPaymentsByBook(currentBook.id, token)
+          ]);
+        }
         
         // 현재 가계부의 최근 거래 내역 다시 로드
         if (currentBook) {
@@ -50,7 +54,7 @@ export default function HomeScreen() {
         }
         
         // 동기화 수행
-        await sync.syncOfflineChanges();
+                  await syncService.forceSync();
       }
     } catch (error) {
       console.error('Failed to refresh:', error);
@@ -64,13 +68,20 @@ export default function HomeScreen() {
   useEffect(() => {
     if (token) {
       fetchBooks(token);
-      fetchCategories(token);
-      fetchPayments(token);
       
       // 알림 서비스 초기화
       initializeNotifications();
     }
   }, [token]);
+
+  // 현재 가계부 변경 시 해당 가계부의 카테고리와 결제수단 로드
+  useEffect(() => {
+    if (token && currentBook && currentBook.id) {
+      console.log('가계부별 카테고리/결제수단 조회 시작:', currentBook.id);
+      fetchCategoriesByBook(currentBook.id, token);
+      fetchPaymentsByBook(currentBook.id, token);
+    }
+  }, [token, currentBook]);
 
   // 현재 가계부의 최근 거래 내역 로드
   useEffect(() => {
@@ -84,7 +95,7 @@ export default function HomeScreen() {
       
       // 실시간 동기화 연결
       if (user?.id) {
-        sync.connect(user.id, currentBook.id, token);
+        syncService.connect(user.id, currentBook.id, token);
       }
     } else {
       console.log('가계부 기록 조회 건너뜀:', { 
@@ -110,12 +121,12 @@ export default function HomeScreen() {
       // 동기화 상태 UI 업데이트
     };
 
-    sync.on('ledger-created', handleLedgerCreated);
-    sync.on('sync-status-changed', handleSyncStatusChanged);
+    syncService.on('ledger-created', handleLedgerCreated);
+    syncService.on('sync-status-changed', handleSyncStatusChanged);
 
     return () => {
-      sync.off('ledger-created', handleLedgerCreated);
-      sync.off('sync-status-changed', handleSyncStatusChanged);
+      syncService.off('ledger-created', handleLedgerCreated);
+      syncService.off('sync-status-changed', handleSyncStatusChanged);
     };
   }, [token]);
 
@@ -137,7 +148,7 @@ export default function HomeScreen() {
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
-      sync.disconnect();
+      syncService.disconnect();
     };
   }, []);
 
@@ -421,7 +432,7 @@ export default function HomeScreen() {
               style={[styles.actionButton, { backgroundColor: colors.card }]}
               onPress={() => {
                 // 동기화 상태 확인
-                const syncStatus = sync.getSyncStatus();
+                const syncStatus = syncService.getSyncStatus();
                 Alert.alert(
                   '동기화 상태',
                   `연결 상태: ${syncStatus.isConnected ? '연결됨' : '연결 안됨'}\n` +
@@ -429,7 +440,7 @@ export default function HomeScreen() {
                   `대기 중인 변경사항: ${syncStatus.pendingChanges}개`,
                   [
                     { text: '확인', style: 'default' },
-                    { text: '재동기화', onPress: () => sync.syncOfflineChanges() }
+                    { text: '재동기화', onPress: () => syncService.forceSync() }
                   ]
                 );
               }}

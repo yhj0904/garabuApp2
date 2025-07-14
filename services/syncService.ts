@@ -1,57 +1,216 @@
-import config from '@/config/config';
-import { Book, Ledger, Member } from '@/services/api';
-import { notification } from '@/services/notificationService';
-import { EventEmitter } from 'eventemitter3';
-import * as SecureStore from 'expo-secure-store';
+// React Native용 EventEmitter 사용
+class EventEmitter {
+  private listeners: { [key: string]: Function[] } = {};
 
-// 동기화 이벤트 타입
-type SyncEvent = 
-  | 'LEDGER_CREATED'
-  | 'LEDGER_UPDATED'
+  on(event: string, listener: Function) {
+    if (!this.listeners[event]) {
+      this.listeners[event] = [];
+    }
+    this.listeners[event].push(listener);
+  }
+
+  emit(event: string, ...args: any[]) {
+    if (this.listeners[event]) {
+      this.listeners[event].forEach(listener => {
+        listener(...args);
+      });
+    }
+  }
+
+  removeListener(event: string, listener: Function) {
+    if (this.listeners[event]) {
+      this.listeners[event] = this.listeners[event].filter(l => l !== listener);
+    }
+  }
+
+  removeAllListeners(event?: string) {
+    if (event) {
+      delete this.listeners[event];
+    } else {
+      this.listeners = {};
+    }
+  }
+
+  // 'off' 메서드 추가 (removeListener의 별칭)
+  off(event: string, listener: Function) {
+    this.removeListener(event, listener);
+  }
+}
+import config from '../config/config';
+import api from './api';
+// React Native EventSource polyfill 사용
+// @ts-ignore
+import 'react-native-url-polyfill/auto';
+
+// EventSource polyfill for React Native
+class EventSource {
+  private url: string;
+  private options: any;
+  private xhr: XMLHttpRequest | null = null;
+  private listeners: { [key: string]: Function[] } = {};
+  public readyState: number = 0; // CONNECTING
+  
+  // Constants
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSED = 2;
+
+  constructor(url: string, options: any = {}) {
+    this.url = url;
+    this.options = options;
+    this.connect();
+  }
+
+  private connect() {
+    this.readyState = EventSource.CONNECTING;
+    
+    this.xhr = new XMLHttpRequest();
+    this.xhr.open('GET', this.url, true);
+    
+    // 헤더 설정
+    this.xhr.setRequestHeader('Accept', 'text/event-stream');
+    this.xhr.setRequestHeader('Cache-Control', 'no-cache');
+    
+    if (this.options.headers) {
+      Object.keys(this.options.headers).forEach(key => {
+        this.xhr!.setRequestHeader(key, this.options.headers[key]);
+      });
+    }
+
+    this.xhr.onreadystatechange = () => {
+      if (this.xhr!.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        this.readyState = EventSource.OPEN;
+        this.emit('open', {});
+      }
+    };
+
+    let buffer = '';
+    this.xhr.onprogress = () => {
+      const newData = this.xhr!.responseText.substring(buffer.length);
+      buffer = this.xhr!.responseText;
+      
+      const lines = newData.split('\n');
+      let eventType = '';
+      let data = '';
+      let id = '';
+      
+      lines.forEach(line => {
+        if (line.startsWith('event:')) {
+          eventType = line.substring(6).trim();
+        } else if (line.startsWith('data:')) {
+          data += line.substring(5).trim();
+        } else if (line.startsWith('id:')) {
+          id = line.substring(3).trim();
+        } else if (line === '' && (eventType || data)) {
+          this.emit(eventType || 'message', {
+            data: data,
+            lastEventId: id,
+            type: eventType
+          });
+          eventType = '';
+          data = '';
+          id = '';
+        }
+      });
+    };
+
+    this.xhr.onerror = () => {
+      this.emit('error', new Error('EventSource connection error'));
+    };
+
+    this.xhr.send();
+  }
+
+  addEventListener(type: string, listener: Function) {
+    if (!this.listeners[type]) {
+      this.listeners[type] = [];
+    }
+    this.listeners[type].push(listener);
+  }
+
+  removeEventListener(type: string, listener: Function) {
+    if (this.listeners[type]) {
+      this.listeners[type] = this.listeners[type].filter(l => l !== listener);
+    }
+  }
+
+  private emit(type: string, event: any) {
+    if (this.listeners[type]) {
+      this.listeners[type].forEach(listener => {
+        listener(event);
+      });
+    }
+  }
+
+  close() {
+    this.readyState = EventSource.CLOSED;
+    if (this.xhr) {
+      this.xhr.abort();
+      this.xhr = null;
+    }
+  }
+}
+
+export type SyncEvent = 
+  | 'LEDGER_CREATED' 
+  | 'LEDGER_UPDATED' 
   | 'LEDGER_DELETED'
+  | 'MEMBER_ADDED'
+  | 'MEMBER_REMOVED'
+  | 'MEMBER_UPDATED'
   | 'BOOK_CREATED'
-  | 'BOOK_UPDATED'
-  | 'BOOK_DELETED'
-  | 'MEMBER_JOINED'
-  | 'MEMBER_LEFT'
-  | 'MEMBER_ROLE_CHANGED'
-  | 'SYNC_STATUS_CHANGED';
+  | 'BOOK_UPDATED';
 
-interface SyncEventData {
+export interface SyncEventData {
   type: SyncEvent;
   data: any;
   timestamp: number;
-  userId: number;
+  userId?: number;
   bookId?: number;
 }
 
-interface SyncStatus {
+export interface SyncStatus {
   isConnected: boolean;
   lastSyncTime: number;
   pendingChanges: number;
 }
 
+interface ServerMessage {
+  type: string;
+  data?: any;
+  timestamp?: number;
+  userId?: string;
+  bookId?: string;
+}
+
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_INTERVAL_MS = 1000;
+
 class SyncService extends EventEmitter {
-  private ws: WebSocket | null = null;
+  private eventSource: EventSource | null = null;
+  private currentUserId: number | null = null;
+  private currentBookId: number | null = null;
+  private currentToken: string | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
-  private heartbeatInterval: number | null = null;
+  private reconnectTimeout: any = null;
+  
   private syncStatus: SyncStatus = {
     isConnected: false,
     lastSyncTime: 0,
     pendingChanges: 0
   };
-  private currentUserId: number | null = null;
-  private currentBookId: number | null = null;
-  private currentToken: string | null = null;
+
   private pendingEvents: SyncEventData[] = [];
 
-  // WebSocket 연결 시작
+  constructor() {
+    super();
+  }
+
+  // SSE 연결 시작
   async connect(userId: number, bookId: number, token: string): Promise<void> {
     // 파라미터 검증
     if (!userId || !bookId || !token) {
-      console.error('WebSocket connection failed: Invalid parameters', {
+      console.error('SSE connection failed: Invalid parameters', {
         userId: !!userId,
         bookId: !!bookId,
         token: !!token
@@ -59,8 +218,8 @@ class SyncService extends EventEmitter {
       return;
     }
     
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected');
+    if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
+      console.log('SSE already connected');
       return;
     }
 
@@ -69,287 +228,172 @@ class SyncService extends EventEmitter {
     this.currentToken = token;
 
     try {
-      // 실제 WebSocket 서버 URL
-      const wsUrl = `${config.WS_BASE_URL}?token=${encodeURIComponent(token)}&userId=${userId}&bookId=${bookId}`;
+      // SSE 서버 URL
+      const sseUrl = `${config.API_BASE_URL}/api/v2/sse/subscribe/${bookId}`;
       
-      console.log('Connecting to WebSocket:', {
-        url: config.WS_BASE_URL,
+      console.log('Connecting to SSE:', {
+        url: sseUrl,
         userId,
-        bookId,
-        tokenLength: token.length
+        bookId
       });
       
-      // WebSocket 연결
-      this.connectWebSocket(wsUrl);
+      // SSE 연결
+      this.connectSSE(sseUrl, token);
       
     } catch (error) {
-      console.error('WebSocket connection failed:', error);
+      console.error('SSE connection failed:', error);
       this.handleConnectionError();
     }
   }
 
-  // WebSocket 연결 시뮬레이션 (백업용)
-  private simulateWebSocketConnection(): void {
-    console.log('Simulating WebSocket connection');
+  // 실제 SSE 연결
+  private connectSSE(sseUrl: string, token: string): void {
+    this.eventSource = new EventSource(sseUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Cache-Control': 'no-cache'
+      },
+      withCredentials: false
+    });
     
-    this.syncStatus.isConnected = true;
-    this.syncStatus.lastSyncTime = Date.now();
-    this.reconnectAttempts = 0;
-    
-    this.emit('sync-status-changed', this.syncStatus);
-    
-    // 하트비트 시작
-    this.startHeartbeat();
-    
-    // 펜딩 이벤트 처리
-    this.processPendingEvents();
-  }
-
-  // 실제 WebSocket 연결 (실제 구현 시 사용)
-  private connectWebSocket(wsUrl: string): void {
-    this.ws = new WebSocket(wsUrl);
-    
-    this.ws.onopen = () => {
-      console.log('WebSocket connected');
+    this.eventSource.addEventListener('open', () => {
+      console.log('SSE connected');
       this.syncStatus.isConnected = true;
       this.syncStatus.lastSyncTime = Date.now();
       this.reconnectAttempts = 0;
       
       this.emit('sync-status-changed', this.syncStatus);
-      this.startHeartbeat();
       this.processPendingEvents();
-    };
-    
-    this.ws.onmessage = (event) => {
-      try {
-        const data: SyncEventData = JSON.parse(event.data);
-        this.handleSyncEvent(data);
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
-      }
-    };
-    
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      this.handleConnectionError();
-    };
-    
-    this.ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      this.syncStatus.isConnected = false;
-      this.emit('sync-status-changed', this.syncStatus);
-      
-      if (this.heartbeatInterval) {
-        clearInterval(this.heartbeatInterval);
-        this.heartbeatInterval = null;
-      }
-      
-      // 재연결 시도
-      this.attemptReconnect().catch(error => {
-        console.error('Reconnection attempt failed:', error);
-      });
-    };
-  }
-
-  // 동기화 이벤트 처리
-  private handleSyncEvent(eventData: SyncEventData): void {
-    console.log('Sync event received:', eventData);
-    
-    // 자신이 보낸 이벤트는 무시
-    if (eventData.userId === this.currentUserId) {
-      return;
-    }
-    
-    switch (eventData.type) {
-      case 'LEDGER_CREATED':
-        this.handleLedgerCreated(eventData.data);
-        break;
-      case 'LEDGER_UPDATED':
-        this.handleLedgerUpdated(eventData.data);
-        break;
-      case 'LEDGER_DELETED':
-        this.handleLedgerDeleted(eventData.data);
-        break;
-      case 'BOOK_UPDATED':
-        this.handleBookUpdated(eventData.data);
-        break;
-      case 'MEMBER_JOINED':
-        this.handleMemberJoined(eventData.data);
-        break;
-      case 'MEMBER_LEFT':
-        this.handleMemberLeft(eventData.data);
-        break;
-      case 'MEMBER_ROLE_CHANGED':
-        this.handleMemberRoleChanged(eventData.data);
-        break;
-      default:
-        console.warn('Unknown sync event type:', eventData.type);
-    }
-    
-    this.syncStatus.lastSyncTime = Date.now();
-    this.emit('sync-status-changed', this.syncStatus);
-  }
-
-  // 거래 생성 이벤트 처리
-  private handleLedgerCreated(ledger: Ledger): void {
-    this.emit('ledger-created', ledger);
-    
-    // 사용자에게 알림
-    notification.showLocalNotification(
-      '새 거래 추가',
-      `${ledger.description}: ${ledger.amountType === 'INCOME' ? '+' : '-'}₩${ledger.amount.toLocaleString()}`,
-      { type: 'NEW_TRANSACTION', ledger }
-    );
-  }
-
-  // 거래 수정 이벤트 처리
-  private handleLedgerUpdated(ledger: Ledger): void {
-    this.emit('ledger-updated', ledger);
-    
-    notification.showLocalNotification(
-      '거래 수정',
-      `${ledger.description} 거래가 수정되었습니다.`,
-      { type: 'TRANSACTION_UPDATED', ledger }
-    );
-  }
-
-  // 거래 삭제 이벤트 처리
-  private handleLedgerDeleted(ledgerId: number): void {
-    this.emit('ledger-deleted', ledgerId);
-    
-    notification.showLocalNotification(
-      '거래 삭제',
-      '거래가 삭제되었습니다.',
-      { type: 'TRANSACTION_DELETED', ledgerId }
-    );
-  }
-
-  // 가계부 수정 이벤트 처리
-  private handleBookUpdated(book: Book): void {
-    this.emit('book-updated', book);
-    
-    notification.showLocalNotification(
-      '가계부 수정',
-      `"${book.title}" 가계부가 수정되었습니다.`,
-      { type: 'BOOK_UPDATED', book }
-    );
-  }
-
-  // 멤버 참여 이벤트 처리
-  private handleMemberJoined(member: Member): void {
-    this.emit('member-joined', member);
-    
-    notification.showLocalNotification(
-      '새 멤버 참여',
-      `${member.name}님이 가계부에 참여했습니다.`,
-      { type: 'MEMBER_JOINED', member }
-    );
-  }
-
-  // 멤버 퇴장 이벤트 처리
-  private handleMemberLeft(member: Member): void {
-    this.emit('member-left', member);
-    
-    notification.showLocalNotification(
-      '멤버 퇴장',
-      `${member.name}님이 가계부에서 나갔습니다.`,
-      { type: 'MEMBER_LEFT', member }
-    );
-  }
-
-  // 멤버 역할 변경 이벤트 처리
-  private handleMemberRoleChanged(data: { member: Member; newRole: string }): void {
-    this.emit('member-role-changed', data);
-    
-    notification.showLocalNotification(
-      '역할 변경',
-      `${data.member.name}님의 역할이 변경되었습니다.`,
-      { type: 'MEMBER_ROLE_CHANGED', data }
-    );
-  }
-
-  // 동기화 이벤트 전송
-  async sendSyncEvent(type: SyncEvent, data: any): Promise<void> {
-    if (!this.currentUserId || !this.currentBookId) {
-      console.error('User ID or Book ID not set');
-      return;
-    }
-    
-    const eventData: SyncEventData = {
-      type,
-      data,
-      timestamp: Date.now(),
-      userId: this.currentUserId,
-      bookId: this.currentBookId
-    };
-    
-    if (this.syncStatus.isConnected) {
-      // 실제 WebSocket 전송
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify(eventData));
-      } else {
-        // 디버그 로그
-        console.log('WebSocket not ready, event not sent:', eventData);
-      }
-    } else {
-      // 연결되지 않은 경우 펜딩
-      this.pendingEvents.push(eventData);
-      this.syncStatus.pendingChanges++;
-      this.emit('sync-status-changed', this.syncStatus);
-    }
-  }
-
-  // 다른 사용자의 이벤트 시뮬레이션
-  private simulateEventFromOtherUser(originalEvent: SyncEventData): void {
-    // 개발 중에만 사용하는 시뮬레이션
-    if (__DEV__) {
-      const simulatedEvent: SyncEventData = {
-        ...originalEvent,
-        userId: originalEvent.userId + 1, // 다른 사용자 ID
-        timestamp: Date.now()
-      };
-      
-      // 50% 확률로 시뮬레이션
-      if (Math.random() > 0.5) {
-        setTimeout(() => {
-          this.handleSyncEvent(simulatedEvent);
-        }, 500);
-      }
-    }
-  }
-
-  // 펜딩 이벤트 처리
-  private processPendingEvents(): void {
-    if (this.pendingEvents.length === 0) return;
-    
-    console.log(`Processing ${this.pendingEvents.length} pending events`);
-    
-    this.pendingEvents.forEach(event => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify(event));
-      } else {
-        console.log('WebSocket not ready for pending event:', event);
-      }
     });
     
-    this.pendingEvents = [];
-    this.syncStatus.pendingChanges = 0;
-    this.emit('sync-status-changed', this.syncStatus);
+    // 연결 확인 이벤트
+    this.eventSource.addEventListener('connected', (event: any) => {
+      console.log('SSE connection confirmed:', event.data);
+    });
+    
+    // 가계부 업데이트 이벤트들
+    this.eventSource.addEventListener('LEDGER_CREATED', (event: any) => {
+      this.handleSyncEvent({
+        type: 'LEDGER_CREATED',
+        data: JSON.parse(event.data),
+        timestamp: parseInt(event.lastEventId || Date.now().toString())
+      });
+    });
+    
+    this.eventSource.addEventListener('LEDGER_UPDATED', (event: any) => {
+      this.handleSyncEvent({
+        type: 'LEDGER_UPDATED',
+        data: JSON.parse(event.data),
+        timestamp: parseInt(event.lastEventId || Date.now().toString())
+      });
+    });
+    
+    this.eventSource.addEventListener('LEDGER_DELETED', (event: any) => {
+      this.handleSyncEvent({
+        type: 'LEDGER_DELETED',
+        data: JSON.parse(event.data),
+        timestamp: parseInt(event.lastEventId || Date.now().toString())
+      });
+    });
+    
+    this.eventSource.addEventListener('MEMBER_ADDED', (event: any) => {
+      this.handleSyncEvent({
+        type: 'MEMBER_ADDED',
+        data: JSON.parse(event.data),
+        timestamp: parseInt(event.lastEventId || Date.now().toString())
+      });
+    });
+    
+    this.eventSource.addEventListener('MEMBER_REMOVED', (event: any) => {
+      this.handleSyncEvent({
+        type: 'MEMBER_REMOVED',
+        data: JSON.parse(event.data),
+        timestamp: parseInt(event.lastEventId || Date.now().toString())
+      });
+    });
+    
+    this.eventSource.addEventListener('MEMBER_UPDATED', (event: any) => {
+      this.handleSyncEvent({
+        type: 'MEMBER_UPDATED',
+        data: JSON.parse(event.data),
+        timestamp: parseInt(event.lastEventId || Date.now().toString())
+      });
+    });
+    
+    this.eventSource.addEventListener('BOOK_CREATED', (event: any) => {
+      this.handleSyncEvent({
+        type: 'BOOK_CREATED',
+        data: JSON.parse(event.data),
+        timestamp: parseInt(event.lastEventId || Date.now().toString())
+      });
+    });
+    
+    this.eventSource.addEventListener('BOOK_UPDATED', (event: any) => {
+      this.handleSyncEvent({
+        type: 'BOOK_UPDATED',
+        data: JSON.parse(event.data),
+        timestamp: parseInt(event.lastEventId || Date.now().toString())
+      });
+    });
+    
+    // Heartbeat
+    this.eventSource.addEventListener('heartbeat', () => {
+      console.log('SSE heartbeat received');
+    });
+    
+    this.eventSource.addEventListener('error', (error: any) => {
+      console.error('SSE error:', error);
+      this.handleConnectionError();
+    });
   }
 
-  // 하트비트 시작
-  private startHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
+  // 연결 해제
+  disconnect(): void {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
     }
     
-    this.heartbeatInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'HEARTBEAT' }));
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    
+    this.syncStatus.isConnected = false;
+    this.emit('sync-status-changed', this.syncStatus);
+    
+    console.log('SSE disconnected');
+  }
+
+  // 재연결 처리
+  private async reconnect(): Promise<void> {
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.error('Max reconnection attempts reached');
+      return;
+    }
+    
+    this.reconnectAttempts++;
+    const delay = RECONNECT_INTERVAL_MS * Math.pow(2, this.reconnectAttempts - 1);
+    
+    console.log(`Attempting reconnection ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+    
+    this.reconnectTimeout = setTimeout(async () => {
+      if (this.currentUserId && this.currentBookId && this.currentToken) {
+        try {
+          console.log('Attempting reconnection with saved credentials');
+          await this.connect(this.currentUserId, this.currentBookId, this.currentToken);
+        } catch (error) {
+          console.error('Reconnection failed:', error);
+          this.reconnect();
+        }
       } else {
-        console.log('WebSocket not ready for heartbeat');
+        console.error('Reconnection failed: Missing credentials', {
+          userId: this.currentUserId,
+          bookId: this.currentBookId,
+          token: !!this.currentToken
+        });
       }
-    }, 30000); // 30초마다 하트비트
+    }, delay);
   }
 
   // 연결 오류 처리
@@ -357,255 +401,92 @@ class SyncService extends EventEmitter {
     this.syncStatus.isConnected = false;
     this.emit('sync-status-changed', this.syncStatus);
     
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
     }
     
-    // 재연결 시도 (async 호출을 위해 wrapper 사용)
-    this.attemptReconnect().catch(error => {
-      console.error('Reconnection attempt failed:', error);
-    });
+    this.reconnect();
   }
 
-  // 재연결 시도
-  private async attemptReconnect(): Promise<void> {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+  // 동기화 이벤트 처리
+  private handleSyncEvent(eventData: SyncEventData): void {
+    console.log('Sync event received:', eventData);
+    
+    // 이벤트 발행
+    this.emit('sync-event', eventData);
+    this.emit(eventData.type, eventData.data);
+    
+    // 마지막 동기화 시간 업데이트
+    this.syncStatus.lastSyncTime = Date.now();
+    this.emit('sync-status-changed', this.syncStatus);
+  }
+
+  // 대기 중인 이벤트 처리
+  private async processPendingEvents(): Promise<void> {
+    while (this.pendingEvents.length > 0 && this.syncStatus.isConnected) {
+      const event = this.pendingEvents.shift();
+      if (event) {
+        await this.sendUpdate(event.type, event.data);
+      }
+    }
+    
+    this.syncStatus.pendingChanges = this.pendingEvents.length;
+    this.emit('sync-status-changed', this.syncStatus);
+  }
+
+  // 데이터 업데이트 전송 (REST API 사용)
+  async sendUpdate(type: SyncEvent, data: any): Promise<void> {
+    if (!this.currentBookId) {
+      console.error('Book ID not set');
       return;
     }
     
-    this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    
-    console.log(`Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
-    
-    setTimeout(async () => {
-      try {
-        // 저장된 토큰을 사용하여 재연결 시도
-        let token = this.currentToken;
-        
-        // 현재 토큰이 없으면 SecureStore에서 가져오기
-        if (!token) {
-          token = await SecureStore.getItemAsync('auth-token');
-        }
-        
-        if (this.currentUserId && this.currentBookId && token) {
-          console.log('Attempting reconnection with saved credentials');
-          const wsUrl = `${config.WS_BASE_URL}?token=${encodeURIComponent(token)}&userId=${this.currentUserId}&bookId=${this.currentBookId}`;
-          this.connectWebSocket(wsUrl);
-        } else {
-          console.error('Reconnection failed: Missing credentials', {
-            userId: this.currentUserId,
-            bookId: this.currentBookId,
-            token: !!token
-          });
-          // 재연결 실패 시 재시도 카운터 리셋
-          this.reconnectAttempts = this.maxReconnectAttempts;
-        }
-      } catch (error) {
-        console.error('Error during reconnection attempt:', error);
-      }
-    }, delay);
-  }
-
-  // 연결 해제
-  disconnect(): void {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-    }
-    
-    this.syncStatus.isConnected = false;
-    this.emit('sync-status-changed', this.syncStatus);
-    
-    this.currentUserId = null;
-    this.currentBookId = null;
-    this.currentToken = null;
-    this.reconnectAttempts = 0;
-  }
-
-  // 동기화 상태 반환
-  getSyncStatus(): SyncStatus {
-    return { ...this.syncStatus };
-  }
-
-  // 충돌 해결
-  async resolveConflict(localData: any, remoteData: any): Promise<any> {
-    // 간단한 충돌 해결: 최신 타임스탬프 우선
-    if (localData.updatedAt > remoteData.updatedAt) {
-      return localData;
-    } else {
-      return remoteData;
-    }
-  }
-
-  // 오프라인 변경사항 동기화
-  async syncOfflineChanges(): Promise<void> {
-    // 오프라인 중 발생한 변경사항들을 서버와 동기화
-    console.log('Syncing offline changes...');
-    
-    // 실제 구현에서는 로컬 스토리지에서 오프라인 변경사항을 가져와서 처리
-    // 현재는 mock 처리
-    
-    this.processPendingEvents();
-  }
-}
-
-// Mock Sync Service (개발용)
-export class MockSyncService extends EventEmitter {
-  private syncStatus: SyncStatus = {
-    isConnected: false,
-    lastSyncTime: 0,
-    pendingChanges: 0
-  };
-  
-  private currentUserId: number | null = null;
-  private currentBookId: number | null = null;
-  private mockInterval: number | null = null;
-
-  async connect(userId: number, bookId: number, token: string): Promise<void> {
-    console.log('Mock Sync: Connecting...', { userId, bookId });
-    
-    this.currentUserId = userId;
-    this.currentBookId = bookId;
-    
-    setTimeout(() => {
-      this.syncStatus.isConnected = true;
-      this.syncStatus.lastSyncTime = Date.now();
-      this.emit('sync-status-changed', this.syncStatus);
+    try {
+      // SSE는 단방향이므로 업데이트는 REST API로 전송
+      await api.post(`/api/v2/book/${this.currentBookId}/sync`, {
+        type,
+        data,
+        timestamp: Date.now()
+      });
       
-      // Mock 이벤트 시뮬레이션 시작
-      this.startMockEvents();
-    }, 1000);
-  }
-
-  private startMockEvents(): void {
-    if (this.mockInterval) {
-      clearInterval(this.mockInterval);
-    }
-    
-    // 개발 중에만 Mock 이벤트 생성
-    if (__DEV__) {
-      this.mockInterval = setInterval(() => {
-        if (Math.random() > 0.8) { // 20% 확률로 Mock 이벤트 생성
-          this.generateMockEvent();
-        }
-      }, 10000); // 10초마다 체크
-    }
-  }
-
-  private generateMockEvent(): void {
-    const events = [
-      {
-        type: 'LEDGER_CREATED' as SyncEvent,
-        data: {
-          id: Date.now(),
-          date: new Date().toISOString().split('T')[0],
-          amount: Math.floor(Math.random() * 50000) + 1000,
-          description: `Mock 거래 ${Date.now()}`,
-          amountType: Math.random() > 0.5 ? 'INCOME' : 'EXPENSE',
-          memberId: 2,
-          bookId: this.currentBookId,
-          categoryId: 1,
-          paymentId: 1
-        }
-      },
-      {
-        type: 'MEMBER_JOINED' as SyncEvent,
-        data: {
-          id: Date.now(),
-          username: `mock_user_${Date.now()}`,
-          email: `mock${Date.now()}@example.com`,
-          name: `Mock User ${Date.now()}`,
-          role: 'USER'
-        }
-      }
-    ];
-    
-    const randomEvent = events[Math.floor(Math.random() * events.length)];
-    const eventData: SyncEventData = {
-      ...randomEvent,
-      timestamp: Date.now(),
-      userId: 2, // 다른 사용자로 시뮬레이션
-      bookId: this.currentBookId || undefined
-    };
-    
-    console.log('Mock Sync: Generated event:', eventData);
-    
-    // 이벤트 처리 시뮬레이션
-    setTimeout(() => {
-      this.handleSyncEvent(eventData);
-    }, 500);
-  }
-
-  private handleSyncEvent(eventData: SyncEventData): void {
-    if (eventData.userId === this.currentUserId) return;
-    
-    this.syncStatus.lastSyncTime = Date.now();
-    this.emit('sync-status-changed', this.syncStatus);
-    
-    switch (eventData.type) {
-      case 'LEDGER_CREATED':
-        this.emit('ledger-created', eventData.data);
-        break;
-      case 'MEMBER_JOINED':
-        this.emit('member-joined', eventData.data);
-        break;
-      default:
-        console.log('Mock Sync: Unhandled event type:', eventData.type);
-    }
-  }
-
-  async sendSyncEvent(type: SyncEvent, data: any): Promise<void> {
-    console.log('Mock Sync: Sending event:', { type, data });
-    
-    if (this.syncStatus.isConnected) {
-      // 전송 성공 시뮬레이션
-      setTimeout(() => {
-        console.log('Mock Sync: Event sent successfully');
-      }, 200);
-    } else {
-      this.syncStatus.pendingChanges++;
+      console.log('Update sent via REST API:', type);
+    } catch (error) {
+      console.error('Failed to send update:', error);
+      
+      // 실패한 이벤트를 대기열에 추가
+      this.pendingEvents.push({
+        type,
+        data,
+        timestamp: Date.now()
+      });
+      
+      this.syncStatus.pendingChanges = this.pendingEvents.length;
       this.emit('sync-status-changed', this.syncStatus);
     }
   }
 
-  disconnect(): void {
-    console.log('Mock Sync: Disconnecting...');
-    
-    if (this.mockInterval) {
-      clearInterval(this.mockInterval);
-      this.mockInterval = null;
-    }
-    
-    this.syncStatus.isConnected = false;
-    this.emit('sync-status-changed', this.syncStatus);
-    
-    this.currentUserId = null;
-    this.currentBookId = null;
-  }
-
+  // 동기화 상태 조회
   getSyncStatus(): SyncStatus {
     return { ...this.syncStatus };
   }
 
-  async resolveConflict(localData: any, remoteData: any): Promise<any> {
-    return localData.updatedAt > remoteData.updatedAt ? localData : remoteData;
+  // 대기 중인 변경사항 수 조회
+  getPendingChangesCount(): number {
+    return this.pendingEvents.length;
   }
 
-  async syncOfflineChanges(): Promise<void> {
-    console.log('Mock Sync: Syncing offline changes...');
-    
-    this.syncStatus.pendingChanges = 0;
-    this.emit('sync-status-changed', this.syncStatus);
+  // 강제 동기화
+  async forceSync(): Promise<void> {
+    if (this.syncStatus.isConnected) {
+      await this.processPendingEvents();
+    }
+  }
+
+  // 연결 상태 확인
+  isConnected(): boolean {
+    return this.syncStatus.isConnected;
   }
 }
 
-// 실제 SyncService 사용
-export const sync = new SyncService();
+export default new SyncService();
