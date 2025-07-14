@@ -1,22 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
-  TextInput,
-  Modal,
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getBookJoinRequests, acceptJoinRequest, rejectJoinRequest, getBookGroups, createGroup } from '../../services/inviteService';
-import type { JoinRequestResponse, GroupResponse } from '../../services/inviteService';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import apiService from '../../services/api';
+import type { GroupResponse, JoinRequestResponse } from '../../services/inviteService';
+import { acceptJoinRequest, createGroup, getBookGroups, getBookJoinRequests, rejectJoinRequest } from '../../services/inviteService';
 
 interface BookMember {
   memberId: number;
@@ -208,14 +208,6 @@ export default function BookSettingsModal() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.title}>가계부 설정</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
       <ScrollView 
         style={styles.content}
         refreshControl={
@@ -420,26 +412,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
   content: {
     flex: 1,
+    paddingTop: 0,
   },
   bookTitle: {
     fontSize: 24,

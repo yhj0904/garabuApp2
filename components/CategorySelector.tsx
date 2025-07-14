@@ -1,22 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  Alert,
-  Modal,
-  TextInput,
-  ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useCategoryStore } from '@/stores/categoryStore';
-import { useBookStore } from '@/stores/bookStore';
-import { useAuthStore } from '@/stores/authStore';
 import { Category } from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
+import { useBookStore } from '@/stores/bookStore';
+import { useCategoryStore } from '@/stores/categoryStore';
+import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Modal,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
 interface CategorySelectorProps {
   selectedCategoryId?: number;
@@ -27,6 +26,7 @@ interface CategorySelectorProps {
 export default function CategorySelector({ selectedCategoryId, onCategorySelect, bookId }: CategorySelectorProps) {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [selectedEmoji, setSelectedEmoji] = useState('📝');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   
   const { categories, isLoading, fetchCategoriesByBook, createCategoryForBook } = useCategoryStore();
@@ -60,12 +60,13 @@ export default function CategorySelector({ selectedCategoryId, onCategorySelect,
     try {
       const success = await createCategoryForBook(
         targetBookId,
-        { category: newCategoryName.trim() },
+        { category: newCategoryName.trim(), emoji: selectedEmoji },
         token
       );
 
       if (success) {
         setNewCategoryName('');
+        setSelectedEmoji('📝');
         setIsModalVisible(false);
         Alert.alert('성공', '카테고리가 추가되었습니다.');
         // 카테고리 목록 새로고침
@@ -123,7 +124,9 @@ export default function CategorySelector({ selectedCategoryId, onCategorySelect,
         onPress={() => handleCategoryPress(category)}
       >
         <View style={styles.categoryContent}>
-          <Text style={styles.categoryEmoji}>📝</Text>
+          <Text style={styles.categoryEmoji}>
+            {category.emoji || '📝'}
+          </Text>
           <Text style={[
             styles.categoryText,
             { color: selectedCategoryId === category.id ? 'white' : colors.text }
@@ -203,6 +206,25 @@ export default function CategorySelector({ selectedCategoryId, onCategorySelect,
 
           <View style={styles.modalContent}>
             <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>아이콘 선택</Text>
+              <View style={styles.emojiContainer}>
+                {['📝', '💰', '🍔', '🚗', '🏠', '🎮', '📚', '💊', '👕', '🎬', '✈️', '🎵', '🏥', '🎨', '⚽', '💻'].map((emoji) => (
+                  <TouchableOpacity
+                    key={emoji}
+                    style={[
+                      styles.emojiButton,
+                      { backgroundColor: colors.card },
+                      selectedEmoji === emoji && { backgroundColor: colors.tint }
+                    ]}
+                    onPress={() => setSelectedEmoji(emoji)}
+                  >
+                    <Text style={styles.emojiText}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>카테고리명</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
@@ -260,10 +282,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 25,
     marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   categoryContent: {
     flexDirection: 'row',
@@ -271,11 +301,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   categoryEmoji: {
-    fontSize: 16,
+    fontSize: 18,
+    marginRight: 6,
   },
   categoryText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
   },
   addButton: {
     flexDirection: 'row',
@@ -338,5 +369,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 16,
+  },
+  emojiContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  emojiButton: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  emojiText: {
+    fontSize: 20,
   },
 });

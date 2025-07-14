@@ -6,16 +6,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 export default function AddCategoryScreen() {
   const [categoryName, setCategoryName] = useState('');
+  const [selectedEmoji, setSelectedEmoji] = useState('📝');
   const [isLoading, setIsLoading] = useState(false);
 
   const { token } = useAuthStore();
@@ -31,7 +32,10 @@ export default function AddCategoryScreen() {
     }
 
     setIsLoading(true);
-    const success = await createCategory({ category: categoryName.trim() }, token!);
+    const success = await createCategory({ 
+      category: categoryName.trim(),
+      emoji: selectedEmoji 
+    }, token!);
     setIsLoading(false);
     
     if (success) {
@@ -56,6 +60,25 @@ export default function AddCategoryScreen() {
 
       {/* 폼 */}
       <View style={styles.form}>
+        <View style={styles.inputContainer}>
+          <Text style={[styles.label, { color: colors.text }]}>아이콘 선택</Text>
+          <View style={styles.emojiContainer}>
+            {['📝', '💰', '🍔', '🚗', '🏠', '🎮', '📚', '💊', '👕', '🎬', '✈️', '🎵', '🏥', '🎨', '⚽', '💻'].map((emoji) => (
+              <TouchableOpacity
+                key={emoji}
+                style={[
+                  styles.emojiButton,
+                  { backgroundColor: colors.card },
+                  selectedEmoji === emoji && { backgroundColor: colors.tint }
+                ]}
+                onPress={() => setSelectedEmoji(emoji)}
+              >
+                <Text style={styles.emojiText}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         <View style={styles.inputContainer}>
           <Text style={[styles.label, { color: colors.text }]}>카테고리명</Text>
           <TextInput
@@ -136,5 +159,23 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  emojiContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  emojiButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  emojiText: {
+    fontSize: 24,
   },
 });

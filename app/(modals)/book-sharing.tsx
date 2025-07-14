@@ -57,6 +57,25 @@ export default function BookSharingScreen() {
     }
   }, [token, currentBook]);
 
+  // bookMembers 상태 변경 시 화면 업데이트
+  useEffect(() => {
+    if (bookMembers.length > 0) {
+      const membersWithJoinDate: BookMemberWithJoinDate[] = bookMembers.map(member => ({
+        member: {
+          id: member.memberId,
+          username: member.username,
+          email: member.email,
+          name: member.username,
+          role: 'USER'
+        },
+        role: member.role,
+        joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
+      }));
+      
+      setBookMembersWithJoinDate(membersWithJoinDate);
+    }
+  }, [bookMembers]);
+
   const loadBookMembers = async () => {
     if (!token || !currentBook) return;
     
@@ -64,7 +83,7 @@ export default function BookSharingScreen() {
       setIsLoading(true);
       const success = await fetchBookMembers(currentBook.id, token);
       
-      if (success) {
+      if (success && bookMembers.length > 0) {
         // bookMembers를 BookMemberWithJoinDate로 변환
         const membersWithJoinDate: BookMemberWithJoinDate[] = bookMembers.map(member => ({
           member: {
@@ -79,9 +98,14 @@ export default function BookSharingScreen() {
         }));
         
         setBookMembersWithJoinDate(membersWithJoinDate);
+      } else {
+        // 데이터 로딩 실패 시 빈 배열 설정
+        setBookMembersWithJoinDate([]);
+        console.warn('Book members data is empty or loading failed');
       }
     } catch (error) {
       console.error('Error loading book members:', error);
+      setBookMembersWithJoinDate([]);
     } finally {
       setIsLoading(false);
     }
@@ -337,9 +361,13 @@ export default function BookSharingScreen() {
       )}
 
       {/* 멤버 목록 */}
-      <ScrollView style={styles.memberList} showsVerticalScrollIndicator={false}>
+      <View style={styles.memberList}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>참여 멤버</Text>
-        {bookMembersWithJoinDate.length === 0 ? (
+        {isLoading ? (
+          <Text style={[styles.emptyText, { color: colors.icon }]}>
+            로딩 중...
+          </Text>
+        ) : bookMembersWithJoinDate.length === 0 ? (
           <Text style={[styles.emptyText, { color: colors.icon }]}>
             아직 참여한 멤버가 없습니다.
           </Text>
@@ -349,9 +377,10 @@ export default function BookSharingScreen() {
             renderItem={renderMemberItem}
             keyExtractor={(item) => item.member.id.toString()}
             scrollEnabled={false}
+            showsVerticalScrollIndicator={false}
           />
         )}
-      </ScrollView>
+      </View>
 
       {/* 멤버 추가 모달 */}
       <Modal
@@ -386,7 +415,7 @@ export default function BookSharingScreen() {
 
             {/* 사용 가능한 멤버 목록 */}
             <Text style={[styles.sectionTitle, { color: colors.text }]}>사용자 선택</Text>
-            <ScrollView style={styles.availableMemberList}>
+            <View style={styles.availableMemberList}>
               {availableMembers.length === 0 ? (
                 <Text style={[styles.emptyText, { color: colors.icon }]}>
                   추가할 수 있는 사용자가 없습니다.
@@ -397,9 +426,10 @@ export default function BookSharingScreen() {
                   renderItem={renderAvailableMember}
                   keyExtractor={(item) => item.id.toString()}
                   scrollEnabled={false}
+                  showsVerticalScrollIndicator={false}
                 />
               )}
-            </ScrollView>
+            </View>
 
             {/* 역할 선택 */}
             {selectedMember && (

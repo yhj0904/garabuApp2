@@ -20,7 +20,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import apiService from '@/services/api';
 
 
 export default function AddTransactionScreen() {
@@ -30,6 +29,7 @@ export default function AddTransactionScreen() {
   const [spender, setSpender] = useState('');
   const [amountType, setAmountType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategoryEmoji, setSelectedCategoryEmoji] = useState<string>('');
   const [selectedPayment, setSelectedPayment] = useState<string>('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -290,9 +290,14 @@ export default function AddTransactionScreen() {
                 style={[styles.selectButton, { backgroundColor: colors.card }]}
                 onPress={() => setShowCategoryModal(true)}
               >
-                <Text style={[styles.selectButtonText, { color: selectedCategory ? colors.text : colors.icon }]}>
-                  {selectedCategory || '카테고리 선택'}
-                </Text>
+                <View style={styles.selectButtonContent}>
+                  {selectedCategoryEmoji && (
+                    <Text style={styles.selectButtonEmoji}>{selectedCategoryEmoji}</Text>
+                  )}
+                  <Text style={[styles.selectButtonText, { color: selectedCategory ? colors.text : colors.icon }]}>
+                    {selectedCategory || '카테고리 선택'}
+                  </Text>
+                </View>
                 <Ionicons name="chevron-down" size={20} color={colors.icon} />
               </TouchableOpacity>
             </View>
@@ -389,22 +394,28 @@ export default function AddTransactionScreen() {
           >
             <Text style={[styles.modalTitle, { color: colors.text }]}>카테고리 선택</Text>
             
-            <ScrollView style={styles.modalList}>
+            <View style={styles.modalList}>
               {categories.map((category) => (
                 <TouchableOpacity
                   key={category.id}
                   style={[styles.modalItem, { backgroundColor: colors.card }]}
                   onPress={() => {
                     setSelectedCategory(category.category);
+                    setSelectedCategoryEmoji(category.emoji || '📝');
                     setShowCategoryModal(false);
                   }}
                 >
-                  <Text style={[styles.modalItemText, { color: colors.text }]}>
-                    {category.category}
-                  </Text>
+                  <View style={styles.modalItemContent}>
+                    <Text style={styles.modalItemEmoji}>
+                      {category.emoji || '📝'}
+                    </Text>
+                    <Text style={[styles.modalItemText, { color: colors.text }]}>
+                      {category.category}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
 
             <View style={styles.modalAddSection}>
               <TextInput
@@ -450,7 +461,7 @@ export default function AddTransactionScreen() {
           >
             <Text style={[styles.modalTitle, { color: colors.text }]}>결제 수단 선택</Text>
             
-            <ScrollView style={styles.modalList}>
+            <View style={styles.modalList}>
               {payments.map((payment) => (
                 <TouchableOpacity
                   key={payment.id}
@@ -465,7 +476,7 @@ export default function AddTransactionScreen() {
                   </Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
 
             <View style={styles.modalAddSection}>
               <TextInput
@@ -600,8 +611,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  selectButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  selectButtonEmoji: {
+    fontSize: 18,
+  },
   selectButtonText: {
     fontSize: 16,
+    flex: 1,
   },
   submitButton: {
     height: 50,
@@ -642,8 +663,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 8,
   },
+  modalItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  modalItemEmoji: {
+    fontSize: 20,
+  },
   modalItemText: {
     fontSize: 16,
+    flex: 1,
   },
   modalAddSection: {
     flexDirection: 'row',

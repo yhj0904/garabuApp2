@@ -368,6 +368,7 @@ export default function ExploreScreen() {
                     keyExtractor={(item) => item.id.toString()}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingBottom: 20 }}
+                    scrollEnabled={false}
                   />
                 )}
               </View>

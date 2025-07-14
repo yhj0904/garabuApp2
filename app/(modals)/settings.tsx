@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getBookJoinRequests, acceptJoinRequest, rejectJoinRequest } from '../../services/inviteService';
-import type { JoinRequestResponse } from '../../services/inviteService';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import apiService from '../../services/api';
+import type { JoinRequestResponse } from '../../services/inviteService';
+import { acceptJoinRequest, getBookJoinRequests, rejectJoinRequest } from '../../services/inviteService';
 
 interface BookMember {
   memberId: number;
@@ -69,9 +69,11 @@ export default function BookSettingsModal() {
   const handleAcceptRequest = async (requestId: number) => {
     try {
       await acceptJoinRequest(requestId);
-      Alert.alert('성공', '참가 요청을 승인했습니다.');
-      loadData();
+      Alert.alert('성공', '참가 요청을 승인했습니다.', [
+        { text: '확인', onPress: () => loadData() }
+      ]);
     } catch (error) {
+      console.error('Accept request error:', error);
       Alert.alert('오류', '요청 처리에 실패했습니다.');
     }
   };
@@ -88,9 +90,11 @@ export default function BookSettingsModal() {
           onPress: async () => {
             try {
               await rejectJoinRequest(requestId);
-              Alert.alert('완료', '참가 요청을 거절했습니다.');
-              loadData();
+              Alert.alert('완료', '참가 요청을 거절했습니다.', [
+                { text: '확인', onPress: () => loadData() }
+              ]);
             } catch (error) {
+              console.error('Reject request error:', error);
               Alert.alert('오류', '요청 처리에 실패했습니다.');
             }
           },
@@ -127,14 +131,6 @@ export default function BookSettingsModal() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.title}>가계부 설정</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
       <ScrollView 
         style={styles.content}
         refreshControl={
@@ -235,24 +231,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
   },
   content: {
     flex: 1,

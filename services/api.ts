@@ -132,6 +132,7 @@ interface SearchLedgerRequest {
 // 카테고리 생성 요청
 interface CreateCategoryRequest {
   category: string;
+  emoji?: string;
 }
 
 // 결제 수단 생성 요청
@@ -624,51 +625,76 @@ class ApiService {
 
   // 기본 가계부 목록 조회
   async getLedgerList(params: GetLedgerListRequest, token: string): Promise<Ledger[]> {
-    const response = await this.axiosInstance.get<{
-      dtoList: Array<{
-        id: number;
-        date: string;
-        amount: number;
-        description: string;
-        memo?: string;
-        amountType: 'INCOME' | 'EXPENSE';
-        spender?: string;
-        titleId: number;
-        memberId: number;
-        categoryId: number;
-        paymentId: number;
-      }>;
-      totalElements: number;
-    }>(`/${params.bookId}`, {
-      params: {
-        page: params.page,
-        size: params.size,
-      },
-    });
+    console.log('=== getLedgerList API 호출 ===');
+    console.log('bookId:', params.bookId);
+    console.log('page:', params.page);
+    console.log('size:', params.size);
+    
+    try {
+      const response = await this.axiosInstance.get<{
+        ledgers: Array<{
+          id: number;
+          date: string;
+          amount: number;
+          description: string;
+          memo?: string;
+          amountType: 'INCOME' | 'EXPENSE';
+          spender?: string;
+          bookId: number;
+          memberId: number;
+          categoryId: number;
+          paymentId: number;
+        }>;
+        totalElements: number;
+      }>(`/ledger/${params.bookId}`, {
+        params: {
+          page: params.page,
+          size: params.size,
+        },
+      });
 
-    if (!response.data.dtoList) {
-      return [];
+      console.log('=== getLedgerList 응답 ===');
+      console.log('응답 데이터:', response.data);
+
+      if (!response.data.ledgers) {
+        console.log('ledgers 필드가 없음, 빈 배열 반환');
+        return [];
+      }
+
+      const mappedLedgers = response.data.ledgers.map(ledger => ({
+        id: ledger.id,
+        date: ledger.date,
+        amount: ledger.amount,
+        description: ledger.description,
+        memo: ledger.memo,
+        amountType: ledger.amountType,
+        spender: ledger.spender,
+        memberId: ledger.memberId || 0,
+        bookId: ledger.bookId || params.bookId,
+        categoryId: ledger.categoryId || 0,
+        paymentId: ledger.paymentId || 0,
+      }));
+
+      console.log('매핑된 ledgers:', mappedLedgers);
+      return mappedLedgers;
+    } catch (error) {
+      console.error('=== getLedgerList 에러 ===');
+      console.error('에러:', error);
+      if (isAxiosError(error)) {
+        console.error('응답 상태:', error.response?.status);
+        console.error('응답 데이터:', error.response?.data);
+      }
+      throw error;
     }
-
-    return response.data.dtoList.map(ledger => ({
-      id: ledger.id,
-      date: ledger.date,
-      amount: ledger.amount,
-      description: ledger.description,
-      memo: ledger.memo,
-      amountType: ledger.amountType,
-      spender: ledger.spender,
-      memberId: ledger.memberId,
-      bookId: ledger.titleId,
-      categoryId: ledger.categoryId,
-      paymentId: ledger.paymentId,
-    }));
   }
 
   // 검색 조건이 있는 가계부 기록 검색
   async searchLedgers(params: SearchLedgerRequest, token: string): Promise<Ledger[]> {
+    console.log('=== searchLedgers API 호출 ===');
+    console.log('검색 파라미터:', params);
+    
     const response = await this.axiosInstance.get<{
-      dtoList: Array<{
+      ledgers: Array<{
         id: number;
         date: string;
         amount: number;
@@ -676,13 +702,13 @@ class ApiService {
         memo?: string;
         amountType: 'INCOME' | 'EXPENSE';
         spender?: string;
-        titleId: number;
+        bookId: number;
         memberId: number;
         categoryId: number;
         paymentId: number;
       }>;
       totalElements: number;
-    }>(`/${params.bookId}/search`, {
+    }>(`/ledger/${params.bookId}/search`, {
       params: {
         startDate: params.startDate,
         endDate: params.endDate,
@@ -694,7 +720,15 @@ class ApiService {
       },
     });
 
-    return response.data.dtoList.map(ledger => ({
+    console.log('=== searchLedgers 응답 ===');
+    console.log('응답 데이터:', response.data);
+
+    if (!response.data.ledgers) {
+      console.log('ledgers 필드가 없음, 빈 배열 반환');
+      return [];
+    }
+
+    const mappedLedgers = response.data.ledgers.map(ledger => ({
       id: ledger.id,
       date: ledger.date,
       amount: ledger.amount,
@@ -702,11 +736,14 @@ class ApiService {
       memo: ledger.memo,
       amountType: ledger.amountType,
       spender: ledger.spender,
-      memberId: ledger.memberId,
-      bookId: ledger.titleId,
-      categoryId: ledger.categoryId,
-      paymentId: ledger.paymentId,
+      memberId: ledger.memberId || 0,
+      bookId: ledger.bookId || params.bookId,
+      categoryId: ledger.categoryId || 0,
+      paymentId: ledger.paymentId || 0,
     }));
+
+    console.log('매핑된 ledgers:', mappedLedgers);
+    return mappedLedgers;
   }
 
   // Category endpoints
@@ -964,6 +1001,11 @@ class ApiService {
   async getBookGroups(bookId: number): Promise<any[]> {
     const response = await this.axiosInstance.get(`/book/invite/${bookId}/groups`);
     return response.data;
+  }
+
+  // 동기화를 위한 public post 메서드
+  async post(url: string, data: any): Promise<any> {
+    return this.axiosInstance.post(url, data);
   }
 
 }
