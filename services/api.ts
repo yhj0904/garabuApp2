@@ -560,6 +560,8 @@ class ApiService {
     console.log('전송 데이터:', JSON.stringify(data, null, 2));
     console.log('데이터 타입:', typeof data);
     console.log('데이터 키:', Object.keys(data));
+    console.log('baseURL:', this.axiosInstance.defaults.baseURL);
+    console.log('요청 URL:', `${this.axiosInstance.defaults.baseURL}/ledger/ledgers`);
     
     // 데이터 유효성 검증
     if (!data.date || !data.amount || !data.description || !data.amountType || 
@@ -585,7 +587,12 @@ class ApiService {
         amountType: string;
         category: string;
         payment: string;
-      }>('/ledger/ledgers', data);
+      }>('/ledger/ledgers', data, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
 
       console.log('=== createLedger 응답 ===');
       console.log('응답:', response.data);

@@ -377,8 +377,16 @@ export default function AddTransactionScreen() {
         transparent
         animationType="slide"
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowCategoryModal(false)}
+        >
+          <TouchableOpacity 
+            style={[styles.modalContent, { backgroundColor: colors.background }]} 
+            activeOpacity={1}
+            onPress={() => {}} // 모달 내부 터치 시 닫히지 않도록 빈 함수
+          >
             <Text style={[styles.modalTitle, { color: colors.text }]}>카테고리 선택</Text>
             
             <ScrollView style={styles.modalList}>
@@ -420,8 +428,8 @@ export default function AddTransactionScreen() {
             >
               <Text style={[styles.modalCloseButtonText, { color: colors.text }]}>닫기</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* 결제 수단 선택 모달 */}
@@ -430,8 +438,16 @@ export default function AddTransactionScreen() {
         transparent
         animationType="slide"
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowPaymentModal(false)}
+        >
+          <TouchableOpacity 
+            style={[styles.modalContent, { backgroundColor: colors.background }]} 
+            activeOpacity={1}
+            onPress={() => {}} // 모달 내부 터치 시 닫히지 않도록 빈 함수
+          >
             <Text style={[styles.modalTitle, { color: colors.text }]}>결제 수단 선택</Text>
             
             <ScrollView style={styles.modalList}>
@@ -473,8 +489,8 @@ export default function AddTransactionScreen() {
             >
               <Text style={[styles.modalCloseButtonText, { color: colors.text }]}>닫기</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
