@@ -95,3 +95,7 @@ build/
 app-example/ 
 *.pem 
 *.orig.* 
+
+.claude/
+Claude.md
+/note
