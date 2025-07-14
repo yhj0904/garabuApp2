@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError, isAxiosError } from 'axios';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, isAxiosError } from 'axios';
 import config from '../config/config';
 
 // API 기본 설정
@@ -183,7 +183,7 @@ class ApiService {
   }> = [];
 
   constructor(baseURL: string) {
-    // 인증이 필요 없는 요청용 인스턴스
+    // 인증 관련 요청용 인스턴스 (로그인, 로그아웃, 토큰 재발급 등 - API 버전 없음)
     this.authAxiosInstance = axios.create({
       baseURL,
       headers: {
@@ -191,7 +191,7 @@ class ApiService {
       },
     });
 
-    // 인증이 필요한 요청용 인스턴스
+    // 비즈니스 로직 API 요청용 인스턴스 (API 버전 포함)
     this.axiosInstance = axios.create({
       baseURL: `${baseURL}/api/${config.API_VERSION}`,
       headers: {
@@ -587,12 +587,7 @@ class ApiService {
         amountType: string;
         category: string;
         payment: string;
-      }>('/ledger/ledgers', data, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
+      }>('/ledger/ledgers', data);
 
       console.log('=== createLedger 응답 ===');
       console.log('응답:', response.data);
@@ -644,7 +639,7 @@ class ApiService {
         paymentId: number;
       }>;
       totalElements: number;
-    }>(`/ledger/${params.bookId}`, {
+    }>(`/${params.bookId}`, {
       params: {
         page: params.page,
         size: params.size,
@@ -687,7 +682,7 @@ class ApiService {
         paymentId: number;
       }>;
       totalElements: number;
-    }>(`/ledger/${params.bookId}/search`, {
+    }>(`/${params.bookId}/search`, {
       params: {
         startDate: params.startDate,
         endDate: params.endDate,
@@ -970,6 +965,7 @@ class ApiService {
     const response = await this.axiosInstance.get(`/book/invite/${bookId}/groups`);
     return response.data;
   }
+
 }
 
 // API 서비스 인스턴스 생성 - 실제 서버 API만 사용

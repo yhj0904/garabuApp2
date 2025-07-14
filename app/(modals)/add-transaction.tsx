@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { notification } from '@/services/notificationService';
-import { sync } from '@/services/syncService';
+import syncService from '@/services/syncService';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
@@ -20,6 +20,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import apiService from '@/services/api';
 
 
 export default function AddTransactionScreen() {
@@ -109,7 +110,7 @@ export default function AddTransactionScreen() {
     
     if (result.success) {
       // 실시간 동기화 이벤트 전송
-      await sync.sendSyncEvent('LEDGER_CREATED', {
+      await syncService.sendUpdate('LEDGER_CREATED', {
         ...ledgerData,
         id: Date.now(), // Mock ID
         memberId: user?.id || 1,
@@ -209,7 +210,6 @@ export default function AddTransactionScreen() {
               <Ionicons name="arrow-back" size={24} color={colors.tint} />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: colors.text }]}>거래 추가</Text>
-            <View style={styles.placeholder} />
           </View>
 
           {/* 수입/지출 타입 선택 */}
