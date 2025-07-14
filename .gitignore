@@ -99,3 +99,17 @@ app-example/
 .claude/
 Claude.md
 /note
+
+android
+
+ios/
+
+.DS_Store
+
+.env
+
+.env.local
+
+.env.development.local
+
+.env.test.local
