@@ -248,6 +248,30 @@ export default function LoginScreen() {
               </View>
               */}
 
+              {/* 테스트 계정 빠른 로그인 버튼 */}
+              <TouchableOpacity
+                style={[
+                  styles.testAccountButton,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.tint,
+                    borderWidth: 1,
+                    opacity: isLoading ? 0.7 : 1,
+                  },
+                ]}
+                onPress={() => {
+                  setEmail('test1@garabu.com');
+                  setPassword('test1');
+                }}
+                disabled={isLoading}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="flask" size={20} color={colors.tint} />
+                <Text style={[styles.testAccountButtonText, { color: colors.tint }]}>
+                  테스트 계정으로 로그인
+                </Text>
+              </TouchableOpacity>
+
               {/* 회원가입 링크 */}
               <View style={styles.signUpContainer}>
                 <Text style={[styles.signUpText, { color: colors.icon }]}>
@@ -440,6 +464,27 @@ const styles = StyleSheet.create({
   },
   signUpLink: {
     fontSize: 14,
+    fontWeight: '600',
+  },
+  testAccountButton: {
+    height: 50,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 12,
+    flexDirection: 'row',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  testAccountButtonText: {
+    fontSize: 16,
     fontWeight: '600',
   },
 }); 
