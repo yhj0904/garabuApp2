@@ -20,6 +20,7 @@ interface AssetState {
   fetchAssetTypes: (token: string) => Promise<boolean>;
   fetchAssetsByBook: (bookId: number, token: string) => Promise<void>;
   createAsset: (bookId: number, data: CreateAssetRequest, token: string) => Promise<Asset>;
+  createDefaultAssets: (bookId: number, token: string) => Promise<Asset[]>;
   updateAsset: (assetId: number, data: UpdateAssetRequest, token: string) => Promise<Asset>;
   deleteAsset: (assetId: number, token: string) => Promise<void>;
   updateAssetBalance: (assetId: number, amount: number, operation: 'ADD' | 'SUBTRACT', token: string) => Promise<void>;
@@ -72,6 +73,46 @@ export const useAssetStore = create<AssetState>((set, get) => ({
       });
       console.error('자산 타입 목록 조회 실패:', error);
       return false;
+    }
+  },
+
+  // 기본 자산 자동 생성
+  createDefaultAssets: async (bookId: number, token: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      
+      const defaultAssets = [
+        { name: '현금', assetType: 'CASH' as const, balance: 0, description: '지갑에 있는 현금' },
+        { name: '주거래 계좌', assetType: 'CHECKING_ACCOUNT' as const, balance: 0, description: '주로 사용하는 은행 계좌', bankName: '은행명 입력' },
+        { name: '적금 계좌', assetType: 'SAVINGS_ACCOUNT' as const, balance: 0, description: '저축용 적금 계좌', bankName: '은행명 입력' },
+        { name: '주카드', assetType: 'CREDIT_CARD' as const, balance: 0, description: '주로 사용하는 카드', cardType: '신용카드' },
+      ];
+
+      const createdAssets = [];
+      for (const assetData of defaultAssets) {
+        try {
+          const newAsset = await apiService.createAsset(bookId, assetData, token);
+          createdAssets.push(newAsset);
+        } catch (error) {
+          console.error('기본 자산 생성 실패:', assetData.name, error);
+        }
+      }
+
+      // 기존 자산 목록에 새로 생성된 자산들 추가
+      const currentAssets = get().assets;
+      set({ 
+        assets: [...currentAssets, ...createdAssets],
+        isLoading: false 
+      });
+      
+      return createdAssets;
+    } catch (error: any) {
+      set({ 
+        error: error.message || '기본 자산 생성에 실패했습니다.',
+        isLoading: false 
+      });
+      console.error('기본 자산 생성 실패:', error);
+      return [];
     }
   },
 

@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -17,7 +18,7 @@ import {
 
 export default function SelectBookScreen() {
   const { token, user } = useAuthStore();
-  const { books, currentBook, setCurrentBook, fetchBooks, isLoading } = useBookStore();
+  const { books, currentBook, setCurrentBook, fetchBooks, deleteBook, isLoading } = useBookStore();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -55,6 +56,49 @@ export default function SelectBookScreen() {
 
   const handleRetry = () => {
     loadBooks();
+  };
+
+  const handleDeleteBook = async (book: any) => {
+    if (!token) return;
+    
+    // 현재 선택된 가계부인지 확인
+    const isCurrentBook = currentBook?.id === book.id;
+    
+    Alert.alert(
+      '가계부 삭제',
+      `"${book.title}" 가계부를 삭제하시겠습니까?\n\n가계부의 모든 데이터가 삭제되며, 이는 되돌릴 수 없습니다.`,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              const success = await deleteBook(book.id, token);
+              
+              if (success) {
+                console.log('가계부 삭제 완료:', book.title);
+                
+                // 삭제된 가계부가 현재 선택된 가계부였다면 알림 표시
+                if (isCurrentBook) {
+                  Alert.alert(
+                    '가계부 삭제 완료',
+                    '현재 선택된 가계부가 삭제되어 다른 가계부로 변경되었습니다.',
+                    [{ text: '확인' }]
+                  );
+                }
+              } else {
+                Alert.alert('오류', '가계부를 삭제하는 중 오류가 발생했습니다.');
+              }
+            } catch (error) {
+              console.error('가계부 삭제 실패:', error);
+              Alert.alert('오류', '가계부를 삭제하는 중 오류가 발생했습니다.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -112,32 +156,44 @@ export default function SelectBookScreen() {
               }
               
               return (
-                <TouchableOpacity
+                <View
                   key={`book-${book.id}`}
                   style={[
                     styles.bookCard,
                     { backgroundColor: colors.card },
                     currentBook?.id === book.id && styles.selectedBookCard
                   ]}
-                  onPress={() => handleSelectBook(book)}
                 >
-                  <View style={styles.bookCardContent}>
-                    <Ionicons 
-                      name="book" 
-                      size={24} 
-                      color={currentBook?.id === book.id ? colors.tint : colors.icon} 
-                    />
-                    <Text style={[
-                      styles.bookTitle,
-                      { color: currentBook?.id === book.id ? colors.tint : colors.text }
-                    ]}>
-                      {book.title || '제목 없음'}
-                    </Text>
-                  </View>
-                  {currentBook?.id === book.id && (
-                    <Ionicons name="checkmark-circle" size={24} color={colors.tint} />
-                  )}
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.bookCardTouchable}
+                    onPress={() => handleSelectBook(book)}
+                  >
+                    <View style={styles.bookCardContent}>
+                      <Ionicons 
+                        name="book" 
+                        size={24} 
+                        color={currentBook?.id === book.id ? colors.tint : colors.icon} 
+                      />
+                      <Text style={[
+                        styles.bookTitle,
+                        { color: currentBook?.id === book.id ? colors.tint : colors.text }
+                      ]}>
+                        {book.title || '제목 없음'}
+                      </Text>
+                    </View>
+                    {currentBook?.id === book.id && (
+                      <Ionicons name="checkmark-circle" size={24} color={colors.tint} />
+                    )}
+                  </TouchableOpacity>
+                  
+                  {/* 삭제 버튼 */}
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => handleDeleteBook(book)}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                  </TouchableOpacity>
+                </View>
               );
             })}
             
@@ -225,10 +281,20 @@ const styles = StyleSheet.create({
   bookCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
     borderRadius: 12,
     marginBottom: 8,
+  },
+  bookCardTouchable: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  deleteButton: {
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   selectedBookCard: {
     borderWidth: 2,

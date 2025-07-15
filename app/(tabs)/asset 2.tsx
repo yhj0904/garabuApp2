@@ -1,7 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAssetStore } from '@/stores/assetStore';
-import type { Asset } from '@/services/api';
 import { useBudgetStore } from '@/stores/budgetStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -15,7 +14,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   View,
-  Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -38,8 +36,7 @@ export default function AssetScreen() {
     getAssetTypeStats, 
     getAssetsByType,
     fetchAssetsByBook,
-    fetchAssetTypes,
-    deleteAsset 
+    fetchAssetTypes 
   } = useAssetStore();
   const { 
     budgetSummary, 
@@ -104,33 +101,6 @@ export default function AssetScreen() {
   // 자산 분석 화면으로 이동
   const navigateToAssetAnalysis = () => {
     router.push('/(tabs)/explore'); // 통계 탭으로 이동
-  };
-
-  // 자산 삭제 핸들러
-  const handleDeleteAsset = async (asset: Asset) => {
-    if (!token) return;
-    
-    Alert.alert(
-      '자산 삭제',
-      `"${asset.name}" 자산을 삭제하시겠습니까?\n\n삭제된 자산은 복구할 수 없습니다.`,
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              await deleteAsset(asset.id, token);
-              console.log('자산 삭제 완료:', asset.name);
-            } catch (error) {
-              console.error('자산 삭제 실패:', error);
-              Alert.alert('오류', '자산을 삭제하는 중 오류가 발생했습니다.');
-            }
-          }
-        }
-      ]
-    );
   };
 
   // 예산 달성률 계산
@@ -327,39 +297,30 @@ export default function AssetScreen() {
                   
                   {/* 개별 자산 목록 */}
                   {typeAssets.map((asset) => (
-                    <View key={asset.id} style={[styles.individualAssetCard, { backgroundColor: colors.card }]}>
-                      <TouchableOpacity
-                        style={styles.individualAssetTouchable}
-                        onPress={() => router.push(`/(modals)/asset-detail?assetId=${asset.id}`)}
-                      >
-                        <View style={styles.individualAssetHeader}>
-                          <View style={styles.individualAssetInfo}>
-                            <ThemedText style={[styles.assetName, { color: colors.text }]}>
-                              {asset.name}
+                    <TouchableOpacity
+                      key={asset.id}
+                      style={[styles.individualAssetCard, { backgroundColor: colors.card }]}
+                      onPress={() => router.push(`/(modals)/asset-detail?assetId=${asset.id}`)}
+                    >
+                      <View style={styles.individualAssetHeader}>
+                        <View style={styles.individualAssetInfo}>
+                          <ThemedText style={[styles.assetName, { color: colors.text }]}>
+                            {asset.name}
+                          </ThemedText>
+                          {asset.description && (
+                            <ThemedText style={[styles.assetDescription, { color: colors.tabIconDefault }]}>
+                              {asset.description}
                             </ThemedText>
-                            {asset.description && (
-                              <ThemedText style={[styles.assetDescription, { color: colors.tabIconDefault }]}>
-                                {asset.description}
-                              </ThemedText>
-                            )}
-                          </View>
-                          <View style={styles.assetBalanceSection}>
-                            <ThemedText style={[styles.assetBalance, { color: colors.text }]}>
-                              ₩{asset.balance.toLocaleString()}
-                            </ThemedText>
-                            <Ionicons name="chevron-forward" size={16} color={colors.tabIconDefault} />
-                          </View>
+                          )}
                         </View>
-                      </TouchableOpacity>
-                      
-                      {/* 삭제 버튼 */}
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => handleDeleteAsset(asset)}
-                      >
-                        <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-                      </TouchableOpacity>
-                    </View>
+                        <View style={styles.assetBalanceSection}>
+                          <ThemedText style={[styles.assetBalance, { color: colors.text }]}>
+                            ₩{asset.balance.toLocaleString()}
+                          </ThemedText>
+                          <Ionicons name="chevron-forward" size={16} color={colors.tabIconDefault} />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               );
@@ -660,6 +621,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   individualAssetCard: {
+    padding: 12,
     borderRadius: 8,
     marginTop: 4,
     marginLeft: 16,
@@ -672,22 +634,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 2,
     elevation: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  individualAssetTouchable: {
-    flex: 1,
-    padding: 12,
   },
   individualAssetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  deleteButton: {
-    padding: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   individualAssetInfo: {
     flex: 1,

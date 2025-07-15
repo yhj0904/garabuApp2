@@ -28,8 +28,12 @@ interface BookState {
   // API Actions
   fetchBooks: (token: string) => Promise<boolean>;
   createBook: (data: CreateBookRequest, token: string) => Promise<boolean>;
+  updateBook: (bookId: number, data: { title: string }, token: string) => Promise<boolean>;
+  deleteBook: (bookId: number, token: string) => Promise<boolean>;
   fetchLedgers: (params: GetLedgerListRequest, token: string) => Promise<boolean>;
   createLedger: (data: CreateLedgerRequest, token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
+  updateLedger: (ledgerId: number, data: CreateLedgerRequest, token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
+  deleteLedger: (ledgerId: number, token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   getBookOwners: (bookId: number, token: string) => Promise<Member[]>;
   
   // 공유 가계부 관련 Actions
@@ -148,12 +152,94 @@ export const useBookStore = create<BookState>((set, get) => ({
       const refreshSuccess = await fetchBooks(token);
       console.log('가계부 목록 새로고침 결과:', refreshSuccess ? '성공' : '실패');
       
+      // 새로 생성된 가계부에 기본 자산 자동 추가
+      if (refreshSuccess) {
+        console.log('기본 자산 자동 생성 시작');
+        try {
+          const { useAssetStore } = await import('@/stores/assetStore');
+          const assetStore = useAssetStore.getState();
+          const defaultAssets = await assetStore.createDefaultAssets(newBook.id, token);
+          console.log('기본 자산 생성 완료:', defaultAssets.length, '개');
+        } catch (assetError) {
+          console.error('기본 자산 생성 실패:', assetError);
+          // 기본 자산 생성 실패해도 가계부 생성은 성공으로 처리
+        }
+      }
+      
       set({ isLoading: false });
       
       return true;
     } catch (error) {
       console.error('가계부 생성 실패:', error);
       console.error('에러 상세:', error instanceof Error ? error.message : String(error));
+      set({ isLoading: false });
+      return false;
+    }
+  },
+
+  updateBook: async (bookId: number, data: { title: string }, token: string) => {
+    console.log('가계부 수정 시작:', { bookId, data });
+    set({ isLoading: true });
+    
+    try {
+      const apiService = (await import('@/services/api')).default;
+      const updatedBook = await apiService.updateBook(bookId, data, token);
+      
+      console.log('가계부 수정 성공:', updatedBook);
+      
+      // 가계부 목록에서 해당 가계부 업데이트
+      const { books, currentBook } = get();
+      const updatedBooks = books.map(book => 
+        book.id === bookId ? { ...book, title: data.title } : book
+      );
+      
+      // 현재 가계부가 수정된 가계부인 경우 업데이트
+      const updatedCurrentBook = currentBook && currentBook.id === bookId 
+        ? { ...currentBook, title: data.title }
+        : currentBook;
+      
+      set({ 
+        books: updatedBooks,
+        currentBook: updatedCurrentBook,
+        isLoading: false 
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('가계부 수정 실패:', error);
+      set({ isLoading: false });
+      return false;
+    }
+  },
+
+  deleteBook: async (bookId: number, token: string) => {
+    console.log('가계부 삭제 시작:', bookId);
+    set({ isLoading: true });
+    
+    try {
+      const apiService = (await import('@/services/api')).default;
+      await apiService.deleteBook(bookId, token);
+      
+      console.log('가계부 삭제 성공');
+      
+      // 가계부 목록에서 해당 가계부 제거
+      const { books, currentBook } = get();
+      const updatedBooks = books.filter(book => book.id !== bookId);
+      
+      // 현재 가계부가 삭제된 가계부인 경우 다른 가계부로 변경
+      const updatedCurrentBook = currentBook && currentBook.id === bookId 
+        ? (updatedBooks.length > 0 ? updatedBooks[0] : null)
+        : currentBook;
+      
+      set({ 
+        books: updatedBooks,
+        currentBook: updatedCurrentBook,
+        isLoading: false 
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('가계부 삭제 실패:', error);
       set({ isLoading: false });
       return false;
     }
@@ -211,6 +297,77 @@ export const useBookStore = create<BookState>((set, get) => ({
         if (error.response.status === 400) {
           return { success: false, error: 'validation', message: errorMessage };
         }
+        return { success: false, error: 'server', message: errorMessage };
+      }
+      
+      return { success: false, error: 'network', message: '네트워크 오류가 발생했습니다.' };
+    }
+  },
+
+  updateLedger: async (ledgerId: number, data: CreateLedgerRequest, token: string) => {
+    console.log('가계부 기록 수정 시작:', { ledgerId, data });
+    set({ isLoading: true });
+    
+    try {
+      const apiService = (await import('@/services/api')).default;
+      const updatedLedger = await apiService.updateLedger(ledgerId, data, token);
+      
+      console.log('가계부 기록 수정 성공:', updatedLedger);
+      
+      // 가계부 기록 목록에서 해당 기록 업데이트
+      const { ledgers } = get();
+      const updatedLedgers = ledgers.map(ledger => 
+        ledger.id === ledgerId ? updatedLedger : ledger
+      );
+      
+      set({ 
+        ledgers: updatedLedgers,
+        isLoading: false 
+      });
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('가계부 기록 수정 실패:', error);
+      set({ isLoading: false });
+      
+      if (error?.response?.data?.message) {
+        const errorMessage = error.response.data.message;
+        if (error.response.status === 400) {
+          return { success: false, error: 'validation', message: errorMessage };
+        }
+        return { success: false, error: 'server', message: errorMessage };
+      }
+      
+      return { success: false, error: 'network', message: '네트워크 오류가 발생했습니다.' };
+    }
+  },
+
+  deleteLedger: async (ledgerId: number, token: string) => {
+    console.log('가계부 기록 삭제 시작:', ledgerId);
+    set({ isLoading: true });
+    
+    try {
+      const apiService = (await import('@/services/api')).default;
+      await apiService.deleteLedger(ledgerId, token);
+      
+      console.log('가계부 기록 삭제 성공');
+      
+      // 가계부 기록 목록에서 해당 기록 제거
+      const { ledgers } = get();
+      const updatedLedgers = ledgers.filter(ledger => ledger.id !== ledgerId);
+      
+      set({ 
+        ledgers: updatedLedgers,
+        isLoading: false 
+      });
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('가계부 기록 삭제 실패:', error);
+      set({ isLoading: false });
+      
+      if (error?.response?.data?.message) {
+        const errorMessage = error.response.data.message;
         return { success: false, error: 'server', message: errorMessage };
       }
       

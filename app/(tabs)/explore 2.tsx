@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl, Alert, TextInput } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -10,7 +10,6 @@ import { Ledger } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
-import { useBudgetStore } from '@/stores/budgetStore';
 import PieChart from '@/components/charts/PieChart';
 import BarChart from '@/components/charts/BarChart';
 
@@ -65,9 +64,8 @@ const getTransactionColor = (description: string, colors: any) => {
 
 export default function ExploreScreen() {
   const { token } = useAuthStore();
-  const { currentBook, ledgers, fetchLedgers, deleteLedger } = useBookStore();
+  const { currentBook, ledgers, fetchLedgers } = useBookStore();
   const { categories, fetchCategories } = useCategoryStore();
-  const { budgetSummary, getBudgetSummary } = useBudgetStore();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   
@@ -77,8 +75,6 @@ export default function ExploreScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [historyLedgers, setHistoryLedgers] = useState<Ledger[]>([]);
   const [chartType, setChartType] = useState<'pie' | 'bar'>('pie'); // 차트 타입 선택
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchVisible, setIsSearchVisible] = useState(false);
   
   const month = currentDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
 
@@ -90,14 +86,6 @@ export default function ExploreScreen() {
       });
     }
   }, [selectedTab, token, currentBook]);
-
-  // 예산 탭일 때 예산 데이터 로드
-  useEffect(() => {
-    if (selectedTab === 1 && token && currentBook) {
-      const currentMonth = currentDate.toISOString().slice(0, 7);
-      getBudgetSummary(currentBook.id, currentMonth, token);
-    }
-  }, [selectedTab, token, currentBook, currentDate]);
 
   // 현재 월의 거래 내역만 필터링
   const currentMonthLedgers = ledgers.filter(ledger => {
@@ -224,87 +212,9 @@ export default function ExploreScreen() {
       const isCurrentMonth = ledgerDate.getMonth() === currentDate.getMonth() && 
                             ledgerDate.getFullYear() === currentDate.getFullYear();
       const isCorrectType = selectedType === 0 ? ledger.amountType === 'INCOME' : ledger.amountType === 'EXPENSE';
-      
-      // 검색 필터링
-      const matchesSearch = searchQuery.trim() === '' || 
-        ledger.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (ledger.memo && ledger.memo.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (ledger.spender && ledger.spender.toLowerCase().includes(searchQuery.toLowerCase()));
-      
-      return isCurrentMonth && isCorrectType && matchesSearch;
+      return isCurrentMonth && isCorrectType;
     });
     return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  };
-
-  // 검색 초기화
-  const handleClearSearch = () => {
-    setSearchQuery('');
-    setIsSearchVisible(false);
-  };
-
-  // 검색 토글 핸들러
-  const handleSearchToggle = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsSearchVisible(!isSearchVisible);
-    if (isSearchVisible) {
-      handleClearSearch();
-    }
-  };
-
-  // 거래 내역 삭제 함수
-  const handleDeleteLedger = async (ledger: Ledger) => {
-    if (!token) return;
-    
-    Alert.alert(
-      '거래 내역 삭제',
-      `"${ledger.description}" 내역을 삭제하시겠습니까?`,
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              const result = await deleteLedger(ledger.id, token);
-              
-              if (result.success) {
-                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                // 히스토리 데이터도 업데이트
-                setHistoryLedgers(prev => prev.filter(l => l.id !== ledger.id));
-              } else {
-                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                Alert.alert('삭제 실패', result.message || '거래 내역 삭제에 실패했습니다.');
-              }
-            } catch (error) {
-              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-              console.error('거래 내역 삭제 실패:', error);
-              Alert.alert('오류', '거래 내역 삭제 중 오류가 발생했습니다.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  // 텍스트 하이라이트 컴포넌트
-  const HighlightedText = ({ text, query, style }: { text: string; query: string; style: any }) => {
-    if (!query || !text) return <ThemedText style={style}>{text}</ThemedText>;
-    
-    const parts = text.split(new RegExp(`(${query})`, 'gi'));
-    return (
-      <ThemedText style={style}>
-        {parts.map((part, index) => (
-          part.toLowerCase() === query.toLowerCase() ? (
-            <ThemedText key={index} style={[style, { backgroundColor: colors.tint, color: 'white', borderRadius: 2 }]}>
-              {part}
-            </ThemedText>
-          ) : (
-            part
-          )
-        ))}
-      </ThemedText>
-    );
   };
 
   // 렌더링할 거래 내역 아이템
@@ -318,20 +228,12 @@ export default function ExploreScreen() {
         />
       </View>
       <View style={styles.transactionInfo}>
-        <HighlightedText 
-          text={item.description} 
-          query={searchQuery} 
-          style={[{ fontWeight: '600', fontSize: 16 }, { color: colors.text }]}
-        />
+        <ThemedText type="defaultSemiBold">{item.description}</ThemedText>
         <ThemedText style={styles.transactionDate}>
           {formatDate(item.date)}
         </ThemedText>
         {item.memo && (
-          <HighlightedText 
-            text={item.memo} 
-            query={searchQuery} 
-            style={styles.transactionMemo}
-          />
+          <ThemedText style={styles.transactionMemo}>{item.memo}</ThemedText>
         )}
       </View>
       <View style={styles.transactionRight}>
@@ -342,19 +244,9 @@ export default function ExploreScreen() {
           {item.amountType === 'INCOME' ? '+' : '-'}₩{formatAmount(item.amount)}
         </ThemedText>
         {item.spender && (
-          <HighlightedText 
-            text={item.spender} 
-            query={searchQuery} 
-            style={styles.transactionSpender}
-          />
+          <ThemedText style={styles.transactionSpender}>{item.spender}</ThemedText>
         )}
       </View>
-      <TouchableOpacity
-        style={styles.deleteButton}
-        onPress={() => handleDeleteLedger(item)}
-      >
-        <Ionicons name="trash" size={20} color="#FF3B30" />
-      </TouchableOpacity>
     </View>
   );
 
@@ -499,7 +391,7 @@ export default function ExploreScreen() {
                       {chartType === 'pie' ? (
                         <PieChart
                           data={pieChartData}
-                          centerText={`₩${formatAmount(expenseAmount)}`}
+                          centerText={`₩${(expenseAmount / 1000).toFixed(0)}k`}
                           centerSubtext="총 지출"
                         />
                       ) : (
@@ -553,184 +445,34 @@ export default function ExploreScreen() {
 
             {selectedTab === 1 && (
               <View style={styles.budgetContainer}>
-                {budgetSummary ? (
-                  <View style={[styles.budgetCard, { backgroundColor: colors.card }]}>
-                    <View style={styles.budgetHeader}>
-                      <ThemedText type="subtitle">이번 달 예산</ThemedText>
-                      <TouchableOpacity
-                        style={[styles.budgetEditButton, { backgroundColor: colors.tint }]}
-                        onPress={() => {
-                          // 예산 설정 모달로 이동
-                          console.log('예산 설정 모달 열기');
-                        }}
-                      >
-                        <Ionicons name="settings" size={16} color="white" />
-                      </TouchableOpacity>
-                    </View>
-                    
-                    {budgetSummary.expenseBudget && (
-                      <>
-                        <ThemedText type="title" style={styles.budgetAmount}>
-                          ₩{formatAmount(budgetSummary.expenseBudget)}
-                        </ThemedText>
-                        <View style={styles.progressBar}>
-                          <View style={[
-                            styles.progressFill, 
-                            { 
-                              width: `${Math.min(budgetSummary.expenseAchievementRate, 100)}%`, 
-                              backgroundColor: budgetSummary.expenseAchievementRate > 100 ? '#FF3B30' : '#4CAF50' 
-                            }
-                          ]} />
-                        </View>
-                        <ThemedText style={styles.budgetStatus}>
-                          {budgetSummary.expenseAchievementRate.toFixed(1)}% 사용됨 (₩{formatAmount(budgetSummary.actualExpense)})
-                        </ThemedText>
-                        <ThemedText style={[
-                          styles.budgetRemaining,
-                          { color: budgetSummary.expenseDifference >= 0 ? '#4CAF50' : '#FF3B30' }
-                        ]}>
-                          {budgetSummary.expenseDifference >= 0 ? '잔여 예산' : '예산 초과'}: ₩{formatAmount(Math.abs(budgetSummary.expenseDifference))}
-                        </ThemedText>
-                      </>
-                    )}
-                    
-                    {budgetSummary.incomeBudget && (
-                      <>
-                        <View style={styles.budgetDivider} />
-                        <ThemedText type="defaultSemiBold" style={styles.budgetIncomeTitle}>
-                          수입 목표
-                        </ThemedText>
-                        <ThemedText type="title" style={[styles.budgetAmount, { fontSize: 20 }]}>
-                          ₩{formatAmount(budgetSummary.incomeBudget)}
-                        </ThemedText>
-                        <View style={styles.progressBar}>
-                          <View style={[
-                            styles.progressFill, 
-                            { 
-                              width: `${Math.min(budgetSummary.incomeAchievementRate, 100)}%`, 
-                              backgroundColor: budgetSummary.incomeAchievementRate >= 100 ? '#4CAF50' : '#FF9800' 
-                            }
-                          ]} />
-                        </View>
-                        <ThemedText style={styles.budgetStatus}>
-                          {budgetSummary.incomeAchievementRate.toFixed(1)}% 달성 (₩{formatAmount(budgetSummary.actualIncome)})
-                        </ThemedText>
-                        <ThemedText style={[
-                          styles.budgetRemaining,
-                          { color: budgetSummary.incomeDifference >= 0 ? '#4CAF50' : '#FF3B30' }
-                        ]}>
-                          {budgetSummary.incomeDifference >= 0 ? '목표 달성' : '목표 부족'}: ₩{formatAmount(Math.abs(budgetSummary.incomeDifference))}
-                        </ThemedText>
-                      </>
-                    )}
-                    
-                    {budgetSummary.memo && (
-                      <View style={styles.budgetMemo}>
-                        <ThemedText style={styles.budgetMemoText}>
-                          {budgetSummary.memo}
-                        </ThemedText>
-                      </View>
-                    )}
+                <View style={[styles.budgetCard, { backgroundColor: colors.card }]}>
+                  <ThemedText type="subtitle">이번 달 예산</ThemedText>
+                  <ThemedText type="title" style={styles.budgetAmount}>₩2,000,000</ThemedText>
+                  <View style={styles.progressBar}>
+                    <View style={[
+                      styles.progressFill, 
+                      { 
+                        width: `${Math.min((expenseAmount / 2000000) * 100, 100)}%`, 
+                        backgroundColor: expenseAmount > 2000000 ? '#FF3B30' : '#4CAF50' 
+                      }
+                    ]} />
                   </View>
-                ) : (
-                  <View style={[styles.budgetCard, { backgroundColor: colors.card }]}>
-                    <View style={styles.emptyBudgetContainer}>
-                      <Ionicons name="calculator" size={48} color={colors.icon} />
-                      <ThemedText type="subtitle" style={styles.emptyBudgetTitle}>
-                        예산이 설정되지 않았습니다
-                      </ThemedText>
-                      <ThemedText style={styles.emptyBudgetDescription}>
-                        이번 달 예산을 설정하여 지출을 관리해보세요
-                      </ThemedText>
-                      <TouchableOpacity
-                        style={[styles.setBudgetButton, { backgroundColor: colors.tint }]}
-                        onPress={() => {
-                          // 예산 설정 모달로 이동
-                          console.log('예산 설정 모달 열기');
-                        }}
-                      >
-                        <ThemedText style={styles.setBudgetButtonText}>
-                          예산 설정하기
-                        </ThemedText>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
+                  <ThemedText style={styles.budgetStatus}>
+                    {Math.round((expenseAmount / 2000000) * 100)}% 사용됨 (₩{formatAmount(expenseAmount)})
+                  </ThemedText>
+                  <ThemedText style={styles.budgetRemaining}>
+                    잔여 예산: ₩{formatAmount(Math.max(2000000 - expenseAmount, 0))}
+                  </ThemedText>
+                </View>
               </View>
             )}
 
             {selectedTab === 2 && (
               <View style={styles.historyContainer}>
-                {/* 검색 헤더 */}
-                <View style={styles.searchHeader}>
-                  <View style={styles.searchHeaderLeft}>
-                    <ThemedText type="subtitle">
-                      {selectedType === 0 ? '수입' : '지출'} 내역
-                    </ThemedText>
-                    <ThemedText style={[styles.searchResultCount, { color: colors.tabIconDefault }]}>
-                      총 {getFilteredLedgers().length}건
-                    </ThemedText>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.searchToggleButton, { backgroundColor: isSearchVisible ? colors.tint : colors.card }]}
-                    onPress={handleSearchToggle}
-                  >
-                    <Ionicons 
-                      name={isSearchVisible ? "close" : "search"} 
-                      size={20} 
-                      color={isSearchVisible ? "white" : colors.text} 
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                {/* 검색 입력창 */}
-                {isSearchVisible && (
-                  <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
-                    <Ionicons name="search" size={20} color={colors.tabIconDefault} />
-                    <TextInput
-                      style={[styles.searchInput, { color: colors.text }]}
-                      placeholder="설명, 메모, 사용자명으로 검색..."
-                      placeholderTextColor={colors.tabIconDefault}
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
-                      autoFocus
-                    />
-                    {searchQuery.length > 0 && (
-                      <TouchableOpacity
-                        style={styles.clearSearchButton}
-                        onPress={() => setSearchQuery('')}
-                      >
-                        <Ionicons name="close-circle" size={20} color={colors.tabIconDefault} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-
-                {/* 검색 결과 또는 빈 상태 */}
                 {getFilteredLedgers().length === 0 ? (
-                  <View style={styles.emptyStateContainer}>
-                    <Ionicons 
-                      name={searchQuery.trim() ? "search" : "receipt-outline"} 
-                      size={48} 
-                      color={colors.tabIconDefault} 
-                    />
-                    <ThemedText style={[styles.emptyText, { color: colors.tabIconDefault }]}>
-                      {searchQuery.trim() 
-                        ? `'${searchQuery}'에 대한 검색 결과가 없습니다.`
-                        : `${selectedType === 0 ? '수입' : '지출'} 내역이 없습니다.`
-                      }
-                    </ThemedText>
-                    {searchQuery.trim() && (
-                      <TouchableOpacity
-                        style={[styles.clearSearchButton, { backgroundColor: colors.tint, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }]}
-                        onPress={() => setSearchQuery('')}
-                      >
-                        <ThemedText style={[styles.clearSearchText, { color: 'white' }]}>
-                          검색 지우기
-                        </ThemedText>
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                  <ThemedText style={styles.emptyText}>
+                    {selectedType === 0 ? '수입' : '지출'} 내역이 없습니다.
+                  </ThemedText>
                 ) : (
                   <FlatList
                     data={getFilteredLedgers()}
@@ -893,16 +635,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  budgetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  budgetEditButton: {
-    padding: 8,
-    borderRadius: 8,
-  },
   budgetAmount: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -924,50 +656,8 @@ const styles = StyleSheet.create({
   },
   budgetRemaining: {
     fontSize: 14,
-    fontWeight: '500',
+    color: '#8E8E93',
     marginTop: 4,
-  },
-  budgetDivider: {
-    height: 1,
-    backgroundColor: '#E5E5EA',
-    marginVertical: 16,
-  },
-  budgetIncomeTitle: {
-    marginBottom: 8,
-  },
-  budgetMemo: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 8,
-  },
-  budgetMemoText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    fontStyle: 'italic',
-  },
-  emptyBudgetContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyBudgetTitle: {
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyBudgetDescription: {
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  setBudgetButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  setBudgetButtonText: {
-    color: 'white',
-    fontWeight: '600',
   },
   historyContainer: {
     flex: 1,
@@ -993,12 +683,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
-  },
-  deleteButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-    marginLeft: 8,
   },
   transactionIcon: {
     width: 40,
@@ -1089,65 +773,5 @@ const styles = StyleSheet.create({
   },
   trendContainer: {
     alignItems: 'center',
-  },
-  searchHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  searchHeaderLeft: {
-    flex: 1,
-  },
-  searchResultCount: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  searchToggleButton: {
-    padding: 8,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginBottom: 16,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    paddingVertical: 4,
-  },
-  clearSearchButton: {
-    padding: 4,
-  },
-  clearSearchText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  emptyStateContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    gap: 16,
   },
 }); 

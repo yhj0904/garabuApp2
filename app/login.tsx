@@ -187,13 +187,6 @@ export default function LoginScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* 테스트 계정 정보 */}
-              <View style={styles.testAccountContainer}>
-                <Text style={[styles.testAccountText, { color: colors.icon }]}>
-                  테스트 계정: test@example.com / password
-                </Text>
-              </View>
-
               {/* 회원가입 링크 */}
               <View style={styles.signUpContainer}>
                 <Text style={[styles.signUpText, { color: colors.icon }]}>
@@ -325,17 +318,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-  },
-  testAccountContainer: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  testAccountText: {
-    fontSize: 12,
-    textAlign: 'center',
   },
   signUpContainer: {
     flexDirection: 'row',

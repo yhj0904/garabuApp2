@@ -65,6 +65,12 @@ export default function MoreScreen() {
       onPress: () => router.push('/(modals)/add-category'),
     },
     {
+      icon: 'list',
+      title: '카테고리 관리',
+      subtitle: '카테고리 수정 및 삭제',
+      onPress: () => router.push('/(modals)/manage-categories'),
+    },
+    {
       icon: 'notifications',
       title: '알림 설정',
       subtitle: '알림 관리',

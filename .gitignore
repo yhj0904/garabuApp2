@@ -113,3 +113,8 @@ ios/
 .env.development.local
 
 .env.test.local
+
+
+OAUTH_SETUP.md
+
+.env.example

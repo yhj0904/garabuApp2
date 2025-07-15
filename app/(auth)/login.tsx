@@ -46,18 +46,12 @@ export default function LoginScreen() {
     }
   };
 
-  const handleOAuthLogin = async (provider: 'google' | 'naver') => {
+  const handleOAuthLogin = async (provider: 'google' | 'apple' | 'naver' | 'kakao') => {
     console.log(`${provider} 로그인 버튼 클릭됨`);
     
     try {
       console.log(`${provider} OAuth 시작...`);
-      let result;
-      
-      if (provider === 'google') {
-        result = await oauth.googleLogin();
-      } else {
-        result = await oauth.naverLogin();
-      }
+      const result = await oauth.login(provider);
       
       console.log(`${provider} OAuth 결과:`, result);
       
@@ -110,6 +104,28 @@ export default function LoginScreen() {
 
             {/* 소셜 로그인 버튼 */}
             <View style={styles.socialContainer}>
+              {/* iOS에서만 Apple 로그인 버튼 표시 */}
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity
+                  style={[
+                    styles.socialButton, 
+                    styles.appleButton,
+                    { opacity: isLoading ? 0.7 : 1 }
+                  ]}
+                  onPress={() => {
+                    console.log('Apple 버튼 터치됨');
+                    handleOAuthLogin('apple');
+                  }}
+                  disabled={isLoading}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="logo-apple" size={24} color="white" />
+                  <Text style={styles.socialButtonText}>
+                    {isLoading ? '처리 중...' : 'Apple로 계속하기'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              
               <TouchableOpacity
                 style={[
                   styles.socialButton, 
@@ -145,6 +161,25 @@ export default function LoginScreen() {
                 <Ionicons name="logo-html5" size={24} color="white" />
                 <Text style={styles.socialButtonText}>
                   {isLoading ? '처리 중...' : 'Naver로 계속하기'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.socialButton, 
+                  styles.kakaoButton,
+                  { opacity: isLoading ? 0.7 : 1 }
+                ]}
+                onPress={() => {
+                  console.log('Kakao 버튼 터치됨');
+                  handleOAuthLogin('kakao');
+                }}
+                disabled={isLoading}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chatbubble-ellipses" size={24} color="black" />
+                <Text style={[styles.socialButtonText, { color: 'black' }]}>
+                  {isLoading ? '처리 중...' : 'Kakao로 계속하기'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -239,39 +274,6 @@ export default function LoginScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* 테스트 계정 정보 - 필요시 주석 해제
-              <View style={[styles.testAccountContainer, { backgroundColor: colors.card }]}>
-                <Ionicons name="information-circle" size={16} color={colors.icon} />
-                <Text style={[styles.testAccountText, { color: colors.icon }]}>
-                  테스트 계정: test@example.com / password
-                </Text>
-              </View>
-              */}
-
-              {/* 테스트 계정 빠른 로그인 버튼 */}
-              <TouchableOpacity
-                style={[
-                  styles.testAccountButton,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.tint,
-                    borderWidth: 1,
-                    opacity: isLoading ? 0.7 : 1,
-                  },
-                ]}
-                onPress={() => {
-                  setEmail('test1@garabu.com');
-                  setPassword('test1');
-                }}
-                disabled={isLoading}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="flask" size={20} color={colors.tint} />
-                <Text style={[styles.testAccountButtonText, { color: colors.tint }]}>
-                  테스트 계정으로 로그인
-                </Text>
-              </TouchableOpacity>
-
               {/* 회원가입 링크 */}
               <View style={styles.signUpContainer}>
                 <Text style={[styles.signUpText, { color: colors.icon }]}>
@@ -356,11 +358,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  appleButton: {
+    backgroundColor: '#000000',
+  },
   googleButton: {
     backgroundColor: '#4285F4',
   },
   naverButton: {
     backgroundColor: '#03C75A',
+  },
+  kakaoButton: {
+    backgroundColor: '#FEE500',
   },
   socialButtonText: {
     color: 'white',
@@ -442,18 +450,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  testAccountContainer: {
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  testAccountText: {
-    fontSize: 12,
-    flex: 1,
-  },
   signUpContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -464,27 +460,6 @@ const styles = StyleSheet.create({
   },
   signUpLink: {
     fontSize: 14,
-    fontWeight: '600',
-  },
-  testAccountButton: {
-    height: 50,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 12,
-    flexDirection: 'row',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  testAccountButtonText: {
-    fontSize: 16,
     fontWeight: '600',
   },
 }); 

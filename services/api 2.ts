@@ -106,7 +106,7 @@ interface SignupResponse {
 }
 
 interface OAuthRequest {
-  provider: 'google' | 'apple' | 'naver' | 'kakao';
+  provider: 'google' | 'naver';
   accessToken: string;
   refreshToken?: string;
 }
@@ -593,22 +593,6 @@ class ApiService {
     };
   }
 
-  async updateBook(bookId: number, data: { title: string }, token: string): Promise<Book> {
-    const response = await this.axiosInstance.put<{ id: number; title: string }>(`/book/${bookId}`, data);
-    
-    return {
-      id: response.data.id,
-      title: response.data.title,
-      ownerId: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
-  async deleteBook(bookId: number, token: string): Promise<void> {
-    await this.axiosInstance.delete(`/book/${bookId}`);
-  }
-
   async getMyBooks(token: string): Promise<Book[]> {
     console.log('API: getMyBooks 호출');
     const response = await this.axiosInstance.get<any>('/book/mybooks');
@@ -664,64 +648,6 @@ class ApiService {
   }
 
   // Ledger endpoints
-  async updateLedger(ledgerId: number, data: CreateLedgerRequest, token: string): Promise<Ledger> {
-    console.log('=== updateLedger API 호출 ===');
-    console.log('업데이트 데이터:', JSON.stringify(data, null, 2));
-    
-    try {
-      const response = await this.axiosInstance.put<{
-        id: number;
-        date: string;
-        amount: number;
-        description: string;
-        amountType: string;
-        category: string;
-        payment: string;
-      }>(`/ledger/ledgers/${ledgerId}`, data);
-
-      console.log('=== updateLedger 응답 ===');
-      console.log('응답:', response.data);
-
-      return {
-        id: response.data.id,
-        date: data.date,
-        amount: data.amount,
-        description: data.description,
-        memo: data.memo,
-        amountType: data.amountType,
-        spender: data.spender,
-        memberId: 0,
-        bookId: data.bookId,
-        categoryId: 0,
-        paymentId: 0,
-      };
-    } catch (error) {
-      console.error('=== updateLedger 에러 ===');
-      if (isAxiosError(error)) {
-        console.error('Response data:', error.response?.data);
-        console.error('Response status:', error.response?.status);
-      }
-      throw error;
-    }
-  }
-
-  async deleteLedger(ledgerId: number, token: string): Promise<void> {
-    console.log('=== deleteLedger API 호출 ===');
-    console.log('삭제할 ledger ID:', ledgerId);
-    
-    try {
-      await this.axiosInstance.delete(`/ledger/ledgers/${ledgerId}`);
-      console.log('=== deleteLedger 성공 ===');
-    } catch (error) {
-      console.error('=== deleteLedger 에러 ===');
-      if (isAxiosError(error)) {
-        console.error('Response data:', error.response?.data);
-        console.error('Response status:', error.response?.status);
-      }
-      throw error;
-    }
-  }
-
   async createLedger(data: CreateLedgerRequest, token: string): Promise<Ledger> {
     console.log('=== createLedger API 호출 ===');
     console.log('전송 데이터:', JSON.stringify(data, null, 2));
@@ -913,19 +839,6 @@ class ApiService {
   }
 
   // Category endpoints
-  async updateCategory(categoryId: number, data: CreateCategoryRequest, token: string): Promise<Category> {
-    const response = await this.axiosInstance.put<{ id: number; category: string }>(`/category/${categoryId}`, data);
-    
-    return {
-      id: response.data.id,
-      category: response.data.category,
-    };
-  }
-
-  async deleteCategory(categoryId: number, token: string): Promise<void> {
-    await this.axiosInstance.delete(`/category/${categoryId}`);
-  }
-
   async createCategory(data: CreateCategoryRequest, token: string): Promise<Category> {
     const response = await this.axiosInstance.post<{ id: number }>('/category', data);
     
@@ -983,36 +896,7 @@ class ApiService {
     };
   }
 
-  async updateCategoryForBook(bookId: number, categoryId: number, data: CreateCategoryRequest, token: string): Promise<Category> {
-    const response = await this.axiosInstance.put<{ id: number; category: string }>(
-      `/category/book/${bookId}/${categoryId}`,
-      data
-    );
-    
-    return {
-      id: response.data.id,
-      category: response.data.category,
-    };
-  }
-
-  async deleteCategoryForBook(bookId: number, categoryId: number, token: string): Promise<void> {
-    await this.axiosInstance.delete(`/category/book/${bookId}/${categoryId}`);
-  }
-
   // Payment endpoints
-  async updatePayment(paymentId: number, data: CreatePaymentRequest, token: string): Promise<PaymentMethod> {
-    const response = await this.axiosInstance.put<{ id: number; payment: string }>(`/payment/${paymentId}`, data);
-    
-    return {
-      id: response.data.id,
-      payment: response.data.payment,
-    };
-  }
-
-  async deletePayment(paymentId: number, token: string): Promise<void> {
-    await this.axiosInstance.delete(`/payment/${paymentId}`);
-  }
-
   async createPayment(data: CreatePaymentRequest, token: string): Promise<PaymentMethod> {
     const response = await this.axiosInstance.post<{ id: number }>('/payment', data);
     
@@ -1068,22 +952,6 @@ class ApiService {
       id: response.data.id,
       payment: response.data.payment,
     };
-  }
-
-  async updatePaymentForBook(bookId: number, paymentId: number, data: CreatePaymentRequest, token: string): Promise<PaymentMethod> {
-    const response = await this.axiosInstance.put<{ id: number; payment: string }>(
-      `/payment/book/${bookId}/${paymentId}`,
-      data
-    );
-    
-    return {
-      id: response.data.id,
-      payment: response.data.payment,
-    };
-  }
-
-  async deletePaymentForBook(bookId: number, paymentId: number, token: string): Promise<void> {
-    await this.axiosInstance.delete(`/payment/book/${bookId}/${paymentId}`);
   }
 
   // UserBook endpoints

@@ -34,7 +34,7 @@ const DEFAULT_ASSET_TYPES = [
 const CUSTOM_ASSET_TYPES = [
   { type: 'INVESTMENT', name: '투자자산', icon: 'trending-up', color: '#9C27B0' },
   { type: 'REAL_ESTATE', name: '부동산', icon: 'home', color: '#795548' },
-  { type: 'OTHER', name: '기타', icon: 'diamond', color: '#607D8B' },
+  { type: 'OTHER', name: '사용자 정의', icon: 'add-circle', color: '#607D8B' },
 ] as const;
 
 export default function AddAssetModal() {
@@ -128,10 +128,7 @@ export default function AddAssetModal() {
   const selectedAssetType = [...DEFAULT_ASSET_TYPES, ...CUSTOM_ASSET_TYPES].find(type => type.type === formData.assetType);
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <View style={styles.container}>
       {/* 헤더 */}
       <View style={[styles.header, { backgroundColor: colors.background }]}>
         <TouchableOpacity 
@@ -154,6 +151,11 @@ export default function AddAssetModal() {
           </ThemedText>
         </TouchableOpacity>
       </View>
+
+      <KeyboardAvoidingView 
+        style={styles.content} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* 자산 타입 선택 */}
@@ -404,7 +406,8 @@ export default function AddAssetModal() {
           </View>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -418,9 +421,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 60,
+    paddingTop: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
+  },
+  content: {
+    flex: 1,
   },
   closeButton: {
     padding: 8,
