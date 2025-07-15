@@ -17,6 +17,7 @@ export default function ModalLayout() {
         <Stack.Screen name="select-book"   options={{ title: '가계부 선택' }} />
         <Stack.Screen name="book-sharing"  options={{ title: '가계부 공유' }} />
         <Stack.Screen name="advanced-stats" options={{ title: '고급 통계' }} />
+        <Stack.Screen name="budget-settings" options={{ title: '예산 설정' }} />
         <Stack.Screen name="change-password" options={{ title: '비밀번호 변경' }} />
       </Stack>
     </SafeAreaView>

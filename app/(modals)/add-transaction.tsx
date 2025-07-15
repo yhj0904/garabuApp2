@@ -2,9 +2,11 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { notification } from '@/services/notificationService';
 import syncService from '@/services/syncService';
+import apiService from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
+import { useAssetStore } from '@/stores/assetStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -27,19 +29,25 @@ export default function AddTransactionScreen() {
   const [description, setDescription] = useState('');
   const [memo, setMemo] = useState('');
   const [spender, setSpender] = useState('');
-  const [amountType, setAmountType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
+  const [amountType, setAmountType] = useState<'INCOME' | 'EXPENSE' | 'TRANSFER'>('EXPENSE');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedCategoryEmoji, setSelectedCategoryEmoji] = useState<string>('');
   const [selectedPayment, setSelectedPayment] = useState<string>('');
+  const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null);
+  const [selectedFromAssetId, setSelectedFromAssetId] = useState<number | null>(null);
+  const [selectedToAssetId, setSelectedToAssetId] = useState<number | null>(null);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showFromAssetModal, setShowFromAssetModal] = useState(false);
+  const [showToAssetModal, setShowToAssetModal] = useState(false);
   const [newCategory, setNewCategory] = useState('');
   const [newPayment, setNewPayment] = useState('');
 
   const { token, user } = useAuthStore();
   const { currentBook, createLedger, isLoading } = useBookStore();
   const { categories, payments, fetchCategoriesByBook, fetchPaymentsByBook, createCategoryForBook, createPaymentForBook } = useCategoryStore();
+  const { assets, assetTypes, fetchAssetsByBook, updateAssetBalance } = useAssetStore();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -48,6 +56,7 @@ export default function AddTransactionScreen() {
     if (token && currentBook) {
       fetchCategoriesByBook(currentBook.id, token);
       fetchPaymentsByBook(currentBook.id, token);
+      fetchAssetsByBook(currentBook.id, token);
     }
   }, [token, currentBook]);
 
@@ -57,10 +66,23 @@ export default function AddTransactionScreen() {
     
     if (!amount?.trim()) validationErrors.push('금액');
     if (!description?.trim()) validationErrors.push('내용');
-    if (!selectedCategory?.trim()) validationErrors.push('카테고리');
-    if (!selectedPayment?.trim()) validationErrors.push('결제 수단');
     if (!date) validationErrors.push('날짜');
     if (!amountType) validationErrors.push('수입/지출 구분');
+    
+    // Transfer validation
+    if (amountType === 'TRANSFER') {
+      if (!selectedFromAssetId && !selectedToAssetId) {
+        validationErrors.push('출금 자산 또는 입금 자산 중 하나');
+      }
+      if (selectedFromAssetId && selectedToAssetId && selectedFromAssetId === selectedToAssetId) {
+        Alert.alert('입력 오류', '출금 자산과 입금 자산은 다른 자산이어야 합니다.');
+        return;
+      }
+    } else {
+      // Income/Expense validation
+      if (!selectedCategory?.trim()) validationErrors.push('카테고리');
+      if (!selectedPayment?.trim()) validationErrors.push('결제 수단');
+    }
     
     if (validationErrors.length > 0) {
       Alert.alert('입력 오류', `다음 필수 필드를 입력해주세요:\n• ${validationErrors.join('\n• ')}`);
@@ -88,27 +110,107 @@ export default function AddTransactionScreen() {
       return;
     }
 
-    const ledgerData = {
-      date, // Keep as string in YYYY-MM-DD format - server will parse to LocalDate
-      amount: Math.floor(numericAmount), // Convert to integer for server validation
-      description: description.trim(),
-      memo: memo && memo.trim() ? memo.trim() : '',
-      amountType,
-      bookId: currentBook.id,
-      payment: selectedPayment.trim(),
-      category: selectedCategory.trim(),
-      spender: spender && spender.trim() ? spender.trim() : (user?.name || user?.username || ''),
-    };
+    let result;
+    
+    if (amountType === 'TRANSFER') {
+      // Transfer handling
+      if (selectedFromAssetId && selectedToAssetId) {
+        // 양방향 이체 (기존 로직)
+        const transferData = {
+          date,
+          amount: Math.floor(numericAmount),
+          description: description.trim(),
+          memo: memo && memo.trim() ? memo.trim() : '',
+          bookId: currentBook.id,
+          fromAssetId: selectedFromAssetId,
+          toAssetId: selectedToAssetId,
+          transferer: spender && spender.trim() ? spender.trim() : (user?.name || user?.username || ''),
+        };
 
-    console.log('=== 거래 생성 데이터 ===');
-    console.log('ledgerData:', JSON.stringify(ledgerData, null, 2));
-    console.log('token 존재:', !!token);
-    console.log('user 정보:', user ? { id: user.id, name: user.name, username: user.username } : 'null');
-    console.log('======================');
+        console.log('=== 이체 생성 데이터 ===');
+        console.log('transferData:', JSON.stringify(transferData, null, 2));
+        console.log('token 존재:', !!token);
+        console.log('user 정보:', user ? { id: user.id, name: user.name, username: user.username } : 'null');
+        console.log('======================');
 
-    const result = await createLedger(ledgerData, token!);
+        try {
+          await apiService.createTransfer(transferData, token!);
+          result = { success: true };
+        } catch (error: any) {
+          console.error('이체 생성 실패:', error);
+          result = { success: false, error: 'transfer', message: error.message || '이체 생성에 실패했습니다.' };
+        }
+      } else {
+        // 단방향 이체 (일반 거래로 처리)
+        const isWithdrawal = selectedFromAssetId && !selectedToAssetId;
+        const selectedAsset = isWithdrawal ? selectedFromAssetId : selectedToAssetId;
+        const assetName = assets.find(asset => asset.id === selectedAsset)?.name || '자산';
+        
+        const ledgerData = {
+          date,
+          amount: Math.floor(numericAmount),
+          description: description.trim() + (isWithdrawal ? ' (출금)' : ' (입금)'),
+          memo: memo && memo.trim() ? memo.trim() : '',
+          amountType: isWithdrawal ? 'EXPENSE' : 'INCOME',
+          bookId: currentBook.id,
+          payment: assetName,
+          category: isWithdrawal ? '출금' : '입금',
+          spender: spender && spender.trim() ? spender.trim() : (user?.name || user?.username || ''),
+        };
+
+        console.log('=== 단방향 이체 데이터 ===');
+        console.log('ledgerData:', JSON.stringify(ledgerData, null, 2));
+        console.log('token 존재:', !!token);
+        console.log('user 정보:', user ? { id: user.id, name: user.name, username: user.username } : 'null');
+        console.log('======================');
+
+        result = await createLedger(ledgerData, token!);
+        
+        // 자산 잔액 업데이트
+        if (selectedAsset && token) {
+          try {
+            const operation = isWithdrawal ? 'SUBTRACT' : 'ADD';
+            await updateAssetBalance(selectedAsset, Math.floor(numericAmount), operation, token);
+          } catch (error) {
+            console.error('자산 잔액 업데이트 실패:', error);
+          }
+        }
+      }
+    } else {
+      // Income/Expense handling
+      const ledgerData = {
+        date, // Keep as string in YYYY-MM-DD format - server will parse to LocalDate
+        amount: Math.floor(numericAmount), // Convert to integer for server validation
+        description: description.trim(),
+        memo: memo && memo.trim() ? memo.trim() : '',
+        amountType,
+        bookId: currentBook.id,
+        payment: selectedPayment.trim(),
+        category: selectedCategory.trim(),
+        spender: spender && spender.trim() ? spender.trim() : (user?.name || user?.username || ''),
+      };
+
+      console.log('=== 거래 생성 데이터 ===');
+      console.log('ledgerData:', JSON.stringify(ledgerData, null, 2));
+      console.log('token 존재:', !!token);
+      console.log('user 정보:', user ? { id: user.id, name: user.name, username: user.username } : 'null');
+      console.log('======================');
+
+      result = await createLedger(ledgerData, token!);
+    }
     
     if (result.success) {
+      // 자산 잔액 업데이트 (자산이 선택된 경우, 이체는 제외)
+      if (amountType !== 'TRANSFER' && selectedAssetId && token) {
+        try {
+          const operation = amountType === 'INCOME' ? 'ADD' : 'SUBTRACT';
+          await updateAssetBalance(selectedAssetId, Math.floor(numericAmount), operation, token);
+        } catch (error) {
+          console.error('자산 잔액 업데이트 실패:', error);
+          // 자산 업데이트가 실패해도 거래는 이미 성공했으므로 알림만 표시
+        }
+      }
+      
       // 실시간 동기화 이벤트 전송
       await syncService.sendUpdate('LEDGER_CREATED', {
         ...ledgerData,
@@ -128,7 +230,11 @@ export default function AddTransactionScreen() {
         }
       );
       
-      Alert.alert('성공', '거래가 추가되었습니다.', [
+      const successMessage = amountType === 'TRANSFER' ? 
+        (selectedFromAssetId && selectedToAssetId ? '이체가 완료되었습니다.' : '거래가 추가되었습니다.') : 
+        '거래가 추가되었습니다.';
+      
+      Alert.alert('성공', successMessage, [
         { text: '확인', onPress: () => router.back() }
       ]);
     } else {
@@ -212,7 +318,7 @@ export default function AddTransactionScreen() {
             <Text style={[styles.headerTitle, { color: colors.text }]}>거래 추가</Text>
           </View>
 
-          {/* 수입/지출 타입 선택 */}
+          {/* 수입/지출/이체 타입 선택 */}
           <View style={styles.typeSelector}>
             <TouchableOpacity
               style={[
@@ -251,6 +357,25 @@ export default function AddTransactionScreen() {
                 { color: amountType === 'INCOME' ? 'white' : colors.text }
               ]}>수입</Text>
             </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                amountType === 'TRANSFER' && styles.activeTypeButton,
+                { backgroundColor: amountType === 'TRANSFER' ? '#FF9800' : colors.card }
+              ]}
+              onPress={() => setAmountType('TRANSFER')}
+            >
+              <Ionicons 
+                name="swap-horizontal" 
+                size={24} 
+                color={amountType === 'TRANSFER' ? 'white' : colors.text} 
+              />
+              <Text style={[
+                styles.typeButtonText,
+                { color: amountType === 'TRANSFER' ? 'white' : colors.text }
+              ]}>이체</Text>
+            </TouchableOpacity>
           </View>
 
           {/* 폼 */}
@@ -283,38 +408,162 @@ export default function AddTransactionScreen() {
               />
             </View>
 
-            {/* 카테고리 */}
-            <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>카테고리 *</Text>
-              <TouchableOpacity
-                style={[styles.selectButton, { backgroundColor: colors.card }]}
-                onPress={() => setShowCategoryModal(true)}
-              >
-                <View style={styles.selectButtonContent}>
-                  {selectedCategoryEmoji && (
-                    <Text style={styles.selectButtonEmoji}>{selectedCategoryEmoji}</Text>
-                  )}
-                  <Text style={[styles.selectButtonText, { color: selectedCategory ? colors.text : colors.icon }]}>
-                    {selectedCategory || '카테고리 선택'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-down" size={20} color={colors.icon} />
-              </TouchableOpacity>
-            </View>
+            {/* 카테고리 (수입/지출만) */}
+            {amountType !== 'TRANSFER' && (
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: colors.text }]}>카테고리 *</Text>
+                <TouchableOpacity
+                  style={[styles.selectButton, { backgroundColor: colors.card }]}
+                  onPress={() => setShowCategoryModal(true)}
+                >
+                  <View style={styles.selectButtonContent}>
+                    {selectedCategoryEmoji && (
+                      <Text style={styles.selectButtonEmoji}>{selectedCategoryEmoji}</Text>
+                    )}
+                    <Text style={[styles.selectButtonText, { color: selectedCategory ? colors.text : colors.icon }]}>
+                      {selectedCategory || '카테고리 선택'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                </TouchableOpacity>
+              </View>
+            )}
 
-            {/* 결제 수단 */}
-            <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>결제 수단 *</Text>
-              <TouchableOpacity
-                style={[styles.selectButton, { backgroundColor: colors.card }]}
-                onPress={() => setShowPaymentModal(true)}
-              >
-                <Text style={[styles.selectButtonText, { color: selectedPayment ? colors.text : colors.icon }]}>
-                  {selectedPayment || '결제 수단 선택'}
-                </Text>
-                <Ionicons name="chevron-down" size={20} color={colors.icon} />
-              </TouchableOpacity>
-            </View>
+            {/* 자산 선택 (수입/지출만) */}
+            {amountType !== 'TRANSFER' && (
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: colors.text }]}>자산 *</Text>
+                <TouchableOpacity
+                  style={[styles.selectButton, { backgroundColor: colors.card }]}
+                  onPress={() => setShowPaymentModal(true)}
+                >
+                  <View style={styles.selectButtonContent}>
+                    {selectedAssetId && (
+                      <View style={styles.assetIndicator}>
+                        {(() => {
+                          const selectedAsset = assets.find(asset => asset.id === selectedAssetId);
+                          if (selectedAsset) {
+                            const assetType = assetTypes.find(type => type.type === selectedAsset.assetType);
+                            return (
+                              <>
+                                <View style={[styles.assetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                                  <Ionicons name={assetType?.icon as any || 'card'} size={16} color="white" />
+                                </View>
+                                <View style={styles.assetInfo}>
+                                  <Text style={[styles.assetName, { color: colors.text }]}>{selectedAsset.name}</Text>
+                                  <Text style={[styles.assetBalance, { color: colors.icon }]}>
+                                    ₩{selectedAsset.balance.toLocaleString()}
+                                  </Text>
+                                </View>
+                              </>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </View>
+                    )}
+                    <Text style={[styles.selectButtonText, { 
+                      color: selectedAssetId ? colors.text : colors.icon,
+                      flex: selectedAssetId ? 0 : 1
+                    }]}>
+                      {selectedAssetId ? '' : '자산 선택'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* 출금 자산 선택 (이체만) */}
+            {amountType === 'TRANSFER' && (
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: colors.text }]}>출금 자산</Text>
+                <Text style={[styles.helperText, { color: colors.icon }]}>출금 또는 입금 자산 중 하나는 반드시 선택해야 합니다</Text>
+                <TouchableOpacity
+                  style={[styles.selectButton, { backgroundColor: colors.card }]}
+                  onPress={() => setShowFromAssetModal(true)}
+                >
+                  <View style={styles.selectButtonContent}>
+                    {selectedFromAssetId && (
+                      <View style={styles.assetIndicator}>
+                        {(() => {
+                          const selectedAsset = assets.find(asset => asset.id === selectedFromAssetId);
+                          if (selectedAsset) {
+                            const assetType = assetTypes.find(type => type.type === selectedAsset.assetType);
+                            return (
+                              <>
+                                <View style={[styles.assetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                                  <Ionicons name={assetType?.icon as any || 'card'} size={16} color="white" />
+                                </View>
+                                <View style={styles.assetInfo}>
+                                  <Text style={[styles.assetName, { color: colors.text }]}>{selectedAsset.name}</Text>
+                                  <Text style={[styles.assetBalance, { color: colors.icon }]}>
+                                    ₩{selectedAsset.balance.toLocaleString()}
+                                  </Text>
+                                </View>
+                              </>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </View>
+                    )}
+                    <Text style={[styles.selectButtonText, { 
+                      color: selectedFromAssetId ? colors.text : colors.icon,
+                      flex: selectedFromAssetId ? 0 : 1
+                    }]}>
+                      {selectedFromAssetId ? '' : '출금 자산 선택'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* 입금 자산 선택 (이체만) */}
+            {amountType === 'TRANSFER' && (
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: colors.text }]}>입금 자산</Text>
+                <TouchableOpacity
+                  style={[styles.selectButton, { backgroundColor: colors.card }]}
+                  onPress={() => setShowToAssetModal(true)}
+                >
+                  <View style={styles.selectButtonContent}>
+                    {selectedToAssetId && (
+                      <View style={styles.assetIndicator}>
+                        {(() => {
+                          const selectedAsset = assets.find(asset => asset.id === selectedToAssetId);
+                          if (selectedAsset) {
+                            const assetType = assetTypes.find(type => type.type === selectedAsset.assetType);
+                            return (
+                              <>
+                                <View style={[styles.assetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                                  <Ionicons name={assetType?.icon as any || 'card'} size={16} color="white" />
+                                </View>
+                                <View style={styles.assetInfo}>
+                                  <Text style={[styles.assetName, { color: colors.text }]}>{selectedAsset.name}</Text>
+                                  <Text style={[styles.assetBalance, { color: colors.icon }]}>
+                                    ₩{selectedAsset.balance.toLocaleString()}
+                                  </Text>
+                                </View>
+                              </>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </View>
+                    )}
+                    <Text style={[styles.selectButtonText, { 
+                      color: selectedToAssetId ? colors.text : colors.icon,
+                      flex: selectedToAssetId ? 0 : 1
+                    }]}>
+                      {selectedToAssetId ? '' : '입금 자산 선택'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* 날짜 */}
             <View style={styles.inputContainer}>
@@ -388,34 +637,55 @@ export default function AddTransactionScreen() {
           onPress={() => setShowCategoryModal(false)}
         >
           <TouchableOpacity 
-            style={[styles.modalContent, { backgroundColor: colors.background }]} 
+            style={[
+              styles.modalContent, 
+              { 
+                backgroundColor: colors.background,
+                minHeight: categories.length > 5 ? 500 : 300,
+                maxHeight: categories.length > 10 ? '90%' : '80%'
+              }
+            ]} 
             activeOpacity={1}
             onPress={() => {}} // 모달 내부 터치 시 닫히지 않도록 빈 함수
           >
             <Text style={[styles.modalTitle, { color: colors.text }]}>카테고리 선택</Text>
             
-            <View style={styles.modalList}>
-              {categories.map((category) => (
-                <TouchableOpacity
-                  key={category.id}
-                  style={[styles.modalItem, { backgroundColor: colors.card }]}
-                  onPress={() => {
-                    setSelectedCategory(category.category);
-                    setSelectedCategoryEmoji(category.emoji || '📝');
-                    setShowCategoryModal(false);
-                  }}
-                >
-                  <View style={styles.modalItemContent}>
-                    <Text style={styles.modalItemEmoji}>
-                      {category.emoji || '📝'}
-                    </Text>
-                    <Text style={[styles.modalItemText, { color: colors.text }]}>
-                      {category.category}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <ScrollView style={[
+              styles.modalList,
+              { maxHeight: categories.length > 8 ? 350 : 250 }
+            ]}>
+              {categories.length > 0 ? (
+                categories.map((category) => (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[styles.modalItem, { backgroundColor: colors.card }]}
+                    onPress={() => {
+                      setSelectedCategory(category.category);
+                      setSelectedCategoryEmoji(category.emoji || '📝');
+                      setShowCategoryModal(false);
+                    }}
+                  >
+                    <View style={styles.modalItemContent}>
+                      <Text style={styles.modalItemEmoji}>
+                        {category.emoji || '📝'}
+                      </Text>
+                      <Text style={[styles.modalItemText, { color: colors.text }]}>
+                        {category.category}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={[styles.emptyStateText, { color: colors.icon }]}>
+                    등록된 카테고리가 없습니다.
+                  </Text>
+                  <Text style={[styles.emptyStateSubtext, { color: colors.icon }]}>
+                    아래에서 새로운 카테고리를 추가해주세요.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
 
             <View style={styles.modalAddSection}>
               <TextInput
@@ -443,7 +713,7 @@ export default function AddTransactionScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* 결제 수단 선택 모달 */}
+      {/* 자산 선택 모달 */}
       <Modal
         visible={showPaymentModal}
         transparent
@@ -455,48 +725,240 @@ export default function AddTransactionScreen() {
           onPress={() => setShowPaymentModal(false)}
         >
           <TouchableOpacity 
-            style={[styles.modalContent, { backgroundColor: colors.background }]} 
+            style={[
+              styles.modalContent, 
+              { 
+                backgroundColor: colors.background,
+                minHeight: assets.length > 5 ? 500 : 300,
+                maxHeight: assets.length > 10 ? '90%' : '80%'
+              }
+            ]} 
             activeOpacity={1}
             onPress={() => {}} // 모달 내부 터치 시 닫히지 않도록 빈 함수
           >
-            <Text style={[styles.modalTitle, { color: colors.text }]}>결제 수단 선택</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>자산 선택</Text>
             
-            <View style={styles.modalList}>
-              {payments.map((payment) => (
-                <TouchableOpacity
-                  key={payment.id}
-                  style={[styles.modalItem, { backgroundColor: colors.card }]}
-                  onPress={() => {
-                    setSelectedPayment(payment.payment);
-                    setShowPaymentModal(false);
-                  }}
-                >
-                  <Text style={[styles.modalItemText, { color: colors.text }]}>
-                    {payment.payment}
+            <ScrollView style={[
+              styles.modalList,
+              { maxHeight: assets.length > 8 ? 350 : 250 }
+            ]}>
+              {assets.filter(asset => asset.isActive).length > 0 ? (
+                assets.filter(asset => asset.isActive).map((asset) => {
+                  const assetType = assetTypes.find(type => type.type === asset.assetType);
+                  return (
+                    <TouchableOpacity
+                      key={asset.id}
+                      style={[styles.modalItem, { backgroundColor: colors.card }]}
+                      onPress={() => {
+                        setSelectedAssetId(asset.id);
+                        setSelectedPayment(asset.name);
+                        setShowPaymentModal(false);
+                      }}
+                    >
+                      <View style={styles.modalAssetItem}>
+                        <View style={[styles.modalAssetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                          <Ionicons name={assetType?.icon as any || 'card'} size={20} color="white" />
+                        </View>
+                        <View style={styles.modalAssetInfo}>
+                          <Text style={[styles.modalAssetName, { color: colors.text }]}>
+                            {asset.name}
+                          </Text>
+                          <Text style={[styles.modalAssetType, { color: colors.icon }]}>
+                            {assetType?.name} • ₩{asset.balance.toLocaleString()}
+                          </Text>
+                          {asset.description && (
+                            <Text style={[styles.modalAssetDescription, { color: colors.icon }]}>
+                              {asset.description}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={[styles.emptyStateText, { color: colors.icon }]}>
+                    등록된 자산이 없습니다.
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.modalAddSection}>
-              <TextInput
-                style={[styles.modalInput, { backgroundColor: colors.card, color: colors.text }]}
-                placeholder="새 결제 수단 추가"
-                placeholderTextColor={colors.icon}
-                value={newPayment}
-                onChangeText={setNewPayment}
-              />
-              <TouchableOpacity
-                style={[styles.modalAddButton, { backgroundColor: colors.tint }]}
-                onPress={handleAddPayment}
-              >
-                <Text style={styles.modalAddButtonText}>추가</Text>
-              </TouchableOpacity>
-            </View>
+                  <Text style={[styles.emptyStateSubtext, { color: colors.icon }]}>
+                    자산 탭에서 자산을 추가해주세요.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
 
             <TouchableOpacity
               style={[styles.modalCloseButton, { backgroundColor: colors.card }]}
               onPress={() => setShowPaymentModal(false)}
+            >
+              <Text style={[styles.modalCloseButtonText, { color: colors.text }]}>닫기</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* 출금 자산 선택 모달 */}
+      <Modal
+        visible={showFromAssetModal}
+        transparent
+        animationType="slide"
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowFromAssetModal(false)}
+        >
+          <TouchableOpacity 
+            style={[
+              styles.modalContent, 
+              { 
+                backgroundColor: colors.background,
+                minHeight: assets.length > 5 ? 500 : 300,
+                maxHeight: assets.length > 10 ? '90%' : '80%'
+              }
+            ]} 
+            activeOpacity={1}
+            onPress={() => {}}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>출금 자산 선택</Text>
+            
+            <ScrollView style={[
+              styles.modalList,
+              { maxHeight: assets.length > 8 ? 350 : 250 }
+            ]}>
+              {assets.filter(asset => asset.isActive).length > 0 ? (
+                assets.filter(asset => asset.isActive).map((asset) => {
+                  const assetType = assetTypes.find(type => type.type === asset.assetType);
+                  return (
+                    <TouchableOpacity
+                      key={asset.id}
+                      style={[styles.modalItem, { backgroundColor: colors.card }]}
+                      onPress={() => {
+                        setSelectedFromAssetId(asset.id);
+                        setShowFromAssetModal(false);
+                      }}
+                    >
+                      <View style={styles.modalAssetItem}>
+                        <View style={[styles.modalAssetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                          <Ionicons name={assetType?.icon as any || 'card'} size={20} color="white" />
+                        </View>
+                        <View style={styles.modalAssetInfo}>
+                          <Text style={[styles.modalAssetName, { color: colors.text }]}>
+                            {asset.name}
+                          </Text>
+                          <Text style={[styles.modalAssetType, { color: colors.icon }]}>
+                            {assetType?.name} • ₩{asset.balance.toLocaleString()}
+                          </Text>
+                          {asset.description && (
+                            <Text style={[styles.modalAssetDescription, { color: colors.icon }]}>
+                              {asset.description}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={[styles.emptyStateText, { color: colors.icon }]}>
+                    등록된 자산이 없습니다.
+                  </Text>
+                  <Text style={[styles.emptyStateSubtext, { color: colors.icon }]}>
+                    자산 탭에서 자산을 추가해주세요.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalCloseButton, { backgroundColor: colors.card }]}
+              onPress={() => setShowFromAssetModal(false)}
+            >
+              <Text style={[styles.modalCloseButtonText, { color: colors.text }]}>닫기</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* 입금 자산 선택 모달 */}
+      <Modal
+        visible={showToAssetModal}
+        transparent
+        animationType="slide"
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowToAssetModal(false)}
+        >
+          <TouchableOpacity 
+            style={[
+              styles.modalContent, 
+              { 
+                backgroundColor: colors.background,
+                minHeight: assets.length > 5 ? 500 : 300,
+                maxHeight: assets.length > 10 ? '90%' : '80%'
+              }
+            ]} 
+            activeOpacity={1}
+            onPress={() => {}}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>입금 자산 선택</Text>
+            
+            <ScrollView style={[
+              styles.modalList,
+              { maxHeight: assets.length > 8 ? 350 : 250 }
+            ]}>
+              {assets.filter(asset => asset.isActive).length > 0 ? (
+                assets.filter(asset => asset.isActive).map((asset) => {
+                  const assetType = assetTypes.find(type => type.type === asset.assetType);
+                  return (
+                    <TouchableOpacity
+                      key={asset.id}
+                      style={[styles.modalItem, { backgroundColor: colors.card }]}
+                      onPress={() => {
+                        setSelectedToAssetId(asset.id);
+                        setShowToAssetModal(false);
+                      }}
+                    >
+                      <View style={styles.modalAssetItem}>
+                        <View style={[styles.modalAssetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                          <Ionicons name={assetType?.icon as any || 'card'} size={20} color="white" />
+                        </View>
+                        <View style={styles.modalAssetInfo}>
+                          <Text style={[styles.modalAssetName, { color: colors.text }]}>
+                            {asset.name}
+                          </Text>
+                          <Text style={[styles.modalAssetType, { color: colors.icon }]}>
+                            {assetType?.name} • ₩{asset.balance.toLocaleString()}
+                          </Text>
+                          {asset.description && (
+                            <Text style={[styles.modalAssetDescription, { color: colors.icon }]}>
+                              {asset.description}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={[styles.emptyStateText, { color: colors.icon }]}>
+                    등록된 자산이 없습니다.
+                  </Text>
+                  <Text style={[styles.emptyStateSubtext, { color: colors.icon }]}>
+                    자산 탭에서 자산을 추가해주세요.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalCloseButton, { backgroundColor: colors.card }]}
+              onPress={() => setShowToAssetModal(false)}
             >
               <Text style={[styles.modalCloseButtonText, { color: colors.text }]}>닫기</Text>
             </TouchableOpacity>
@@ -570,6 +1032,10 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
+    marginBottom: 8,
+  },
+  helperText: {
+    fontSize: 12,
     marginBottom: 8,
   },
   amountContainer: {
@@ -648,6 +1114,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 20,
     maxHeight: '80%',
+    minHeight: 300,
   },
   modalTitle: {
     fontSize: 20,
@@ -656,7 +1123,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   modalList: {
-    maxHeight: 200,
+    maxHeight: 400,
+    flex: 1,
   },
   modalItem: {
     padding: 16,
@@ -708,5 +1176,70 @@ const styles = StyleSheet.create({
   modalCloseButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  assetIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  assetIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  assetInfo: {
+    flex: 1,
+  },
+  assetName: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  assetBalance: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalAssetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalAssetIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  modalAssetInfo: {
+    flex: 1,
+  },
+  modalAssetName: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalAssetType: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalAssetDescription: {
+    fontSize: 11,
+    marginTop: 2,
   },
 });

@@ -30,7 +30,7 @@ interface Ledger {
   amount: number;
   description: string;
   memo?: string;
-  amountType: 'INCOME' | 'EXPENSE';
+  amountType: 'INCOME' | 'EXPENSE' | 'TRANSFER';
   spender?: string;
   memberId: number;
   bookId: number;
@@ -48,6 +48,29 @@ interface Category {
 interface PaymentMethod {
   id: number;
   payment: string;
+}
+
+// 자산 관련 인터페이스
+interface Asset {
+  id: number;
+  name: string;
+  assetType: 'CASH' | 'SAVINGS_ACCOUNT' | 'CHECKING_ACCOUNT' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'INVESTMENT' | 'REAL_ESTATE' | 'OTHER';
+  balance: number;
+  description?: string;
+  accountNumber?: string;
+  bankName?: string;
+  cardType?: string;
+  isActive: boolean;
+  bookId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AssetType {
+  type: 'CASH' | 'SAVINGS_ACCOUNT' | 'CHECKING_ACCOUNT' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'INVESTMENT' | 'REAL_ESTATE' | 'OTHER';
+  name: string;
+  icon: string;
+  color: string;
 }
 
 interface UserBook {
@@ -104,7 +127,7 @@ interface CreateLedgerRequest {
   amount: number; // Integer value for server validation
   description: string;
   memo?: string;
-  amountType: 'INCOME' | 'EXPENSE'; // Server supports TRANSFER but mobile only uses INCOME/EXPENSE
+  amountType: 'INCOME' | 'EXPENSE' | 'TRANSFER';
   bookId: number; // 가계부 ID
   payment: string; // 결제 수단 name - server will look up by name
   category: string; // 카테고리 name - server will look up by name
@@ -140,6 +163,39 @@ interface CreatePaymentRequest {
   payment: string;
 }
 
+// 자산 생성/수정 요청
+interface CreateAssetRequest {
+  name: string;
+  assetType: 'CASH' | 'SAVINGS_ACCOUNT' | 'CHECKING_ACCOUNT' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'INVESTMENT' | 'REAL_ESTATE' | 'OTHER';
+  balance: number;
+  description?: string;
+  accountNumber?: string;
+  bankName?: string;
+  cardType?: string;
+}
+
+interface UpdateAssetRequest {
+  name?: string;
+  balance?: number;
+  description?: string;
+  accountNumber?: string;
+  bankName?: string;
+  cardType?: string;
+  isActive?: boolean;
+}
+
+// 이체 요청
+interface CreateTransferRequest {
+  date: string; // YYYY-MM-DD format
+  amount: number;
+  description: string;
+  memo?: string;
+  bookId: number;
+  fromAssetId: number;
+  toAssetId: number;
+  transferer?: string;
+}
+
 // 가계부 공유 관련 인터페이스
 interface InviteUserRequest {
   email: string;
@@ -164,6 +220,42 @@ interface ChangeRoleResponse {
 
 interface LeaveBookResponse {
   message: string;
+}
+
+// 예산 관련 인터페이스
+interface Budget {
+  id: number;
+  bookId: number;
+  budgetMonth: string;
+  incomeBudget?: number;
+  expenseBudget?: number;
+  memo?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface BudgetRequest {
+  budgetMonth: string;
+  incomeBudget?: number;
+  expenseBudget?: number;
+  memo?: string;
+}
+
+interface BudgetSummary {
+  id: number;
+  bookId: number;
+  budgetMonth: string;
+  incomeBudget?: number;
+  expenseBudget?: number;
+  actualIncome: number;
+  actualExpense: number;
+  incomeAchievementRate: number;
+  expenseAchievementRate: number;
+  incomeDifference: number;
+  expenseDifference: number;
+  memo?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // 가계부 멤버 정보 (소유자 목록에서 확장)
@@ -1003,6 +1095,181 @@ class ApiService {
     return response.data;
   }
 
+  // 예산 관련 API 메서드들
+  async createBudget(bookId: number, data: BudgetRequest, token: string): Promise<Budget> {
+    try {
+      const response = await this.axiosInstance.post(`/budgets/books/${bookId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('예산 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  async updateBudget(bookId: number, budgetMonth: string, data: BudgetRequest, token: string): Promise<Budget> {
+    try {
+      const response = await this.axiosInstance.put(`/budgets/books/${bookId}/months/${budgetMonth}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('예산 수정 실패:', error);
+      throw error;
+    }
+  }
+
+  async deleteBudget(bookId: number, budgetMonth: string, token: string): Promise<void> {
+    try {
+      await this.axiosInstance.delete(`/budgets/books/${bookId}/months/${budgetMonth}`);
+    } catch (error) {
+      console.error('예산 삭제 실패:', error);
+      throw error;
+    }
+  }
+
+  async getBudgetsByBook(bookId: number, token: string): Promise<Budget[]> {
+    try {
+      const response = await this.axiosInstance.get(`/budgets/books/${bookId}`);
+      return response.data;
+    } catch (error) {
+      console.error('예산 목록 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  async getBudgetByMonth(bookId: number, budgetMonth: string, token: string): Promise<Budget> {
+    try {
+      const response = await this.axiosInstance.get(`/budgets/books/${bookId}/months/${budgetMonth}`);
+      return response.data;
+    } catch (error) {
+      console.error('예산 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  async getBudgetSummary(bookId: number, budgetMonth: string, token: string): Promise<BudgetSummary> {
+    try {
+      const response = await this.axiosInstance.get(`/budgets/books/${bookId}/months/${budgetMonth}/summary`);
+      return response.data;
+    } catch (error) {
+      console.error('예산 요약 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  async getBudgetsByYear(bookId: number, year: string, token: string): Promise<Budget[]> {
+    try {
+      const response = await this.axiosInstance.get(`/budgets/books/${bookId}/years/${year}`);
+      return response.data;
+    } catch (error) {
+      console.error('연도별 예산 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  async getRecentBudgets(bookId: number, limit: number, token: string): Promise<Budget[]> {
+    try {
+      const response = await this.axiosInstance.get(`/budgets/books/${bookId}/recent?limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('최근 예산 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 자산 타입 조회
+  async getAssetTypes(token: string): Promise<AssetType[]> {
+    try {
+      const response = await this.axiosInstance.get('/assets/types');
+      return response.data.assetTypes || [];
+    } catch (error) {
+      console.error('자산 타입 조회 실패:', error);
+      return [];
+    }
+  }
+
+  // 자산 관련 API 메서드들
+  async createAsset(bookId: number, data: CreateAssetRequest, token: string): Promise<Asset> {
+    try {
+      const response = await this.axiosInstance.post(`/assets/books/${bookId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('자산 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  async updateAsset(assetId: number, data: UpdateAssetRequest, token: string): Promise<Asset> {
+    try {
+      const response = await this.axiosInstance.put(`/assets/${assetId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('자산 수정 실패:', error);
+      throw error;
+    }
+  }
+
+  async deleteAsset(assetId: number, token: string): Promise<void> {
+    try {
+      await this.axiosInstance.delete(`/assets/${assetId}`);
+    } catch (error) {
+      console.error('자산 삭제 실패:', error);
+      throw error;
+    }
+  }
+
+  async getAssetsByBook(bookId: number, token: string): Promise<Asset[]> {
+    try {
+      const response = await this.axiosInstance.get(`/assets/books/${bookId}`);
+      return response.data.assets || [];
+    } catch (error) {
+      console.error('자산 목록 조회 실패:', error);
+      return [];
+    }
+  }
+
+  async getAssetById(assetId: number, token: string): Promise<Asset> {
+    try {
+      const response = await this.axiosInstance.get(`/assets/${assetId}`);
+      return response.data;
+    } catch (error) {
+      console.error('자산 상세 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  async getAssetsByType(bookId: number, assetType: string, token: string): Promise<Asset[]> {
+    try {
+      const response = await this.axiosInstance.get(`/assets/books/${bookId}/type/${assetType}`);
+      return response.data.assets || [];
+    } catch (error) {
+      console.error('자산 타입별 조회 실패:', error);
+      return [];
+    }
+  }
+
+  async updateAssetBalance(assetId: number, amount: number, operation: 'ADD' | 'SUBTRACT', token: string): Promise<Asset> {
+    try {
+      const response = await this.axiosInstance.patch(`/assets/${assetId}/balance`, {
+        amount,
+        operation
+      });
+      return response.data;
+    } catch (error) {
+      console.error('자산 잔액 업데이트 실패:', error);
+      throw error;
+    }
+  }
+
+  // 이체 생성 API
+  async createTransfer(data: CreateTransferRequest, token: string): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post('/ledger/transfers', data);
+      return response.data;
+    } catch (error) {
+      console.error('이체 생성 실패:', error);
+      throw error;
+    }
+  }
+
   // 동기화를 위한 public post 메서드
   async post(url: string, data: any): Promise<any> {
     return this.axiosInstance.post(url, data);
@@ -1016,11 +1283,11 @@ const apiService = new ApiService(config.API_BASE_URL);
 export default apiService;
 export { ApiService };
 export type {
-  Book, BookMember, Category, ChangeRoleRequest,
-  ChangeRoleResponse, CreateBookRequest, CreateCategoryRequest, CreateLedgerRequest, CreatePaymentRequest, GetLedgerListRequest, InviteUserRequest,
+  Asset, AssetType, Book, BookMember, Budget, BudgetRequest, BudgetSummary, Category, ChangeRoleRequest,
+  ChangeRoleResponse, CreateAssetRequest, CreateBookRequest, CreateCategoryRequest, CreateLedgerRequest, CreatePaymentRequest, CreateTransferRequest, GetLedgerListRequest, InviteUserRequest,
   InviteUserResponse, LeaveBookResponse, Ledger, LoginRequest,
   LoginResponse, Member, OAuthRequest,
   OAuthResponse, PaymentMethod, RemoveMemberResponse, SearchLedgerRequest, SignupRequest,
-  SignupResponse, UserBook
+  SignupResponse, UpdateAssetRequest, UserBook
 };
 

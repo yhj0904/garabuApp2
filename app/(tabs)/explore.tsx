@@ -10,6 +10,8 @@ import { Ledger } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
+import PieChart from '@/components/charts/PieChart';
+import BarChart from '@/components/charts/BarChart';
 
 const tabs = ['통계', '예산', '내역'];
 const types = ['수입', '지출'];
@@ -72,6 +74,7 @@ export default function ExploreScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [historyLedgers, setHistoryLedgers] = useState<Ledger[]>([]);
+  const [chartType, setChartType] = useState<'pie' | 'bar'>('pie'); // 차트 타입 선택
   
   const month = currentDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
 
@@ -116,6 +119,40 @@ export default function ExploreScreen() {
       color: getCategoryColor(category.category)
     };
   }).filter(stat => stat.total > 0).sort((a, b) => b.total - a.total);
+
+  // 차트 데이터 준비
+  const pieChartData = categoryStats.slice(0, 6).map(stat => ({
+    label: stat.category,
+    value: stat.total,
+    color: stat.color
+  }));
+
+  const barChartData = categoryStats.slice(0, 8).map(stat => ({
+    label: stat.category.length > 4 ? stat.category.substring(0, 4) + '...' : stat.category,
+    value: stat.total,
+    color: stat.color
+  }));
+
+  // 월별 지출 트렌드 데이터 (최근 6개월)
+  const monthlyTrendData = Array.from({ length: 6 }, (_, i) => {
+    const trendDate = new Date(currentDate);
+    trendDate.setMonth(trendDate.getMonth() - (5 - i));
+    
+    const monthLedgers = ledgers.filter(ledger => {
+      const ledgerDate = new Date(ledger.date);
+      return ledgerDate.getMonth() === trendDate.getMonth() && 
+             ledgerDate.getFullYear() === trendDate.getFullYear() &&
+             ledger.amountType === 'EXPENSE';
+    });
+    
+    const monthTotal = monthLedgers.reduce((sum, ledger) => sum + ledger.amount, 0);
+    
+    return {
+      label: trendDate.toLocaleDateString('ko-KR', { month: 'short' }),
+      value: monthTotal,
+      color: '#007AFF'
+    };
+  });
 
   // 월 변경 함수
   const changeMonth = (direction: 'prev' | 'next') => {
@@ -309,8 +346,83 @@ export default function ExploreScreen() {
                   </ThemedText>
                 </View>
 
+                {/* 차트 섹션 */}
+                <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
+                  <View style={styles.chartHeader}>
+                    <ThemedText type="subtitle" style={styles.chartTitle}>
+                      {selectedType === 0 ? '수입' : '지출'} 분석
+                    </ThemedText>
+                    <View style={styles.chartTypeSelector}>
+                      <TouchableOpacity
+                        style={[
+                          styles.chartTypeButton,
+                          { backgroundColor: chartType === 'pie' ? colors.tint : colors.background }
+                        ]}
+                        onPress={() => setChartType('pie')}
+                      >
+                        <Ionicons 
+                          name="pie-chart" 
+                          size={16} 
+                          color={chartType === 'pie' ? 'white' : colors.text} 
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chartTypeButton,
+                          { backgroundColor: chartType === 'bar' ? colors.tint : colors.background }
+                        ]}
+                        onPress={() => setChartType('bar')}
+                      >
+                        <Ionicons 
+                          name="bar-chart" 
+                          size={16} 
+                          color={chartType === 'bar' ? 'white' : colors.text} 
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {categoryStats.length === 0 ? (
+                    <View style={styles.emptyChartContainer}>
+                      <ThemedText style={styles.emptyText}>이번 달 지출 내역이 없습니다.</ThemedText>
+                    </View>
+                  ) : (
+                    <View style={styles.chartContainer}>
+                      {chartType === 'pie' ? (
+                        <PieChart
+                          data={pieChartData}
+                          centerText={`₩${(expenseAmount / 1000).toFixed(0)}k`}
+                          centerSubtext="총 지출"
+                        />
+                      ) : (
+                        <BarChart
+                          data={barChartData}
+                          height={250}
+                          showValues={true}
+                        />
+                      )}
+                    </View>
+                  )}
+                </View>
+
+                {/* 월별 트렌드 */}
+                <View style={[styles.trendCard, { backgroundColor: colors.card }]}>
+                  <ThemedText type="subtitle" style={styles.trendTitle}>
+                    최근 6개월 지출 트렌드
+                  </ThemedText>
+                  <View style={styles.trendContainer}>
+                    <BarChart
+                      data={monthlyTrendData}
+                      height={200}
+                      showValues={true}
+                      barColor="#007AFF"
+                    />
+                  </View>
+                </View>
+
+                {/* 카테고리 상세 목록 */}
                 <View style={[styles.categoryCard, { backgroundColor: colors.card }]}>
-                  <ThemedText type="subtitle" style={styles.categoryTitle}>카테고리별 지출</ThemedText>
+                  <ThemedText type="subtitle" style={styles.categoryTitle}>카테고리별 상세</ThemedText>
                   {categoryStats.length === 0 ? (
                     <ThemedText style={styles.emptyText}>이번 달 지출 내역이 없습니다.</ThemedText>
                   ) : (
@@ -606,5 +718,60 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8E8E93',
     marginTop: 2,
+  },
+  chartCard: {
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  chartTitle: {
+    marginBottom: 0,
+  },
+  chartTypeSelector: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    backgroundColor: '#F2F2F7',
+    padding: 2,
+  },
+  chartTypeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginHorizontal: 1,
+  },
+  chartContainer: {
+    alignItems: 'center',
+  },
+  emptyChartContainer: {
+    height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trendCard: {
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  trendTitle: {
+    marginBottom: 16,
+  },
+  trendContainer: {
+    alignItems: 'center',
   },
 }); 

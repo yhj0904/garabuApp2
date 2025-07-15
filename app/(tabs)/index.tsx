@@ -64,45 +64,13 @@ export default function HomeScreen() {
     }
   };
 
-  // 초기 데이터 로드
+  // 스플래시 화면에서 이미 데이터를 로드했으므로, 
+  // 여기서는 실시간 업데이트 리스너만 유지
   useEffect(() => {
-    if (token) {
-      fetchBooks(token);
-      
-      // 알림 서비스 초기화
-      initializeNotifications();
-    }
-  }, [token]);
-
-  // 현재 가계부 변경 시 해당 가계부의 카테고리와 결제수단 로드
-  useEffect(() => {
-    if (token && currentBook && currentBook.id) {
-      console.log('가계부별 카테고리/결제수단 조회 시작:', currentBook.id);
-      fetchCategoriesByBook(currentBook.id, token);
-      fetchPaymentsByBook(currentBook.id, token);
-    }
-  }, [token, currentBook]);
-
-  // 현재 가계부의 최근 거래 내역 로드
-  useEffect(() => {
-    if (token && currentBook && currentBook.id) {
-      console.log('가계부 기록 조회 시작:', currentBook.id);
-      fetchLedgers({
-        bookId: currentBook.id,
-        page: 0,
-        size: 5
-      }, token);
-      
-      // 실시간 동기화 연결
-      if (user?.id) {
-        syncService.connect(user.id, currentBook.id, token);
-      }
-    } else {
-      console.log('가계부 기록 조회 건너뜀:', { 
-        token: !!token, 
-        currentBook: !!currentBook, 
-        currentBookId: currentBook?.id 
-      });
+    // 실시간 동기화는 스플래시에서 이미 연결됨
+    // 여기서는 연결 상태만 확인
+    if (token && user?.id && currentBook?.id) {
+      console.log('실시간 동기화 상태 확인');
     }
   }, [token, currentBook, user]);
 
@@ -130,20 +98,7 @@ export default function HomeScreen() {
     };
   }, [token]);
 
-  // 알림 서비스 초기화
-  const initializeNotifications = async () => {
-    try {
-      const token = await notification.registerForPushNotifications();
-      if (token && user?.id) {
-        await notification.registerTokenWithServer(user.id.toString(), token);
-      }
-      
-      // 알림 리스너 등록
-      notification.registerNotificationListeners();
-    } catch (error) {
-      console.error('Failed to initialize notifications:', error);
-    }
-  };
+
 
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
