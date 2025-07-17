@@ -116,6 +116,120 @@ interface OAuthResponse {
   token: string;
 }
 
+// FCM 토큰 관련 인터페이스
+interface FCMTokenRequest {
+  appId: string;
+  userId: string;
+  deviceId: string;
+  fcmToken: string;
+  useAt: string;
+}
+
+interface FCMTokenResponse {
+  success: boolean;
+  message: string;
+  timestamp: string;
+}
+
+// 친구 관련 인터페이스
+interface Friend {
+  friendshipId: number;
+  friendId: number;
+  username: string;
+  name: string;
+  alias?: string;
+  status: string;
+  acceptedAt?: string;
+  lastInteractionAt?: string;
+}
+
+interface FriendRequest {
+  friendshipId: number;
+  requesterId: number;
+  requesterUsername: string;
+  requesterName: string;
+  addresseeId: number;
+  addresseeUsername: string;
+  addresseeName: string;
+  requesterAlias?: string;
+  status: string;
+  requestedAt: string;
+}
+
+interface FriendGroup {
+  id: number;
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SendFriendRequestRequest {
+  addresseeId: number;
+  alias?: string;
+}
+
+interface AcceptFriendRequestRequest {
+  alias?: string;
+}
+
+interface SetFriendAliasRequest {
+  alias: string;
+}
+
+interface CreateFriendGroupRequest {
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+}
+
+// 메시지 관련 인터페이스
+interface Message {
+  id: number;
+  senderId: number;
+  senderName: string;
+  receiverId: number;
+  receiverName: string;
+  content: string;
+  messageType: string;
+  status: string;
+  sentAt: string;
+  readAt?: string;
+}
+
+interface SendMessageRequest {
+  receiverId: number;
+  content: string;
+}
+
+// 댓글 관련 인터페이스
+interface Comment {
+  id: number;
+  authorId: number;
+  authorName: string;
+  content: string;
+  commentType: string;
+  createdAt: string;
+  updatedAt: string;
+  deleted: boolean;
+}
+
+interface CreateCommentRequest {
+  content: string;
+}
+
+// 알림 관련 인터페이스
+interface NotificationRequest {
+  title: string;
+  body: string;
+  data?: any;
+  type: string;
+}
+
 // 가계부 생성 요청
 interface CreateBookRequest {
   title: string;
@@ -532,7 +646,7 @@ class ApiService {
   }
 
   async oauthLogin(oauthData: OAuthRequest): Promise<OAuthResponse> {
-    const response = await this.axiosInstance.post<OAuthResponse>('/oauth2/token', oauthData);
+    const response = await this.axiosInstance.post<OAuthResponse>('/api/v2/mobile-oauth/login', oauthData);
     return response.data;
   }
 
@@ -1297,6 +1411,37 @@ class ApiService {
     }
   }
 
+  // FCM 토큰 관련 API
+  async registerFCMToken(tokenData: FCMTokenRequest): Promise<FCMTokenResponse> {
+    try {
+      const response = await this.axiosInstance.post('/notifications/token', tokenData);
+      return response.data;
+    } catch (error) {
+      console.error('FCM 토큰 등록 실패:', error);
+      throw error;
+    }
+  }
+
+  async deleteFCMToken(deviceId: string): Promise<FCMTokenResponse> {
+    try {
+      const response = await this.axiosInstance.delete(`/notifications/token/${deviceId}`);
+      return response.data;
+    } catch (error) {
+      console.error('FCM 토큰 삭제 실패:', error);
+      throw error;
+    }
+  }
+
+  async sendTestNotification(data?: { message?: string; token?: string }): Promise<FCMTokenResponse> {
+    try {
+      const response = await this.axiosInstance.post('/notifications/send/test', data || {});
+      return response.data;
+    } catch (error) {
+      console.error('테스트 알림 전송 실패:', error);
+      throw error;
+    }
+  }
+
   async getRecentBudgets(bookId: number, limit: number, token: string): Promise<Budget[]> {
     try {
       const response = await this.axiosInstance.get(`/budgets/books/${bookId}/recent?limit=${limit}`);
@@ -1405,6 +1550,333 @@ class ApiService {
   // 동기화를 위한 public post 메서드
   async post(url: string, data: any): Promise<any> {
     return this.axiosInstance.post(url, data);
+  }
+
+  // === 친구 관련 API ===
+  
+  // 친구 목록 조회
+  async getFriends(): Promise<{ friends: Friend[], totalElements: number }> {
+    try {
+      const response = await this.axiosInstance.get('/api/v2/friends');
+      return response.data;
+    } catch (error) {
+      console.error('친구 목록 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 요청 보내기
+  async sendFriendRequest(data: SendFriendRequestRequest): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post('/api/v2/friends/request', data);
+      return response.data;
+    } catch (error) {
+      console.error('친구 요청 전송 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 요청 수락
+  async acceptFriendRequest(friendshipId: number, data: AcceptFriendRequestRequest): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post(`/api/v2/friends/accept/${friendshipId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('친구 요청 수락 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 요청 거절
+  async rejectFriendRequest(friendshipId: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post(`/api/v2/friends/reject/${friendshipId}`);
+      return response.data;
+    } catch (error) {
+      console.error('친구 요청 거절 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 삭제
+  async deleteFriend(friendshipId: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.delete(`/api/v2/friends/${friendshipId}`);
+      return response.data;
+    } catch (error) {
+      console.error('친구 삭제 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 별칭 설정
+  async setFriendAlias(friendshipId: number, data: SetFriendAliasRequest): Promise<any> {
+    try {
+      const response = await this.axiosInstance.put(`/api/v2/friends/${friendshipId}/alias`, data);
+      return response.data;
+    } catch (error) {
+      console.error('친구 별칭 설정 실패:', error);
+      throw error;
+    }
+  }
+
+  // 받은 친구 요청 목록 조회
+  async getReceivedFriendRequests(): Promise<{ requests: FriendRequest[], totalElements: number }> {
+    try {
+      const response = await this.axiosInstance.get('/api/v2/friends/requests/received');
+      return response.data;
+    } catch (error) {
+      console.error('받은 친구 요청 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 보낸 친구 요청 목록 조회
+  async getSentFriendRequests(): Promise<{ requests: FriendRequest[], totalElements: number }> {
+    try {
+      const response = await this.axiosInstance.get('/api/v2/friends/requests/sent');
+      return response.data;
+    } catch (error) {
+      console.error('보낸 친구 요청 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 상태 조회
+  async getFriendStatus(): Promise<{ friendCount: number, pendingRequestCount: number }> {
+    try {
+      const response = await this.axiosInstance.get('/api/v2/friends/status');
+      return response.data;
+    } catch (error) {
+      console.error('친구 상태 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 검색
+  async searchFriends(username: string): Promise<{ friends: Friend[], totalElements: number }> {
+    try {
+      const response = await this.axiosInstance.get(`/api/v2/friends/search?username=${username}`);
+      return response.data;
+    } catch (error) {
+      console.error('친구 검색 실패:', error);
+      throw error;
+    }
+  }
+
+  // === 친구 그룹 관련 API ===
+
+  // 친구 그룹 목록 조회
+  async getFriendGroups(): Promise<{ groups: FriendGroup[], totalElements: number }> {
+    try {
+      const response = await this.axiosInstance.get('/api/v2/friend-groups');
+      return response.data;
+    } catch (error) {
+      console.error('친구 그룹 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 그룹 생성
+  async createFriendGroup(data: CreateFriendGroupRequest): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post('/api/v2/friend-groups', data);
+      return response.data;
+    } catch (error) {
+      console.error('친구 그룹 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 그룹 수정
+  async updateFriendGroup(groupId: number, data: CreateFriendGroupRequest): Promise<any> {
+    try {
+      const response = await this.axiosInstance.put(`/api/v2/friend-groups/${groupId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('친구 그룹 수정 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 그룹 삭제
+  async deleteFriendGroup(groupId: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.delete(`/api/v2/friend-groups/${groupId}`);
+      return response.data;
+    } catch (error) {
+      console.error('친구 그룹 삭제 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 그룹에 친구 추가
+  async addFriendToGroup(groupId: number, friendshipId: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post(`/api/v2/friend-groups/${groupId}/members/${friendshipId}`);
+      return response.data;
+    } catch (error) {
+      console.error('그룹에 친구 추가 실패:', error);
+      throw error;
+    }
+  }
+
+  // 친구 그룹에서 친구 제거
+  async removeFriendFromGroup(groupId: number, friendshipId: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.delete(`/api/v2/friend-groups/${groupId}/members/${friendshipId}`);
+      return response.data;
+    } catch (error) {
+      console.error('그룹에서 친구 제거 실패:', error);
+      throw error;
+    }
+  }
+
+  // === 메시지 관련 API ===
+
+  // 메시지 전송
+  async sendMessage(data: SendMessageRequest): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post('/api/v2/messages', data);
+      return response.data;
+    } catch (error) {
+      console.error('메시지 전송 실패:', error);
+      throw error;
+    }
+  }
+
+  // 대화 내역 조회
+  async getConversation(friendshipId: number): Promise<{ messages: Message[], totalElements: number }> {
+    try {
+      const response = await this.axiosInstance.get(`/api/v2/messages/conversation/${friendshipId}`);
+      return response.data;
+    } catch (error) {
+      console.error('대화 내역 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 메시지 읽음 처리
+  async markMessageAsRead(messageId: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post(`/api/v2/messages/${messageId}/read`);
+      return response.data;
+    } catch (error) {
+      console.error('메시지 읽음 처리 실패:', error);
+      throw error;
+    }
+  }
+
+  // === 댓글 관련 API ===
+
+  // 가계부 댓글 작성
+  async createBookComment(bookId: number, data: CreateCommentRequest): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post(`/api/v2/comments/book/${bookId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('가계부 댓글 작성 실패:', error);
+      throw error;
+    }
+  }
+
+  // 가계부 내역 댓글 작성
+  async createLedgerComment(ledgerId: number, data: CreateCommentRequest): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post(`/api/v2/comments/ledger/${ledgerId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('가계부 내역 댓글 작성 실패:', error);
+      throw error;
+    }
+  }
+
+  // 가계부 댓글 목록 조회
+  async getBookComments(bookId: number): Promise<{ comments: Comment[], totalElements: number }> {
+    try {
+      const response = await this.axiosInstance.get(`/api/v2/comments/book/${bookId}`);
+      return response.data;
+    } catch (error) {
+      console.error('가계부 댓글 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 가계부 내역 댓글 목록 조회
+  async getLedgerComments(ledgerId: number): Promise<{ comments: Comment[], totalElements: number }> {
+    try {
+      const response = await this.axiosInstance.get(`/api/v2/comments/ledger/${ledgerId}`);
+      return response.data;
+    } catch (error) {
+      console.error('가계부 내역 댓글 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 댓글 삭제
+  async deleteComment(commentId: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.delete(`/api/v2/comments/${commentId}`);
+      return response.data;
+    } catch (error) {
+      console.error('댓글 삭제 실패:', error);
+      throw error;
+    }
+  }
+
+  // 모바일 OAuth 로그인
+  async mobileOAuthLogin(data: { provider: string; accessToken: string; idToken?: string }): Promise<{ user: Member; accessToken: string; refreshToken?: string }> {
+    try {
+      const response = await this.axiosInstance.post('/mobile-oauth/login', data);
+      return response.data;
+    } catch (error) {
+      console.error('모바일 OAuth 로그인 실패:', error);
+      throw error;
+    }
+  }
+
+  // FCM 토큰 등록
+  async registerFCMToken(data: {
+    token: string;
+    deviceId: string;
+    deviceType: 'ios' | 'android' | 'web';
+    appVersion?: string;
+    osVersion?: string;
+  }): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post('/notifications/token', data);
+      return response.data;
+    } catch (error) {
+      console.error('FCM 토큰 등록 실패:', error);
+      throw error;
+    }
+  }
+
+  // Expo Push 토큰 등록
+  async registerExpoPushToken(data: {
+    expoPushToken: string;
+    deviceId: string;
+    platform: string;
+    appVersion?: string;
+  }): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post('/expo/notifications/token', data);
+      return response.data;
+    } catch (error) {
+      console.error('Expo Push 토큰 등록 실패:', error);
+      throw error;
+    }
+  }
+
+  // 테스트 알림 전송
+  async sendTestNotification(data?: any): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post('/notifications/send/test', data || {});
+      return response.data;
+    } catch (error) {
+      console.error('테스트 알림 전송 실패:', error);
+      throw error;
+    }
   }
 
 }

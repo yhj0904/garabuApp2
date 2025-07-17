@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl, Alert, TextInput } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl, Alert, TextInput, Modal } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -13,6 +13,7 @@ import { useCategoryStore } from '@/stores/categoryStore';
 import { useBudgetStore } from '@/stores/budgetStore';
 import PieChart from '@/components/charts/PieChart';
 import BarChart from '@/components/charts/BarChart';
+import CommentSection from '@/components/CommentSection';
 
 const tabs = ['통계', '예산', '내역'];
 const types = ['수입', '지출'];
@@ -79,6 +80,8 @@ export default function ExploreScreen() {
   const [chartType, setChartType] = useState<'pie' | 'bar'>('pie'); // 차트 타입 선택
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [selectedLedgerId, setSelectedLedgerId] = useState<number | null>(null);
   
   const month = currentDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
 
@@ -349,12 +352,23 @@ export default function ExploreScreen() {
           />
         )}
       </View>
-      <TouchableOpacity
-        style={styles.deleteButton}
-        onPress={() => handleDeleteLedger(item)}
-      >
-        <Ionicons name="trash" size={20} color="#FF3B30" />
-      </TouchableOpacity>
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => {
+            setSelectedLedgerId(item.id);
+            setShowComments(true);
+          }}
+        >
+          <Ionicons name="chatbubble-outline" size={18} color={colors.tint} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => handleDeleteLedger(item)}
+        >
+          <Ionicons name="trash" size={18} color="#FF3B30" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -745,6 +759,27 @@ export default function ExploreScreen() {
             )}
           </View>
         </ScrollView>
+
+        {/* 댓글 모달 */}
+        <Modal
+          visible={showComments}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowComments(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowComments(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+              <ThemedText type="subtitle">거래 댓글</ThemedText>
+              <View style={{ width: 24 }} />
+            </View>
+            {selectedLedgerId && (
+              <CommentSection type="ledger" targetId={selectedLedgerId} />
+            )}
+          </View>
+        </Modal>
       </View>
   );
 }
@@ -1143,6 +1178,27 @@ const styles = StyleSheet.create({
   clearSearchText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconButton: {
+    padding: 6,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
   },
   emptyStateContainer: {
     alignItems: 'center',

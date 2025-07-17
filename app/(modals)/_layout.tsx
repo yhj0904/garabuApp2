@@ -19,6 +19,13 @@ export default function ModalLayout() {
         <Stack.Screen name="advanced-stats" options={{ title: '고급 통계' }} />
         <Stack.Screen name="budget-settings" options={{ title: '예산 설정' }} />
         <Stack.Screen name="change-password" options={{ title: '비밀번호 변경' }} />
+        <Stack.Screen name="manage-categories" options={{ title: '카테고리 관리' }} />
+        <Stack.Screen name="user-id-code" options={{ title: '사용자 ID 코드' }} />
+        <Stack.Screen name="add-asset" options={{ title: '자산 추가' }} />
+        <Stack.Screen name="asset-detail" options={{ title: '자산 상세' }} />
+        <Stack.Screen name="book-settings" options={{ title: '가계부 설정' }} />
+        <Stack.Screen name="invite-code" options={{ title: '초대 코드' }} />
+        <Stack.Screen name="join-book" options={{ title: '가계부 참여' }} />
       </Stack>
     </SafeAreaView>
   );

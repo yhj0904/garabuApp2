@@ -7,14 +7,26 @@
     "icon": "./assets/images/GarabuLogo.png",
     "scheme": "garabuapp2",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.popori99.garabuapp2",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["kakaokompassauth", "kakaolink", "kakaoplus"],
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["kakao9232996cd9a91757d2e423adfb12254a"]
+          },
+          {
+            "CFBundleURLSchemes": ["garabuapp2"]
+          }
+        ]
       },
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "runtimeVersion": "1.0.0",
+      "appleTeamId": "8D4SK2Z7SR"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +34,31 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.popori99.garabuapp2"
+      "package": "com.popori99.garabuapp2",
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK",
+        "android.permission.INTERNET",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK"
+      ],
+      "runtimeVersion": "1.0.0",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "kakao9232996cd9a91757d2e423adfb12254a",
+              "host": "oauth"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -40,8 +76,40 @@
           "backgroundColor": "#ffffff"
         }
       ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
       "@react-native-google-signin/google-signin",
-      "expo-apple-authentication"
+        [
+        "@react-native-kakao/core",
+        {
+          "nativeAppKey": "9232996cd9a91757d2e423adfb12254a",
+          "android": {
+            "authCodeHandlerActivity": true
+          },
+          "ios": {
+            "handleKakaoOpenUrl": true
+          }
+        }
+      ],
+      "expo-apple-authentication",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/GarabuLogo.png",
+          "mode": "production"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraMavenRepos": [
+              "https://devrepo.kakao.com/nexus/content/groups/public/"
+            ]
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -52,6 +120,9 @@
         "projectId": "963f595c-9116-4894-8f48-c5ef4b9b3de4"
       }
     },
-    "owner": "popori99"
+    "owner": "popori99",
+    "updates": {
+      "url": "https://u.expo.dev/963f595c-9116-4894-8f48-c5ef4b9b3de4"
+    }
   }
 }

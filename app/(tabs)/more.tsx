@@ -77,6 +77,12 @@ export default function MoreScreen() {
       onPress: () => router.push('/(modals)/notifications'),
     },
     {
+      icon: 'flask',
+      title: '알림 테스트',
+      subtitle: '푸시 알림 테스트',
+      onPress: () => router.push('/(modals)/notification-test'),
+    },
+    {
       icon: 'settings',
       title: '앱 설정',
       subtitle: '앱 환경설정',

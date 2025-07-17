@@ -111,6 +111,14 @@ class OAuthService {
       const userInfo = await GoogleSignin.signIn();
       const tokens = await GoogleSignin.getTokens();
 
+      // 토큰 유효성 확인
+      if (!tokens.accessToken) {
+        return {
+          success: false,
+          error: 'Google 액세스 토큰을 받지 못했습니다.',
+        };
+      }
+
       return {
         success: true,
         accessToken: tokens.accessToken,
@@ -165,8 +173,9 @@ class OAuthService {
         // 성공적으로 리다이렉트된 경우
         const url = result.url;
         
-        // URL에서 토큰 파싱
-        const urlParams = new URLSearchParams(url.split('?')[1]);
+        // URL에서 토큰 파싱 (fragment 또는 query 파라미터 확인)
+        const urlParts = url.split('#')[1] || url.split('?')[1];
+        const urlParams = new URLSearchParams(urlParts);
         const accessToken = urlParams.get('access_token');
         const refreshToken = urlParams.get('refresh_token');
         
@@ -213,8 +222,9 @@ class OAuthService {
         // 성공적으로 리다이렉트된 경우
         const url = result.url;
         
-        // URL에서 토큰 파싱
-        const urlParams = new URLSearchParams(url.split('?')[1]);
+        // URL에서 토큰 파싱 (fragment 또는 query 파라미터 확인)
+        const urlParts = url.split('#')[1] || url.split('?')[1];
+        const urlParams = new URLSearchParams(urlParts);
         const accessToken = urlParams.get('access_token');
         const refreshToken = urlParams.get('refresh_token');
         

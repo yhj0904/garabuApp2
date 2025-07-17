@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl } from 'react-native';
+import { Alert, ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl, Modal } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -13,6 +13,7 @@ import syncService from '@/services/syncService';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
+import CommentSection from '@/components/CommentSection';
 import type { Ledger } from '@/services/api';
 
 export default function HomeScreen() {
@@ -23,6 +24,7 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const [refreshing, setRefreshing] = useState(false);
+  const [showComments, setShowComments] = useState(false);
 
   // 새로고침 핸들러
   const onRefresh = async () => {
@@ -381,6 +383,23 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* 댓글 버튼 추가 */}
+          <View style={styles.quickActions}>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: colors.card }]}
+              onPress={() => {
+                if (currentBook) {
+                  setShowComments(true);
+                } else {
+                  Alert.alert('알림', '먼저 가계부를 선택해주세요.');
+                }
+              }}
+            >
+              <Ionicons name="chatbubbles" size={32} color={colors.tint} />
+              <ThemedText type="defaultSemiBold">가계부 댓글</ThemedText>
+            </TouchableOpacity>
+          </View>
+
           {/* 동기화 버튼 */}
           <View style={styles.quickActions}>
             <TouchableOpacity 
@@ -458,6 +477,27 @@ export default function HomeScreen() {
             <ThemedText style={styles.logoutButtonText}>로그아웃</ThemedText>
           </TouchableOpacity>
         </ScrollView>
+
+        {/* 댓글 모달 */}
+        <Modal
+          visible={showComments}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowComments(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowComments(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+              <ThemedText type="subtitle">가계부 댓글</ThemedText>
+              <View style={{ width: 24 }} />
+            </View>
+            {currentBook && (
+              <CommentSection type="book" targetId={currentBook.id} />
+            )}
+          </View>
+        </Modal>
       </ThemedView>
   );
 }
@@ -625,5 +665,18 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     marginTop: 4,
     textAlign: 'center',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
   },
 }); 

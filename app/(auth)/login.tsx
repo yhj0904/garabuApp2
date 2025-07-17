@@ -1,6 +1,5 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { oauth } from '@/services/oauthService';
 import { useAuthStore } from '@/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -16,13 +15,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import appleService from '@/services/appleService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   
-  const { login, oauthLogin, isLoading, isAuthenticated } = useAuthStore();
+  const { login, loginWithKakao, loginWithGoogle, loginWithApple, isLoading, isAuthenticated } = useAuthStore();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
@@ -46,37 +46,33 @@ export default function LoginScreen() {
     }
   };
 
-  const handleOAuthLogin = async (provider: 'google' | 'apple' | 'naver' | 'kakao') => {
-    console.log(`${provider} 로그인 버튼 클릭됨`);
-    
-    try {
-      console.log(`${provider} OAuth 시작...`);
-      const result = await oauth.login(provider);
-      
-      console.log(`${provider} OAuth 결과:`, result);
-      
-      if (result.success && result.accessToken) {
-        console.log(`${provider} 토큰 획득 성공, 로그인 처리 중...`);
-        const success = await oauthLogin(provider, result.accessToken, result.refreshToken);
-        
-        if (success) {
-          console.log(`${provider} 로그인 성공!`);
-        } else {
-          console.log(`${provider} 로그인 실패`);
-          Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
-        }
-      } else {
-        console.log(`${provider} OAuth 실패:`, result.error);
-        Alert.alert('로그인 실패', result.error || `${provider} 로그인 중 오류가 발생했습니다.`);
-      }
-    } catch (error) {
-      console.error(`${provider} OAuth 오류:`, error);
-      Alert.alert('로그인 실패', `${provider} 로그인 중 오류가 발생했습니다.`);
-    }
-  };
 
   const handleSignUp = () => {
     router.push('/(auth)/signup');
+  };
+
+  const handleKakaoLogin = async () => {
+    const success = await loginWithKakao();
+    
+    if (!success) {
+      Alert.alert('카카오 로그인 실패', '다시 시도해주세요.');
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    const success = await loginWithGoogle();
+    
+    if (!success) {
+      Alert.alert('구글 로그인 실패', '다시 시도해주세요.');
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    const success = await loginWithApple();
+    
+    if (!success) {
+      Alert.alert('애플 로그인 실패', '다시 시도해주세요.');
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -102,94 +98,6 @@ export default function LoginScreen() {
               </Text>
             </View>
 
-            {/* 소셜 로그인 버튼 */}
-            <View style={styles.socialContainer}>
-              {/* iOS에서만 Apple 로그인 버튼 표시 */}
-              {Platform.OS === 'ios' && (
-                <TouchableOpacity
-                  style={[
-                    styles.socialButton, 
-                    styles.appleButton,
-                    { opacity: isLoading ? 0.7 : 1 }
-                  ]}
-                  onPress={() => {
-                    console.log('Apple 버튼 터치됨');
-                    handleOAuthLogin('apple');
-                  }}
-                  disabled={isLoading}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="logo-apple" size={24} color="white" />
-                  <Text style={styles.socialButtonText}>
-                    {isLoading ? '처리 중...' : 'Apple로 계속하기'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              
-              <TouchableOpacity
-                style={[
-                  styles.socialButton, 
-                  styles.googleButton,
-                  { opacity: isLoading ? 0.7 : 1 }
-                ]}
-                onPress={() => {
-                  console.log('Google 버튼 터치됨');
-                  handleOAuthLogin('google');
-                }}
-                disabled={isLoading}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="logo-google" size={24} color="white" />
-                <Text style={styles.socialButtonText}>
-                  {isLoading ? '처리 중...' : 'Google로 계속하기'}
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.socialButton, 
-                  styles.naverButton,
-                  { opacity: isLoading ? 0.7 : 1 }
-                ]}
-                onPress={() => {
-                  console.log('Naver 버튼 터치됨');
-                  handleOAuthLogin('naver');
-                }}
-                disabled={isLoading}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="logo-html5" size={24} color="white" />
-                <Text style={styles.socialButtonText}>
-                  {isLoading ? '처리 중...' : 'Naver로 계속하기'}
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.socialButton, 
-                  styles.kakaoButton,
-                  { opacity: isLoading ? 0.7 : 1 }
-                ]}
-                onPress={() => {
-                  console.log('Kakao 버튼 터치됨');
-                  handleOAuthLogin('kakao');
-                }}
-                disabled={isLoading}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="chatbubble-ellipses" size={24} color="black" />
-                <Text style={[styles.socialButtonText, { color: 'black' }]}>
-                  {isLoading ? '처리 중...' : 'Kakao로 계속하기'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* 구분선 */}
-            <View style={styles.divider}>
-              <View style={[styles.dividerLine, { backgroundColor: colors.icon }]} />
-              <Text style={[styles.dividerText, { color: colors.icon }]}>또는</Text>
-              <View style={[styles.dividerLine, { backgroundColor: colors.icon }]} />
-            </View>
 
             {/* 로그인 폼 */}
             <View style={styles.formContainer}>
@@ -285,6 +193,58 @@ export default function LoginScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              {/* 구분선 */}
+              <View style={styles.dividerContainer}>
+                <View style={[styles.divider, { backgroundColor: colors.icon }]} />
+                <Text style={[styles.dividerText, { color: colors.icon }]}>OR</Text>
+                <View style={[styles.divider, { backgroundColor: colors.icon }]} />
+              </View>
+
+              {/* 소셜 로그인 버튼들 */}
+              <View style={styles.socialButtonsContainer}>
+                {/* 카카오 로그인 버튼 */}
+                <TouchableOpacity
+                  style={[
+                    styles.socialButton,
+                    { backgroundColor: '#FEE500' }, // 카카오 노란색
+                  ]}
+                  onPress={handleKakaoLogin}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.socialButtonText, { color: '#000000' }]}>
+                    카카오 로그인
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 구글 로그인 버튼 */}
+                <TouchableOpacity
+                  style={[
+                    styles.socialButton,
+                    { 
+                      backgroundColor: '#FFFFFF',
+                      borderWidth: 1,
+                      borderColor: '#E0E0E0',
+                    },
+                  ]}
+                  onPress={handleGoogleLogin}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.socialButtonText, { color: '#000000' }]}>
+                    구글 로그인
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 애플 로그인 버튼 (iOS만) */}
+                {Platform.OS === 'ios' && (
+                  <View style={{ width: '100%' }}>
+                    {appleService.renderButton({
+                      onPress: handleAppleLogin,
+                      style: { width: '100%', height: 50 },
+                    })}
+                  </View>
+                )}
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -337,56 +297,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
-  },
-  socialContainer: {
-    marginBottom: 24,
-  },
-  socialButton: {
-    height: 50,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    flexDirection: 'row',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  appleButton: {
-    backgroundColor: '#000000',
-  },
-  googleButton: {
-    backgroundColor: '#4285F4',
-  },
-  naverButton: {
-    backgroundColor: '#03C75A',
-  },
-  kakaoButton: {
-    backgroundColor: '#FEE500',
-  },
-  socialButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 14,
   },
   formContainer: {
     width: '100%',
@@ -460,6 +370,36 @@ const styles = StyleSheet.create({
   },
   signUpLink: {
     fontSize: 14,
+    fontWeight: '600',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    opacity: 0.3,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  socialButtonsContainer: {
+    gap: 12,
+  },
+  socialButton: {
+    height: 50,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  socialButtonText: {
+    fontSize: 16,
     fontWeight: '600',
   },
 }); 

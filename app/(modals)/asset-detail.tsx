@@ -405,7 +405,7 @@ export default function AssetDetailModal() {
               자산 삭제
             </ThemedText>
             <ThemedText style={[styles.deleteModalText, { color: colors.tabIconDefault }]}>
-              '{asset.name}' 자산을 삭제하시겠습니까?
+              &apos;{asset.name}&apos; 자산을 삭제하시겠습니까?
               {'\n'}삭제된 자산은 복구할 수 없습니다.
             </ThemedText>
             
