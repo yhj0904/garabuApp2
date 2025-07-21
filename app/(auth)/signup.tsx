@@ -2,19 +2,22 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuthStore } from '@/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
+import { PasswordStrengthIndicator } from '@/components/PasswordStrengthIndicator';
+import { validatePassword } from '@/utils/passwordValidator';
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
@@ -36,26 +39,53 @@ export default function SignupScreen() {
     }
   }, [isAuthenticated, router]);
 
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+
   const handleSignup = async () => {
     if (!email || !username || !password || !confirmPassword) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('오류', '모든 필드를 입력해주세요.');
       return;
     }
 
+    if (!validateEmail(email)) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('오류', '올바른 이메일 형식을 입력해주세요.');
+      return;
+    }
+
+    if (username.length < 2) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('오류', '이름은 최소 2자 이상이어야 합니다.');
+      return;
+    }
+
+    // 유틸리티 함수 사용으로 변경
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('오류', passwordValidation.message);
+      return;
+    }
+
     if (password !== confirmPassword) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('오류', '비밀번호가 일치하지 않습니다.');
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('오류', '비밀번호는 최소 6자 이상이어야 합니다.');
-      return;
-    }
-
-    const success = await signup(email, username, password, username); // name 대신 username 사용
+    const result = await signup(email, username, password, username); // name 대신 username 사용
     
-    if (!success) {
-      Alert.alert('회원가입 실패', '회원가입 중 오류가 발생했습니다. 다시 시도해주세요.');
+    if (!result.success) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      // 서버에서 반환한 구체적인 에러 메시지 표시
+      Alert.alert('회원가입 실패', result.error || '회원가입 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } else {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   };
 
@@ -155,7 +185,7 @@ export default function SignupScreen() {
                         borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
                       },
                     ]}
-                    placeholder="비밀번호를 입력하세요 (최소 6자)"
+                    placeholder="비밀번호를 입력하세요 (최소 8자)"
                     placeholderTextColor={colors.icon}
                     value={password}
                     onChangeText={setPassword}
@@ -175,6 +205,14 @@ export default function SignupScreen() {
                     />
                   </TouchableOpacity>
                 </View>
+                
+                {/* 비밀번호 강도 표시 - 회원가입에서는 상세 표시 */}
+                {password.length > 0 && (
+                  <PasswordStrengthIndicator 
+                    password={password} 
+                    showRequirements={true}
+                  />
+                )}
               </View>
 
               <View style={styles.inputContainer}>
@@ -212,6 +250,23 @@ export default function SignupScreen() {
                     />
                   </TouchableOpacity>
                 </View>
+                
+                {/* 비밀번호 일치 여부 표시 */}
+                {confirmPassword.length > 0 && (
+                  <View style={styles.matchIndicator}>
+                    <Ionicons 
+                      name={password === confirmPassword ? "checkmark-circle" : "close-circle"} 
+                      size={16} 
+                      color={password === confirmPassword ? '#00C851' : '#FF4444'} 
+                    />
+                    <Text style={[
+                      styles.matchText, 
+                      { color: password === confirmPassword ? '#00C851' : '#FF4444' }
+                    ]}>
+                      {password === confirmPassword ? '비밀번호가 일치합니다' : '비밀번호가 일치하지 않습니다'}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               {/* 회원가입 버튼 */}
@@ -353,5 +408,15 @@ const styles = StyleSheet.create({
   loginLink: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  matchIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  matchText: {
+    fontSize: 12,
+    marginLeft: 6,
+    fontWeight: '500',
   },
 }); 

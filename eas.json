@@ -14,11 +14,21 @@
       "channel": "preview"
     },
     "production": {
+      "distribution": "store",
       "autoIncrement": true,
       "channel": "production"
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "ujk6073@naver.com",
+        "ascAppId": "6748752354",
+        "appleTeamId": "8D4SK2Z7SR"
+      },
+      "android": {
+        "serviceAccountKeyPath": "/Users/yoonhyungjoo/Documents/garabu/AOS-FCM/Google-Account-KEY/garabu-d95ea-a1f3d949ce58.json"
+      }
+    }
   }
 }

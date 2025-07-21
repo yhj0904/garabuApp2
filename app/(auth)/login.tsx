@@ -1,21 +1,24 @@
 import { Colors } from '@/constants/Colors';
+import appleService from '@/features/auth/services/appleService';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuthStore } from '@/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import appleService from '@/services/appleService';
+import { PasswordStrengthIndicator } from '@/components/PasswordStrengthIndicator';
+import { validatePassword } from '@/utils/passwordValidator';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -33,16 +36,40 @@ export default function LoginScreen() {
     }
   }, [isAuthenticated, router]);
 
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleLogin = async () => {
     if (!email || !password) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('오류', '이메일과 비밀번호를 모두 입력해주세요.');
       return;
     }
 
-    const success = await login(email, password);
-    
-    if (!success) {
-      Alert.alert('로그인 실패', '이메일 또는 비밀번호를 확인해주세요.');
+    if (!validateEmail(email)) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('오류', '올바른 이메일 형식을 입력해주세요.');
+      return;
+    }
+
+    // 비밀번호 유효성 검사 (로그인 시에는 너무 엄격하지 않게)
+    if (password.length < 6) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('오류', '비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+
+    try {
+      const success = await login(email, password);
+      
+      if (success) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error: any) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('로그인 실패', error.message || '이메일 또는 비밀번호를 확인해주세요.');
     }
   };
 
@@ -161,6 +188,11 @@ export default function LoginScreen() {
                     />
                   </TouchableOpacity>
                 </View>
+                
+                {/* 비밀번호 강도 표시 */}
+                {password.length > 0 && (
+                  <PasswordStrengthIndicator password={password} />
+                )}
               </View>
 
               {/* 로그인 버튼 */}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import apiService from '@/services/api';
-import type { Asset, AssetType, CreateAssetRequest, UpdateAssetRequest } from '@/services/api';
+import apiService from '@/core/api/client';
+import type { Asset, AssetType, CreateAssetRequest, UpdateAssetRequest } from '@/core/api/client';
 
 interface AssetState {
   assets: Asset[];

@@ -1,25 +1,33 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Updates from 'expo-updates';
 
 import SplashScreen from '@/components/SplashScreen';
 import { subscribeToDeepLinks } from '@/config/deepLinks';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { processPendingDeepLinks, useNotificationObserver } from '@/hooks/useNotificationObserver';
 import { firebaseService } from '@/services/firebaseService';
-import googleService from '@/services/googleService';
-import { notificationService } from '@/services/notificationService';
+import googleService from '@/features/auth/services/googleService';
+import { fcmNotificationService } from '@/core/notifications/fcm';
 import oauthKeyService from '@/services/oauthKeyService';
+import { useAuthStore } from '@/stores/authStore';
+import { useBookStore } from '@/stores/bookStore';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isAppReady, setIsAppReady] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const router = useRouter();
+  
+  // Auth state
+  const { isAuthenticated, user } = useAuthStore();
+  const { books } = useBookStore();
   
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -35,7 +43,16 @@ export default function RootLayout() {
   );
 
   useEffect(() => {
+    console.log('=== App Layout Initialization ===');
+    console.log('Fonts loaded:', loaded);
+    console.log('Is Expo Go:', Constants.appOwnership === 'expo');
+    console.log('App Version:', Constants.expoConfig?.version);
+    console.log('Runtime Version:', Constants.expoConfig?.runtimeVersion);
+    console.log('================================');
+    
     if (loaded) {
+      // EAS Update 체크 (production 빌드에서만)
+      checkForUpdates();
       setIsAppReady(true);
       // OAuth 키 가져오기 및 SDK 초기화
       initializeOAuthServices();
@@ -43,6 +60,62 @@ export default function RootLayout() {
       initializeFirebase();
     }
   }, [loaded]);
+
+  // 스플래시 화면 완료 후 라우팅 처리
+  useEffect(() => {
+    if (dataLoaded && isAppReady) {
+      console.log('=== 라우팅 결정 ===');
+      console.log('인증 상태:', isAuthenticated);
+      console.log('사용자:', user);
+      console.log('가계부 수:', books.length);
+      
+      // 인증되지 않은 경우 로그인 화면으로
+      if (!isAuthenticated || !user) {
+        console.log('로그인 화면으로 이동');
+        router.replace('/(auth)/login');
+      } 
+      // 인증되었지만 가계부가 없는 경우
+      else if (books.length === 0) {
+        console.log('온보딩 화면으로 이동');
+        router.replace('/(modals)/book-creation?mode=onboarding');
+      }
+      // 인증되고 가계부가 있는 경우
+      else {
+        console.log('메인 화면으로 이동');
+        router.replace('/(tabs)');
+      }
+    }
+  }, [dataLoaded, isAppReady, isAuthenticated, user, books.length]);
+
+  // EAS Update 체크 함수
+  const checkForUpdates = async () => {
+    try {
+      // 개발 환경에서는 업데이트 체크 건너뛰기
+      if (__DEV__) {
+        console.log('개발 환경에서는 업데이트 체크를 건너뜁니다');
+        return;
+      }
+
+      console.log('EAS Update 체크 시작...');
+      const update = await Updates.checkForUpdateAsync();
+      
+      if (update.isAvailable) {
+        console.log('업데이트 발견 - 다운로드 시작...');
+        
+        await Updates.fetchUpdateAsync();
+        console.log('업데이트 다운로드 완료 - 앱 재시작...');
+        
+        // 업데이트 후 앱 재시작
+        await Updates.reloadAsync();
+      } else {
+        console.log('사용 가능한 업데이트가 없습니다');
+      }
+    } catch (error) {
+      // 업데이트 체크 실패 시 앱은 계속 진행
+      console.log('업데이트 체크 중 오류 발생:', error);
+      console.log('앱은 정상적으로 계속 실행됩니다');
+    }
+  };
 
   // OAuth 서비스 초기화
   const initializeOAuthServices = async () => {
@@ -118,15 +191,12 @@ export default function RootLayout() {
       await firebaseService.initialize();
       
       
-      // 알림 서비스 초기화
-      const listeners = notificationService.registerNotificationListeners();
-      
+      // FCM 알림 서비스는 자체 리스너를 관리함
       // Deep link 구독 설정
       const deepLinkSubscription = subscribeToDeepLinks();
       
       // 앱 종료 시 리스너 정리
       return () => {
-        notificationService.removeNotificationListeners(listeners);
         deepLinkSubscription.remove();
         firebaseService.cleanup();
       };

@@ -1,30 +1,33 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl, Modal } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { Alert, Modal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View, Text } from 'react-native';
 
+import CommentSection from '@/components/CommentSection';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { notification } from '@/services/notificationService';
 import syncService from '@/services/syncService';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
-import CommentSection from '@/components/CommentSection';
-import type { Ledger } from '@/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import config from '@/config/config';
 
 export default function HomeScreen() {
   const { user, token, logout } = useAuthStore();
-  const { books, currentBook, ledgers, bookMembers, fetchBooks, fetchLedgers, fetchBookMembers } = useBookStore();
-  const { fetchCategories, fetchPayments, fetchCategoriesByBook, fetchPaymentsByBook } = useCategoryStore();
+  const { currentBook, ledgers, bookMembers, fetchBooks, fetchLedgers, fetchBookMembers } = useBookStore();
+  const { fetchCategoriesByBook, fetchPaymentsByBook } = useCategoryStore();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const [refreshing, setRefreshing] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [goals, setGoals] = useState<any[]>([]);
+  const [todayRecurringTransactions, setTodayRecurringTransactions] = useState<any[]>([]);
 
   // 새로고침 핸들러
   const onRefresh = async () => {
@@ -74,6 +77,10 @@ export default function HomeScreen() {
     if (token && user?.id && currentBook?.id) {
       console.log('실시간 동기화 상태 확인');
     }
+    // 목표 데이터 로드
+    loadGoals();
+    // 오늘의 반복거래 로드
+    loadTodayRecurringTransactions();
   }, [token, currentBook, user]);
 
   // 실시간 동기화 이벤트 리스너
@@ -207,6 +214,50 @@ export default function HomeScreen() {
   const balance = calculateBalance();
   const monthlyChange = calculateMonthlyChange();
 
+  // 목표 데이터 로드
+  const loadGoals = async () => {
+    try {
+      const savedGoals = await AsyncStorage.getItem(`goals_${currentBook?.id}`);
+      if (savedGoals) {
+        const parsedGoals = JSON.parse(savedGoals);
+        // ACTIVE 상태인 목표만 필터링하고 진행률 순으로 정렬
+        const activeGoals = parsedGoals
+          .filter((goal: any) => goal.status === 'ACTIVE')
+          .sort((a: any, b: any) => b.progressPercentage - a.progressPercentage)
+          .slice(0, 3); // 상위 3개만
+        setGoals(activeGoals);
+      }
+    } catch (error) {
+      console.error('목표 로드 실패:', error);
+    }
+  };
+
+  // 오늘의 반복거래 로드
+  const loadTodayRecurringTransactions = async () => {
+    if (!token || !currentBook?.id) return;
+    
+    try {
+      const response = await axios.get(
+        `${config.API_BASE_URL}/api/v2/recurring-transactions/book/${currentBook.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      // 오늘 실행될 거래만 필터링
+      const today = new Date().toISOString().split('T')[0];
+      const todayTransactions = response.data.filter((transaction: any) => {
+        return transaction.isActive && transaction.nextExecutionDate === today;
+      });
+      
+      setTodayRecurringTransactions(todayTransactions);
+    } catch (error) {
+      console.error('반복거래 로드 실패:', error);
+    }
+  };
+
   return (
     <ThemedView style={styles.container}>
         <ScrollView 
@@ -256,6 +307,79 @@ export default function HomeScreen() {
               </ThemedText>
             </View>
           </View>
+
+          {/* 목표 진행률 위젯 */}
+          {goals.length > 0 && (
+            <View style={styles.goalsWidget}>
+              <View style={styles.sectionHeader}>
+                <ThemedText type="subtitle">재정 목표</ThemedText>
+                <TouchableOpacity onPress={() => router.push('/(modals)/goals')}>
+                  <ThemedText style={[styles.seeAllText, { color: colors.tint }]}>
+                    모두 보기
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+              {goals.map((goal) => (
+                <TouchableOpacity
+                  key={goal.id}
+                  style={[styles.goalCard, { backgroundColor: colors.card }]}
+                  onPress={() => router.push('/(modals)/goals')}
+                >
+                  <View style={styles.goalHeader}>
+                    <View style={[styles.goalIcon, { backgroundColor: goal.color + '20' }]}>
+                      <Text style={styles.goalIconText}>{goal.icon || '🎯'}</Text>
+                    </View>
+                    <View style={styles.goalInfo}>
+                      <ThemedText type="defaultSemiBold">{goal.name}</ThemedText>
+                      <ThemedText style={styles.goalAmount}>
+                        ₩{formatAmount(goal.currentAmount)} / ₩{formatAmount(goal.targetAmount)}
+                      </ThemedText>
+                    </View>
+                    <ThemedText style={[styles.goalPercentage, { color: goal.color }]}>
+                      {goal.progressPercentage.toFixed(0)}%
+                    </ThemedText>
+                  </View>
+                  <View style={[styles.goalProgress, { backgroundColor: colors.background }]}>
+                    <View 
+                      style={[
+                        styles.goalProgressFill, 
+                        { 
+                          width: `${Math.min(goal.progressPercentage, 100)}%`,
+                          backgroundColor: goal.color
+                        }
+                      ]} 
+                    />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* 오늘의 반복거래 알림 */}
+          {todayRecurringTransactions.length > 0 && (
+            <View style={[styles.recurringAlert, { backgroundColor: colors.tint + '10' }]}>
+              <View style={styles.recurringAlertHeader}>
+                <Ionicons name="repeat" size={24} color={colors.tint} />
+                <ThemedText type="defaultSemiBold" style={{ marginLeft: 8 }}>
+                  오늘의 반복거래
+                </ThemedText>
+              </View>
+              {todayRecurringTransactions.map((transaction) => (
+                <View key={transaction.id} style={styles.recurringItem}>
+                  <ThemedText>{transaction.name}</ThemedText>
+                  <ThemedText style={{ color: transaction.amountType === 'INCOME' ? '#4CAF50' : '#FF3B30' }}>
+                    {transaction.amountType === 'INCOME' ? '+' : '-'}₩{formatAmount(transaction.amount)}
+                  </ThemedText>
+                </View>
+              ))}
+              <TouchableOpacity 
+                style={[styles.executeButton, { backgroundColor: colors.tint }]}
+                onPress={() => Alert.alert('알림', '반복거래 자동 실행 기능은 개발 중입니다.')}
+              >
+                <ThemedText style={styles.executeButtonText}>거래 실행하기</ThemedText>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* 빠른 액션 버튼들 */}
           <View style={styles.quickActions}>
@@ -342,7 +466,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => router.push('/(modals)/add-book')}
+              onPress={() => router.push('/(modals)/book-creation?mode=modal')}
             >
               <Ionicons name="add" size={32} color={colors.tint} />
               <ThemedText type="defaultSemiBold">가계부 추가</ThemedText>
@@ -353,7 +477,7 @@ export default function HomeScreen() {
           <View style={styles.quickActions}>
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => router.push('/(modals)/add-category')}
+              onPress={() => router.push('/(modals)/manage-categories')}
             >
               <Ionicons name="pricetag" size={32} color={colors.tint} />
               <ThemedText type="defaultSemiBold">카테고리</ThemedText>
@@ -368,14 +492,8 @@ export default function HomeScreen() {
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: colors.card }]}
               onPress={() => {
-                // 예산 초과 알림 테스트
-                const currentExpense = ledgers
-                  .filter(l => l.amountType === 'EXPENSE')
-                  .reduce((sum, l) => sum + l.amount, 0);
-                
-                if (currentExpense > 2000000) {
-                  notification.sendBudgetAlert(user?.id?.toString() || '1', currentExpense, 2000000);
-                }
+                // 알림 설정으로 이동
+                router.push('/(modals)/notifications');
               }}
             >
               <Ionicons name="notifications" size={32} color={colors.tint} />
@@ -678,5 +796,84 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
+  },
+  goalsWidget: {
+    marginBottom: 24,
+  },
+  goalCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  goalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  goalIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  goalIconText: {
+    fontSize: 20,
+  },
+  goalInfo: {
+    flex: 1,
+  },
+  goalAmount: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
+  },
+  goalPercentage: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  goalProgress: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  goalProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  recurringAlert: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  recurringAlertHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  recurringItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  executeButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  executeButtonText: {
+    color: 'white',
+    fontWeight: '600',
   },
 }); 

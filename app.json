@@ -9,8 +9,15 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "ios": {
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "supportsTablet": true,
       "bundleIdentifier": "com.popori99.garabuapp2",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "LSApplicationQueriesSchemes": ["kakaokompassauth", "kakaolink", "kakaoplus"],
@@ -21,7 +28,11 @@
           {
             "CFBundleURLSchemes": ["garabuapp2"]
           }
-        ]
+        ],
+        "UIBackgroundModes": ["remote-notification"],
+        "NSPhotoLibraryUsageDescription": "가계부에 영수증 사진을 첨부하기 위해 사진 라이브러리 접근이 필요합니다.",
+        "NSCameraUsageDescription": "영수증을 촬영하여 가계부에 첨부하기 위해 카메라 접근이 필요합니다.",
+        "NSUserTrackingUsageDescription": "사용자 경험 개선을 위해 앱 사용 정보를 수집합니다."
       },
       "usesAppleSignIn": true,
       "googleServicesFile": "./GoogleService-Info.plist",
@@ -93,13 +104,6 @@
       ],
       "expo-apple-authentication",
       "expo-secure-store",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/GarabuLogo.png",
-          "mode": "production"
-        }
-      ],
       [
         "expo-build-properties",
         {

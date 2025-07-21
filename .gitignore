@@ -28,6 +28,7 @@ eas-build-info.json
 
 .env
 .env*
+.env.production
 firebase.config.js
 google-services.json
 garabu-*.json
@@ -129,3 +130,9 @@ Claude.md
 
 expo-env.d.ts
 # @end expo-cli
+
+/docs
+docs/
+
+/scripts
+scripts/

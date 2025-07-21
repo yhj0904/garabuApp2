@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAssetStore } from '@/stores/assetStore';
-import type { Asset } from '@/services/api';
+import type { Asset } from '@/core/api/client';
 import { useBudgetStore } from '@/stores/budgetStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -18,13 +18,18 @@ import {
   Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import axios from 'axios';
+import config from '@/config/config';
 
 export default function AssetScreen() {
   const [refreshing, setRefreshing] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(() => {
+  const [currentMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [currencies, setCurrencies] = useState<any[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<any[]>([]);
+  const [selectedCurrency, setSelectedCurrency] = useState<string>('ALL');
 
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -34,7 +39,6 @@ export default function AssetScreen() {
   const { 
     assets, 
     assetTypes, 
-    getTotalAssets, 
     getAssetTypeStats, 
     getAssetsByType,
     fetchAssetsByBook,
@@ -55,6 +59,13 @@ export default function AssetScreen() {
     }
   }, [currentMonth]);
 
+  // 통화 데이터 로드
+  useEffect(() => {
+    if (currentBook && token) {
+      fetchCurrencies();
+    }
+  }, [currentBook, token]);
+
   // 특정 월의 예산 데이터만 로드
   const loadBudgetDataForMonth = async () => {
     if (!currentBook || !token) return;
@@ -63,6 +74,39 @@ export default function AssetScreen() {
       await getBudgetSummary(currentBook.id, currentMonth, token);
     } catch (error) {
       console.error('예산 데이터 로드 실패:', error);
+    }
+  };
+
+  // 통화 정보 가져오기
+  const fetchCurrencies = async () => {
+    try {
+      // 가계부의 통화 설정 조회
+      const bookCurrenciesResponse = await axios.get(
+        `${config.API_BASE_URL}/api/v2/currencies/book/${currentBook?.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      const activeCurrencies = bookCurrenciesResponse.data.map((bc: any) => bc.currency);
+      setCurrencies(activeCurrencies);
+      
+      // 환율 정보 조회
+      if (activeCurrencies.length > 1) {
+        const ratesResponse = await axios.get(
+          `${config.API_BASE_URL}/api/v2/currencies/exchange-rates?from=KRW`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        setExchangeRates(ratesResponse.data);
+      }
+    } catch (error) {
+      console.error('통화 정보 조회 실패:', error);
     }
   };
 
@@ -146,6 +190,38 @@ export default function AssetScreen() {
     return '#F44336'; // 빨간색 (초과)
   };
 
+  // 통화별 자산 필터링
+  const getAssetsByCurrency = (currency?: string) => {
+    if (!currency || currency === 'ALL') {
+      return assets;
+    }
+    return assets.filter(asset => asset.currency === currency);
+  };
+
+  // 통화별 총 자산 계산 (환율 적용)
+  const getTotalAssetsByCurrency = (currency?: string) => {
+    const filteredAssets = getAssetsByCurrency(currency);
+    
+    if (!currency || currency === 'ALL') {
+      // 모든 통화의 자산을 KRW로 환산
+      return filteredAssets.reduce((total, asset) => {
+        if (asset.currency === 'KRW' || !asset.currency) {
+          return total + asset.balance;
+        }
+        
+        // 환율 적용
+        const rate = exchangeRates.find(r => r.toCurrency === asset.currency);
+        if (rate) {
+          return total + (asset.balance / rate.rate);
+        }
+        return total + asset.balance;
+      }, 0);
+    }
+    
+    // 특정 통화의 자산만 합산
+    return filteredAssets.reduce((total, asset) => total + asset.balance, 0);
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView 
@@ -162,21 +238,80 @@ export default function AssetScreen() {
           />
         }
       >
+        {/* 통화 필터 */}
+        {currencies.length > 1 && (
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.currencyFilter}
+            contentContainerStyle={styles.currencyFilterContent}
+          >
+            <TouchableOpacity
+              style={[
+                styles.currencyChip,
+                { 
+                  backgroundColor: selectedCurrency === 'ALL' ? colors.tint : colors.card,
+                  borderColor: selectedCurrency === 'ALL' ? colors.tint : colors.border
+                }
+              ]}
+              onPress={() => setSelectedCurrency('ALL')}
+            >
+              <ThemedText style={{ 
+                color: selectedCurrency === 'ALL' ? 'white' : colors.text,
+                fontWeight: selectedCurrency === 'ALL' ? '600' : '400'
+              }}>
+                전체
+              </ThemedText>
+            </TouchableOpacity>
+            {currencies.map((currency) => (
+              <TouchableOpacity
+                key={currency.id}
+                style={[
+                  styles.currencyChip,
+                  { 
+                    backgroundColor: selectedCurrency === currency.code ? colors.tint : colors.card,
+                    borderColor: selectedCurrency === currency.code ? colors.tint : colors.border
+                  }
+                ]}
+                onPress={() => setSelectedCurrency(currency.code)}
+              >
+                <ThemedText style={{ 
+                  color: selectedCurrency === currency.code ? 'white' : colors.text,
+                  fontWeight: selectedCurrency === currency.code ? '600' : '400'
+                }}>
+                  {currency.code} ({currency.symbol})
+                </ThemedText>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
         {/* 총 자산 카드 */}
         <View style={[styles.totalAssetCard, { backgroundColor: colors.card }]}>
           <View style={styles.totalAssetHeader}>
-            <ThemedText type="subtitle">총 자산</ThemedText>
+            <ThemedText type="subtitle">
+              {selectedCurrency === 'ALL' ? '총 자산' : `${selectedCurrency} 자산`}
+            </ThemedText>
             <Ionicons name="wallet" size={24} color={colors.tint} />
           </View>
           <ThemedText type="title" style={styles.totalAssetAmount}>
-            ₩{getTotalAssets().toLocaleString()}
+            {selectedCurrency === 'ALL' || selectedCurrency === 'KRW' ? '₩' : 
+             currencies.find(c => c.code === selectedCurrency)?.symbol || ''}
+            {getTotalAssetsByCurrency(selectedCurrency).toLocaleString()}
           </ThemedText>
           <View style={styles.assetChange}>
             <Ionicons name="wallet-outline" size={16} color={colors.tint} />
             <ThemedText style={[styles.changeText, { color: colors.tint }]}>
-              총 {assets.length}개 자산
+              {selectedCurrency === 'ALL' ? 
+                `총 ${assets.length}개 자산` : 
+                `${getAssetsByCurrency(selectedCurrency).length}개 자산`}
             </ThemedText>
           </View>
+          {selectedCurrency !== 'ALL' && selectedCurrency !== 'KRW' && (
+            <ThemedText style={[styles.exchangeRateText, { color: colors.icon }]}>
+              ₩{getTotalAssetsByCurrency('ALL').toLocaleString()} (환율 적용)
+            </ThemedText>
+          )}
         </View>
 
         {/* 예산 섹션 */}
@@ -304,8 +439,11 @@ export default function AssetScreen() {
           {getAssetTypeStats().length > 0 ? (
             getAssetTypeStats().map((stat) => {
               const assetType = assetTypes.find(type => type.type === stat.type);
-              const typeAssets = getAssetsByType(stat.type);
-              if (!assetType) return null;
+              const typeAssets = getAssetsByType(stat.type).filter(asset => 
+                selectedCurrency === 'ALL' || asset.currency === selectedCurrency || (!asset.currency && selectedCurrency === 'KRW')
+              );
+              
+              if (!assetType || typeAssets.length === 0) return null;
               
               return (
                 <View key={stat.type} style={styles.assetTypeGroup}>
@@ -344,8 +482,15 @@ export default function AssetScreen() {
                             )}
                           </View>
                           <View style={styles.assetBalanceSection}>
+                            {asset.currency && asset.currency !== 'KRW' && (
+                              <ThemedText style={[styles.assetCurrency, { color: colors.tint }]}>
+                                {asset.currency}
+                              </ThemedText>
+                            )}
                             <ThemedText style={[styles.assetBalance, { color: colors.text }]}>
-                              ₩{asset.balance.toLocaleString()}
+                              {asset.currency && asset.currency !== 'KRW' ? 
+                                currencies.find(c => c.code === asset.currency)?.symbol || '' : '₩'}
+                              {asset.balance.toLocaleString()}
                             </ThemedText>
                             <Ionicons name="chevron-forward" size={16} color={colors.tabIconDefault} />
                           </View>
@@ -708,5 +853,28 @@ const styles = StyleSheet.create({
   assetBalance: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  currencyFilter: {
+    marginBottom: 16,
+    maxHeight: 50,
+  },
+  currencyFilterContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  currencyChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  exchangeRateText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  assetCurrency: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginRight: 4,
   },
 }); 

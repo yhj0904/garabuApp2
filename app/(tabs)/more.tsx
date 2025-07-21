@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl, Alert } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
@@ -56,31 +56,43 @@ export default function MoreScreen() {
       icon: 'add-circle',
       title: '가계부 추가',
       subtitle: '새 가계부 생성',
-      onPress: () => router.push('/(modals)/add-book'),
+      onPress: () => router.push('/(modals)/book-creation?mode=modal'),
     },
     {
-      icon: 'pricetag',
-      title: '카테고리 추가',
-      subtitle: '새 카테고리 생성',
-      onPress: () => router.push('/(modals)/add-category'),
+      icon: 'flag',
+      title: '목표 관리',
+      subtitle: '재정 목표 설정 및 추적',
+      onPress: () => router.push('/(modals)/goals'),
+    },
+    {
+      icon: 'repeat',
+      title: '반복 거래',
+      subtitle: '정기적인 수입/지출 관리',
+      onPress: () => router.push('/(modals)/recurring-transactions'),
+    },
+    {
+      icon: 'pricetags',
+      title: '태그 관리',
+      subtitle: '거래 태그 추가 및 관리',
+      onPress: () => router.push('/(modals)/tags'),
+    },
+    {
+      icon: 'cash',
+      title: '통화 설정',
+      subtitle: '다중 통화 및 환율 관리',
+      onPress: () => router.push('/(modals)/currencies'),
     },
     {
       icon: 'list',
       title: '카테고리 관리',
-      subtitle: '카테고리 수정 및 삭제',
+      subtitle: '카테고리 추가, 수정 및 삭제',
       onPress: () => router.push('/(modals)/manage-categories'),
     },
     {
       icon: 'notifications',
       title: '알림 설정',
       subtitle: '알림 관리',
-      onPress: () => router.push('/(modals)/notifications'),
-    },
-    {
-      icon: 'flask',
-      title: '알림 테스트',
-      subtitle: '푸시 알림 테스트',
-      onPress: () => router.push('/(modals)/notification-test'),
+      onPress: () => router.push('/(modals)/notification-settings'),
     },
     {
       icon: 'settings',

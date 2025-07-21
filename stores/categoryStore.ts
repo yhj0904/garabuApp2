@@ -1,4 +1,4 @@
-import { Category, CreateCategoryRequest, CreatePaymentRequest, PaymentMethod } from '@/services/api';
+import { Category, CreateCategoryRequest, CreatePaymentRequest, PaymentMethod } from '@/core/api/client';
 import { create } from 'zustand';
 
 interface CategoryState {
@@ -28,9 +28,26 @@ interface CategoryState {
   deleteCategoryForBook: (bookId: number, categoryId: number, token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   fetchPaymentsByBook: (bookId: number, token: string) => Promise<boolean>;
   createPaymentForBook: (bookId: number, data: CreatePaymentRequest, token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
-  updatePaymentForBook: (bookId: number, paymentId: number, data: CreatePaymentRequest, token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
-  deletePaymentForBook: (bookId: number, paymentId: number, token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
+  
+  // 기본 카테고리 생성
+  createDefaultCategories: (bookId: number, token: string) => Promise<Category[]>;
 }
+
+// 기본 카테고리 정의
+const defaultCategories = [
+  { category: '식비', emoji: '🍽️' },
+  { category: '교통비', emoji: '🚗' },
+  { category: '주거비', emoji: '🏠' },
+  { category: '통신비', emoji: '📱' },
+  { category: '문화생활', emoji: '🎬' },
+  { category: '의료/건강', emoji: '🏥' },
+  { category: '교육', emoji: '📚' },
+  { category: '쇼핑', emoji: '🛍️' },
+  { category: '급여', emoji: '💰' },
+  { category: '용돈', emoji: '💵' },
+  { category: '기타수입', emoji: '💸' },
+  { category: '기타지출', emoji: '💳' },
+];
 
 export const useCategoryStore = create<CategoryState>((set, get) => ({
   categories: [],
@@ -46,7 +63,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const categories = await apiService.getCategoryList(token);
       
       console.log('카테고리 목록 조회 성공:', categories);
@@ -73,7 +90,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const newCategory = await apiService.createCategory(data, token);
       
       console.log('카테고리 생성 성공:', newCategory);
@@ -99,7 +116,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const updatedCategory = await apiService.updateCategory(categoryId, data, token);
       
       console.log('카테고리 수정 성공:', updatedCategory);
@@ -127,7 +144,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       await apiService.deleteCategory(categoryId, token);
       
       console.log('카테고리 삭제 성공');
@@ -153,7 +170,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const payments = await apiService.getPaymentList(token);
       
       console.log('결제 수단 목록 조회 성공:', payments);
@@ -180,7 +197,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const newPayment = await apiService.createPayment(data, token);
       
       console.log('결제 수단 생성 성공:', newPayment);
@@ -206,7 +223,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const updatedPayment = await apiService.updatePayment(paymentId, data, token);
       
       console.log('결제 수단 수정 성공:', updatedPayment);
@@ -234,7 +251,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       await apiService.deletePayment(paymentId, token);
       
       console.log('결제 수단 삭제 성공');
@@ -261,7 +278,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const categories = await apiService.getCategoryListByBook(bookId, token);
       
       console.log('가계부별 카테고리 목록 조회 성공:', categories);
@@ -285,7 +302,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const newCategory = await apiService.createCategoryForBook(bookId, data, token);
       
       console.log('가계부별 카테고리 생성 성공:', newCategory);
@@ -322,7 +339,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const updatedCategory = await apiService.updateCategoryForBook(bookId, categoryId, data, token);
       
       console.log('가계부별 카테고리 수정 성공:', updatedCategory);
@@ -359,7 +376,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       await apiService.deleteCategoryForBook(bookId, categoryId, token);
       
       console.log('가계부별 카테고리 삭제 성공');
@@ -392,7 +409,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const payments = await apiService.getPaymentListByBook(bookId, token);
       
       console.log('가계부별 결제 수단 목록 조회 성공:', payments);
@@ -416,7 +433,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const newPayment = await apiService.createPaymentForBook(bookId, data, token);
       
       console.log('가계부별 결제 수단 생성 성공:', newPayment);
@@ -453,7 +470,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const updatedPayment = await apiService.updatePaymentForBook(bookId, paymentId, data, token);
       
       console.log('가계부별 결제 수단 수정 성공:', updatedPayment);
@@ -490,7 +507,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       await apiService.deletePaymentForBook(bookId, paymentId, token);
       
       console.log('가계부별 결제 수단 삭제 성공');
@@ -514,6 +531,37 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
       }
       
       return { success: false, error: 'network', message: '네트워크 오류가 발생했습니다.' };
+    }
+  },
+
+  // 기본 카테고리 자동 생성
+  createDefaultCategories: async (bookId: number, token: string) => {
+    try {
+      set({ isLoading: true });
+      const apiService = (await import('@/core/api/client')).default;
+      
+      const createdCategories = [];
+      for (const categoryData of defaultCategories) {
+        try {
+          const newCategory = await apiService.createCategoryForBook(bookId, categoryData, token);
+          createdCategories.push(newCategory);
+        } catch (error) {
+          console.error('기본 카테고리 생성 실패:', categoryData.category, error);
+        }
+      }
+      
+      // 기존 카테고리 목록에 새로 생성된 카테고리들 추가
+      const currentCategories = get().categories;
+      set({ 
+        categories: [...currentCategories, ...createdCategories],
+        isLoading: false 
+      });
+      
+      return createdCategories;
+    } catch (error: any) {
+      set({ isLoading: false });
+      console.error('기본 카테고리 생성 실패:', error);
+      return [];
     }
   },
 }));

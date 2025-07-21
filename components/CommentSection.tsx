@@ -11,8 +11,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { apiClient } from '../services/api';
-import { useAuthStore } from '../stores/authStore';
+import { apiClient } from '@/core/api/client';
+import { useAuthStore } from '@/stores/authStore';
 
 interface Comment {
   id: number;

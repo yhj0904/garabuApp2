@@ -1,14 +1,14 @@
 import {
-  Book,
-  BookMember,
-  ChangeRoleRequest,
-  CreateBookRequest,
-  CreateLedgerRequest,
-  GetLedgerListRequest,
-  InviteUserRequest,
-  Ledger,
-  Member
-} from '@/services/api';
+    Book,
+    BookMember,
+    ChangeRoleRequest,
+    CreateBookRequest,
+    CreateLedgerRequest,
+    GetLedgerListRequest,
+    InviteUserRequest,
+    Ledger,
+    Member
+} from '@/core/api/client';
 import { create } from 'zustand';
 
 interface BookState {
@@ -67,7 +67,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     
     while (retryCount <= maxRetries) {
       try {
-        const apiService = (await import('@/services/api')).default;
+        const apiService = (await import('@/core/api/client')).default;
         const books = await apiService.getMyBooks(token);
         
         console.log('가계부 목록 조회 성공:', books);
@@ -141,7 +141,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const newBook = await apiService.createBook(data, token);
       
       console.log('가계부 생성 성공:', newBook);
@@ -152,9 +152,11 @@ export const useBookStore = create<BookState>((set, get) => ({
       const refreshSuccess = await fetchBooks(token);
       console.log('가계부 목록 새로고침 결과:', refreshSuccess ? '성공' : '실패');
       
-      // 새로 생성된 가계부에 기본 자산 자동 추가
+      // 새로 생성된 가계부에 기본 자산 및 카테고리 자동 추가
       if (refreshSuccess) {
-        console.log('기본 자산 자동 생성 시작');
+        console.log('기본 데이터 자동 생성 시작');
+        
+        // 기본 자산 생성
         try {
           const { useAssetStore } = await import('@/stores/assetStore');
           const assetStore = useAssetStore.getState();
@@ -162,7 +164,16 @@ export const useBookStore = create<BookState>((set, get) => ({
           console.log('기본 자산 생성 완료:', defaultAssets.length, '개');
         } catch (assetError) {
           console.error('기본 자산 생성 실패:', assetError);
-          // 기본 자산 생성 실패해도 가계부 생성은 성공으로 처리
+        }
+        
+        // 기본 카테고리 생성
+        try {
+          const { useCategoryStore } = await import('@/stores/categoryStore');
+          const categoryStore = useCategoryStore.getState();
+          const defaultCategories = await categoryStore.createDefaultCategories(newBook.id, token);
+          console.log('기본 카테고리 생성 완료:', defaultCategories.length, '개');
+        } catch (categoryError) {
+          console.error('기본 카테고리 생성 실패:', categoryError);
         }
       }
       
@@ -182,7 +193,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const updatedBook = await apiService.updateBook(bookId, data, token);
       
       console.log('가계부 수정 성공:', updatedBook);
@@ -217,7 +228,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       await apiService.deleteBook(bookId, token);
       
       console.log('가계부 삭제 성공');
@@ -250,7 +261,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const ledgers = await apiService.getLedgerList(params, token);
       
       console.log('가계부 기록 조회 성공:', ledgers);
@@ -273,7 +284,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const newLedger = await apiService.createLedger(data, token);
       
       console.log('가계부 기록 생성 성공:', newLedger);
@@ -309,7 +320,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const updatedLedger = await apiService.updateLedger(ledgerId, data, token);
       
       console.log('가계부 기록 수정 성공:', updatedLedger);
@@ -347,7 +358,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       await apiService.deleteLedger(ledgerId, token);
       
       console.log('가계부 기록 삭제 성공');
@@ -379,7 +390,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     console.log('가계부 소유자 조회 시작:', bookId);
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const owners = await apiService.getBookOwners(bookId, token);
       
       console.log('가계부 소유자 조회 성공:', owners);
@@ -397,7 +408,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       const members = await apiService.getBookMembersWithRoles(bookId, token);
       
       console.log('가계부 멤버 조회 성공:', members);
@@ -420,7 +431,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       await apiService.inviteUser(bookId, data, token);
       
       console.log('사용자 초대 성공');
@@ -443,7 +454,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       await apiService.removeMember(bookId, memberId, token);
       
       console.log('멤버 제거 성공');
@@ -470,7 +481,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       await apiService.changeRole(bookId, memberId, data, token);
       
       console.log('권한 변경 성공');
@@ -501,7 +512,7 @@ export const useBookStore = create<BookState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      const apiService = (await import('@/services/api')).default;
+      const apiService = (await import('@/core/api/client')).default;
       await apiService.leaveBook(bookId, token);
       
       console.log('가계부 나가기 성공');

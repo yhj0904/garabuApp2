@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import apiService, { Budget, BudgetRequest, BudgetSummary } from '@/services/api';
+import apiService, { Budget, BudgetRequest, BudgetSummary } from '@/core/api/client';
 
 interface BudgetState {
   budgets: Budget[];
@@ -183,13 +183,14 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       set({ budgetSummary: summary, isLoading: false });
       return { success: true };
     } catch (error: any) {
-      console.error('예산 요약 조회 실패:', error);
       set({ isLoading: false });
       
       // 예산이 존재하지 않는 경우 (404 또는 500 에러)
       if (error.response?.status === 404 || 
           error.response?.status === 500 || 
           (error.response?.data?.message && error.response.data.message.includes('찾을 수 없습니다'))) {
+        // 예산이 없는 것은 정상 상황이므로 로그 레벨 낮춤
+        console.log('예산 정보 없음 (정상)');
         // 예산이 없으면 null로 설정하고 성공으로 처리
         set({ budgetSummary: null });
         return { 
@@ -198,6 +199,9 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
           message: '해당 월의 예산이 설정되지 않았습니다.' 
         };
       }
+      
+      // 실제 에러인 경우에만 error 로그
+      console.error('예산 요약 조회 실패:', error);
       
       let errorMessage = '예산 요약 조회에 실패했습니다.';
       if (error.response?.data?.message) {

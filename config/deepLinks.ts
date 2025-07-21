@@ -43,129 +43,109 @@ export const deepLinkConfig = {
 
 // Deep link 파싱 및 네비게이션
 export function handleDeepLink(url: string) {
-  console.log('=== Deep Link Handler ===');
-  console.log('Received URL:', url);
-  console.log('========================');
+  console.log('[Deep Link] Handling URL:', url);
   
   try {
+    const parsedUrl = new URL(url);
+    const path = parsedUrl.pathname.replace(/^\//, '');
+    const queryParams = parsedUrl.searchParams;
     
-    const parsedUrl = Linking.parse(url);
-    console.log('Parsed URL:', parsedUrl);
+    console.log('[Deep Link] Parsed path:', path);
+    console.log('[Deep Link] Query params:', Object.fromEntries(queryParams));
     
-    const { hostname, path, queryParams } = parsedUrl;
-    
-    // URL 패턴 매칭
-    if (path) {
-      // 가계부 상세
-      if (path.match(/^book\/(\d+)$/)) {
-        const bookId = path.match(/^book\/(\d+)$/)?.[1];
-        if (bookId) {
-          router.push(`/(modals)/book/${bookId}`);
-          return;
-        }
-      }
-      
-      // 가계부 예산
-      if (path.match(/^book\/(\d+)\/budget$/)) {
-        const bookId = path.match(/^book\/(\d+)\/budget$/)?.[1];
-        if (bookId) {
-          router.push(`/(modals)/book/${bookId}/budget`);
-          return;
-        }
-      }
-      
-      // 거래 내역 상세
-      if (path.match(/^ledger\/(\d+)$/)) {
-        const ledgerId = path.match(/^ledger\/(\d+)$/)?.[1];
-        if (ledgerId && queryParams?.bookId) {
-          router.push({
-            pathname: `/(modals)/ledger/${ledgerId}`,
-            params: { bookId: queryParams.bookId as string }
-          });
-          return;
-        }
-      }
-      
-      // 친구 요청
-      if (path === 'friends/requests') {
-        router.push('/(modals)/friends/requests');
-        return;
-      }
-      
-      // 친구 목록
-      if (path === 'friends') {
-        router.push('/(tabs)/friends');
-        return;
-      }
-      
-      // 가계부 목록
-      if (path === 'books') {
-        router.push('/(tabs)/index');
-        return;
-      }
-      
-      // 홈
-      if (path === 'home') {
-        router.push('/(tabs)/index');
-        return;
-      }
+    // 알림에서 온 경우 처리
+    if (queryParams.has('notificationId')) {
+      const notificationId = queryParams.get('notificationId');
+      console.log('[Deep Link] Notification ID:', notificationId);
+      // 알림 관련 처리
     }
     
-    // 기본 홈으로 이동
-    router.push('/(tabs)/index');
+    // 라우트 매핑에 따라 네비게이션
+    const routeMap: Record<string, string> = {
+      // 메인 탭
+      'tabs/home': '/(tabs)',
+      'tabs/explore': '/(tabs)/explore',
+      'tabs/asset': '/(tabs)/asset',
+      'tabs/more': '/(tabs)/more',
+      
+      // 인증 관련
+      'auth/login': '/(auth)/login',
+      'auth/signup': '/(auth)/signup',
+      
+      // 모달
+      '(modals)/profile': '(modals)/profile',
+      '(modals)/notifications': '(modals)/notifications',
+      '(modals)/settings': '(modals)/settings',
+      '(modals)/help': '(modals)/help',
+      '(modals)/about': '(modals)/about',
+      '(modals)/add-transaction': '(modals)/add-transaction',
+      '(modals)/add-book': 'add-book',
+      '(modals)/book-sharing': '(modals)/book-sharing',
+      '(modals)/advanced-stats': '(modals)/advanced-stats',
+      '(modals)/budget-settings': '(modals)/budget-settings',
+      '(modals)/manage-categories': '(modals)/manage-categories',
+      '(modals)/change-password': '(modals)/change-password',
+      // 친구 관련 - friends/requests 제거
+    };
+
+    const mappedRoute = routeMap[path] || path;
+    
+    // friends/requests 경로는 홈 탭으로 리다이렉트
+    if (path === 'friends/requests') {
+      router.push('/(tabs)');
+      return;
+    }
+    
+    // 특수 경로 처리
+    if (path === 'books' || path === 'book/select') {
+      router.push('/(modals)/select-book');
+    } else if (path.startsWith('book/')) {
+      const bookId = path.split('/')[1];
+      router.push({
+        pathname: '/(modals)/book/[id]',
+        params: { id: bookId }
+      });
+    } else if (path.startsWith('transaction/')) {
+      const transactionId = path.split('/')[1];
+      router.push({
+        pathname: '/(modals)/ledger/[id]',
+        params: { id: transactionId }
+      });
+    } else if (mappedRoute) {
+      router.push(mappedRoute as any);
+    } else {
+      console.log('[Deep Link] No route found for path:', path);
+      router.push('/(tabs)');
+    }
   } catch (error) {
-    console.error('Deep link handling error:', error);
-    // 에러 시 홈으로 이동
-    router.push('/(tabs)/index');
+    console.error('[Deep Link] Error handling deep link:', error);
+    router.push('/(tabs)');
   }
 }
 
 // 알림에서 받은 데이터로 네비게이션
 export function navigateFromNotification(data: any) {
-  console.log('Navigating from notification data:', data);
+  console.log('[Notification] Navigate from notification data:', data);
   
-  if (data.url) {
-    handleDeepLink(data.url);
-    return;
-  }
-  
-  // action 기반 네비게이션 (fallback)
-  switch (data.action) {
-    case 'open_transaction_detail':
-      if (data.ledgerId && data.bookId) {
-        router.push({
-          pathname: `/(modals)/ledger/${data.ledgerId}`,
-          params: { bookId: data.bookId }
-        });
-      }
-      break;
-      
-    case 'open_book_detail':
-      if (data.bookId) {
-        router.push(`/(modals)/book/${data.bookId}`);
-      }
-      break;
-      
-    case 'open_book_list':
-      router.push('/(tabs)/index');
-      break;
-      
-    case 'open_friend_requests':
-      router.push('/(modals)/friends/requests');
-      break;
-      
-    case 'open_friends':
-      router.push('/(tabs)/friends');
-      break;
-      
-    case 'open_budget_detail':
-      if (data.bookId) {
-        router.push(`/(modals)/book/${data.bookId}/budget`);
-      }
-      break;
-      
-    default:
-      router.push('/(tabs)/index');
+  // 알림 타입에 따른 네비게이션
+  if (data.type === 'BOOK_INVITATION') {
+    router.push({
+      pathname: '/(modals)/invite-code',
+      params: { inviteCode: data.inviteCode }
+    });
+  } else if (data.type === 'FRIEND_REQUEST') {
+    // friends/requests 대신 홈 탭으로 이동
+    router.push('/(tabs)');
+  } else if (data.type === 'TRANSACTION_ADDED') {
+    router.push({
+      pathname: '/(modals)/ledger/[id]',
+      params: { id: data.transactionId }
+    });
+  } else if (data.deepLink) {
+    handleDeepLink(data.deepLink);
+  } else {
+    // 기본값: 홈으로 이동
+    router.push('/(tabs)');
   }
 }
 

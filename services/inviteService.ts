@@ -1,4 +1,4 @@
-import apiService from './api';
+import apiService from '@/core/api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface InviteCodeResponse {

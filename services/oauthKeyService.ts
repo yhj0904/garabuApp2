@@ -1,4 +1,4 @@
-import config from '../config/config';
+import config from '@/config/config';
 
 interface OAuthKeys {
   kakao: {
@@ -41,15 +41,20 @@ class OAuthKeyService {
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         console.warn('OAuth keys endpoint returned non-JSON response, using default keys');
-        return this.getDefaultKeys();
+        const defaultKeys = this.getDefaultKeys();
+        this.keys = defaultKeys;
+        return defaultKeys;
       }
 
-      this.keys = await response.json();
-      return this.keys;
+      const keys = await response.json();
+      this.keys = keys;
+      return keys;
     } catch (error) {
       console.warn('OAuth 키 가져오기 실패, 기본값 사용:', error);
       // 기본값 반환 (하드코딩된 키)
-      return this.getDefaultKeys();
+      const defaultKeys = this.getDefaultKeys();
+      this.keys = defaultKeys;
+      return defaultKeys;
     }
   }
 

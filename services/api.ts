@@ -118,11 +118,11 @@ interface OAuthResponse {
 
 // FCM 토큰 관련 인터페이스
 interface FCMTokenRequest {
-  appId: string;
-  userId: string;
+  token: string;
   deviceId: string;
-  fcmToken: string;
-  useAt: string;
+  deviceType: 'ios' | 'android' | 'web';
+  appVersion?: string;
+  osVersion?: string;
 }
 
 interface FCMTokenResponse {
@@ -1414,7 +1414,9 @@ class ApiService {
   // FCM 토큰 관련 API
   async registerFCMToken(tokenData: FCMTokenRequest): Promise<FCMTokenResponse> {
     try {
+      console.log('Sending FCM token to server:', JSON.stringify(tokenData, null, 2));
       const response = await this.axiosInstance.post('/notifications/token', tokenData);
+      console.log('FCM token registration response:', response.data);
       return response.data;
     } catch (error) {
       console.error('FCM 토큰 등록 실패:', error);
@@ -1835,49 +1837,7 @@ class ApiService {
     }
   }
 
-  // FCM 토큰 등록
-  async registerFCMToken(data: {
-    token: string;
-    deviceId: string;
-    deviceType: 'ios' | 'android' | 'web';
-    appVersion?: string;
-    osVersion?: string;
-  }): Promise<any> {
-    try {
-      const response = await this.axiosInstance.post('/notifications/token', data);
-      return response.data;
-    } catch (error) {
-      console.error('FCM 토큰 등록 실패:', error);
-      throw error;
-    }
-  }
 
-  // Expo Push 토큰 등록
-  async registerExpoPushToken(data: {
-    expoPushToken: string;
-    deviceId: string;
-    platform: string;
-    appVersion?: string;
-  }): Promise<any> {
-    try {
-      const response = await this.axiosInstance.post('/expo/notifications/token', data);
-      return response.data;
-    } catch (error) {
-      console.error('Expo Push 토큰 등록 실패:', error);
-      throw error;
-    }
-  }
-
-  // 테스트 알림 전송
-  async sendTestNotification(data?: any): Promise<any> {
-    try {
-      const response = await this.axiosInstance.post('/notifications/send/test', data || {});
-      return response.data;
-    } catch (error) {
-      console.error('테스트 알림 전송 실패:', error);
-      throw error;
-    }
-  }
 
 }
 

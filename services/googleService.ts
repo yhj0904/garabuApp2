@@ -215,9 +215,15 @@ class GoogleService {
    * Google OAuth 토큰으로 백엔드 로그인
    */
   async loginWithBackend(idToken: string): Promise<any> {
+    console.log('=== Backend Google Login Process Started ===');
+    
     try {
       const config = require('../config/config').default;
-      const response = await fetch(`${config.API_BASE_URL}/api/${config.API_VERSION}/mobile-oauth/login`, {
+      const url = `${config.API_BASE_URL}/api/${config.API_VERSION}/mobile-oauth/login`;
+      console.log('Backend API URL:', url);
+      console.log('Sending Google ID token to backend...');
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -228,13 +234,33 @@ class GoogleService {
         }),
       });
 
+      console.log('Backend response status:', response.status);
+
       if (!response.ok) {
-        throw new Error('Backend login failed');
+        const errorText = await response.text();
+        console.error('Backend error response:', errorText);
+        throw new Error(`Backend login failed: ${response.status} - ${errorText}`);
       }
 
-      return await response.json();
-    } catch (error) {
-      console.error('Backend Google login failed:', error);
+      const data = await response.json();
+      console.log('Backend login success:', {
+        hasUser: !!data.user,
+        hasAccessToken: !!data.accessToken || !!data.token,
+        hasRefreshToken: !!data.refreshToken
+      });
+      
+      // 백엔드가 'token' 필드로 반환하는 경우 처리
+      if (!data.accessToken && data.token) {
+        data.accessToken = data.token;
+      }
+      
+      return data;
+    } catch (error: any) {
+      console.error('Backend Google login failed:', {
+        message: error.message,
+        url: error.config?.url,
+        status: error.response?.status
+      });
       throw error;
     }
   }

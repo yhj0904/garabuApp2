@@ -12,8 +12,7 @@ export default function ModalLayout() {
         <Stack.Screen name="help"          options={{ title: '도움말' }} />
         <Stack.Screen name="about"         options={{ title: '정보' }} />
         <Stack.Screen name="add-transaction" options={{ title: '거래 추가' }} />
-        <Stack.Screen name="add-book"      options={{ title: '가계부 추가' }} />
-        <Stack.Screen name="add-category"  options={{ title: '카테고리 추가' }} />
+        <Stack.Screen name="book-creation" options={{ title: '가계부 생성' }} />
         <Stack.Screen name="select-book"   options={{ title: '가계부 선택' }} />
         <Stack.Screen name="book-sharing"  options={{ title: '가계부 공유' }} />
         <Stack.Screen name="advanced-stats" options={{ title: '고급 통계' }} />

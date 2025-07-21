@@ -36,8 +36,8 @@ class EventEmitter {
     this.removeListener(event, listener);
   }
 }
-import config from '../config/config';
-import api from './api';
+import config from '@/config/config';
+import api from '@/core/api/client';
 // React Native EventSource polyfill 사용
 // @ts-ignore
 import 'react-native-url-polyfill/auto';

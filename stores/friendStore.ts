@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import apiService from '../services/api';
+import apiService from '@/core/api/client';
 
 interface Friend {
   friendshipId: number;

@@ -6,13 +6,13 @@ import * as Haptics from 'expo-haptics';
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ledger } from '@/services/api';
+import { Ledger } from '@/core/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
 import { useBudgetStore } from '@/stores/budgetStore';
-import PieChart from '@/components/charts/PieChart';
-import BarChart from '@/components/charts/BarChart';
+import PieChart from '@/features/analytics/components/Charts/PieChart';
+import BarChart from '@/features/analytics/components/Charts/BarChart';
 import CommentSection from '@/components/CommentSection';
 
 const tabs = ['통계', '예산', '내역'];

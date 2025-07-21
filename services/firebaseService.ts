@@ -13,25 +13,44 @@ try {
  * Firebase 서비스 초기화 및 관리
  */
 class FirebaseService {
-  private initialized = false;
+  private currentToken: string | null = null;
+  private isInitializing: boolean = false;
+  private isRegistering: boolean = false;
 
   /**
-   * Firebase 서비스 초기화
+   * Firebase 초기화
    */
-  async initialize() {
-    if (this.initialized || !messaging) {
-      if (!messaging) {
-        console.log('Firebase Messaging is not available. Use development build.');
-      }
-      return;
+  async initialize(): Promise<boolean> {
+    if (this.isInitializing) {
+      console.log('Firebase 초기화 중... 기다려주세요.');
+      return false;
     }
-
+    
+    this.isInitializing = true;
+    
     try {
-      // FCM 권한 요청
-      await this.requestPermissions();
-      this.initialized = true;
+      if (!messaging) {
+        console.log('Firebase Messaging not available');
+        return false;
+      }
+
+      // 권한 요청
+      const authStatus = await messaging().requestPermission();
+      const enabled = authStatus === messaging.AuthorizationStatus.AUTHORIZED || 
+                     authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+      if (enabled) {
+        console.log('FCM 권한 승인됨');
+        return true;
+      } else {
+        console.log('FCM 권한 거부됨');
+        return false;
+      }
     } catch (error) {
-      console.error('Firebase 서비스 초기화 실패:', error);
+      console.error('Firebase 초기화 실패:', error);
+      return false;
+    } finally {
+      this.isInitializing = false;
     }
   }
 
@@ -75,7 +94,30 @@ class FirebaseService {
 
   // getCurrentToken alias for compatibility
   async getCurrentToken(): Promise<string | null> {
-    return this.getFCMToken();
+    if (this.isRegistering) {
+      console.log('FCM 토큰 등록 중... 기다려주세요.');
+      return this.currentToken;
+    }
+    
+    if (this.currentToken) {
+      return this.currentToken;
+    }
+    
+    this.isRegistering = true;
+    
+    try {
+      const token = await this.getFCMToken();
+      if (token) {
+        this.currentToken = token;
+        console.log('FCM 토큰 생성 성공:', token);
+      }
+      return token;
+    } catch (error) {
+      console.error('FCM 토큰 생성 실패:', error);
+      return null;
+    } finally {
+      this.isRegistering = false;
+    }
   }
 
 
