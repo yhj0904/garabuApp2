@@ -16,15 +16,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { ThemedText } from '@/components/ThemedText';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useBudgetStore } from '@/stores/budgetStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 
 export default function BudgetSettingsModal() {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors } = useTheme();
   const params = useLocalSearchParams();
   
   // 스토어 훅
@@ -81,10 +79,19 @@ export default function BudgetSettingsModal() {
       }
       
       // 예산 요약 정보 로드 (예산이 없어도 시도)
-      const summaryResult = await getBudgetSummary(currentBook.id, selectedMonth, token);
-      // 예산이 없어도 오류로 처리하지 않음 (이미 store에서 처리됨)
-    } catch (error) {
-      console.error('기존 예산 로드 실패:', error);
+      try {
+        const summaryResult = await getBudgetSummary(currentBook.id, selectedMonth, token);
+      } catch (summaryError: any) {
+        // 404 에러는 정상적인 상황이므로 로그를 남기지 않음
+        if (summaryError?.response?.status !== 404) {
+          console.error('예산 요약 로드 실패:', summaryError);
+        }
+      }
+    } catch (error: any) {
+      // 404 에러는 정상적인 상황이므로 로그를 남기지 않음
+      if (error?.response?.status !== 404) {
+        console.error('기존 예산 로드 실패:', error);
+      }
       // 오류가 발생해도 새 예산 생성 모드로 설정
       setIsEditing(false);
       setIncomeBudget('');
@@ -212,7 +219,7 @@ export default function BudgetSettingsModal() {
         </ThemedText>
         <TouchableOpacity 
           onPress={handleSaveBudget} 
-          style={[styles.saveButton, { backgroundColor: colors.tint }]}
+          style={[styles.saveButton, { backgroundColor: colors.primary }]}
           disabled={isLoading}
         >
           {isLoading ? (
@@ -252,7 +259,7 @@ export default function BudgetSettingsModal() {
                   </ThemedText>
                   <ThemedText style={[
                     styles.summaryRate,
-                    { color: budgetSummary.incomeAchievementRate <= 100 ? '#4CAF50' : '#F44336' }
+                    { color: budgetSummary.incomeAchievementRate <= 100 ? colors.success : colors.error }
                   ]}>
                     {budgetSummary.incomeAchievementRate}%
                   </ThemedText>
@@ -266,7 +273,7 @@ export default function BudgetSettingsModal() {
                   </ThemedText>
                   <ThemedText style={[
                     styles.summaryRate,
-                    { color: budgetSummary.expenseAchievementRate <= 100 ? '#4CAF50' : '#F44336' }
+                    { color: budgetSummary.expenseAchievementRate <= 100 ? colors.success : colors.error }
                   ]}>
                     {budgetSummary.expenseAchievementRate}%
                   </ThemedText>
@@ -280,8 +287,8 @@ export default function BudgetSettingsModal() {
             <ThemedText type="subtitle" style={styles.sectionTitle}>현재 상황</ThemedText>
             <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
               <View style={styles.noBudgetInfo}>
-                <Ionicons name="information-circle-outline" size={24} color={colors.icon} />
-                <ThemedText style={[styles.noBudgetText, { color: colors.icon }]}>
+                <Ionicons name="information-circle-outline" size={24} color={colors.textTertiary} />
+                <ThemedText style={[styles.noBudgetText, { color: colors.textTertiary }]}>
                   {budgetMonth.getFullYear()}년 {budgetMonth.getMonth() + 1}월에는 아직 예산이 설정되지 않았습니다.
                 </ThemedText>
               </View>
@@ -293,16 +300,16 @@ export default function BudgetSettingsModal() {
         <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>수입 예산</ThemedText>
           <View style={[styles.inputContainer, { backgroundColor: colors.card }]}>
-            <Ionicons name="trending-up" size={20} color="#4CAF50" />
+            <Ionicons name="trending-up" size={20} color={colors.income} />
             <TextInput
               style={[styles.input, { color: colors.text }]}
               value={incomeBudget}
               onChangeText={(text) => setIncomeBudget(formatNumber(text))}
               placeholder="수입 예산을 입력하세요"
-              placeholderTextColor={colors.text + '80'}
+              placeholderTextColor={colors.textTertiary}
               keyboardType="numeric"
             />
-            {incomeBudget && <ThemedText style={styles.currency}>원</ThemedText>}
+            {incomeBudget && <ThemedText style={[styles.currency, { color: colors.textTertiary }]}>원</ThemedText>}
           </View>
         </View>
 
@@ -310,16 +317,16 @@ export default function BudgetSettingsModal() {
         <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>지출 예산</ThemedText>
           <View style={[styles.inputContainer, { backgroundColor: colors.card }]}>
-            <Ionicons name="trending-down" size={20} color="#F44336" />
+            <Ionicons name="trending-down" size={20} color={colors.expense} />
             <TextInput
               style={[styles.input, { color: colors.text }]}
               value={expenseBudget}
               onChangeText={(text) => setExpenseBudget(formatNumber(text))}
               placeholder="지출 예산을 입력하세요"
-              placeholderTextColor={colors.text + '80'}
+              placeholderTextColor={colors.textTertiary}
               keyboardType="numeric"
             />
-            {expenseBudget && <ThemedText style={styles.currency}>원</ThemedText>}
+            {expenseBudget && <ThemedText style={[styles.currency, { color: colors.textTertiary }]}>원</ThemedText>}
           </View>
         </View>
 
@@ -342,7 +349,7 @@ export default function BudgetSettingsModal() {
         {isEditing && (
           <View style={styles.section}>
             <TouchableOpacity 
-              style={[styles.deleteButton, { backgroundColor: '#F44336' }]}
+              style={[styles.deleteButton, { backgroundColor: colors.error }]}
               onPress={handleDeleteBudget}
             >
               <Ionicons name="trash-outline" size={20} color="white" />
@@ -376,8 +383,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
   },
   closeButton: {
     padding: 8,
@@ -432,7 +437,7 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: colors.textTertiary,
     minWidth: 40,
   },
   summaryRate: {
@@ -456,7 +461,6 @@ const styles = StyleSheet.create({
   currency: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#8E8E93',
   },
   memoInput: {
     padding: 16,

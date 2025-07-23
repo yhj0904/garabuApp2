@@ -440,7 +440,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   checkAuthStatus: async () => {
-    console.log('=== AuthStore: checkAuthStatus 시작 ===');
+    console.log('\n🔄 === AuthStore: checkAuthStatus 시작 ===');
     
     // 🔒 중복 실행 방지 - 이미 실행 중이면 즉시 리턴
     const currentState = get();
@@ -463,14 +463,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           // 토큰이 있으면 사용자 정보 가져오기 (타임아웃 단축 및 재시도 로직 개선)
           console.log('프로필 조회 시작...');
           
-          const profilePromise = apiService.getProfile(token);
+          const profilePromise = apiService.getCurrentUser(token);
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('PROFILE_TIMEOUT')), 3000) // 3초로 단축
           );
           
           const response = await Promise.race([profilePromise, timeoutPromise]);
-          console.log('프로필 조회 성공');
+          console.log('✅ 프로필 조회 성공');
           const { user } = response as { user: User };
+          console.log('👤 사용자 정보:', user.username, `(ID: ${user.userId})`);
           
           set({
             user,
@@ -491,7 +492,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
           return;
         } catch (error: any) {
-          console.error('프로필 조회 또는 토큰 검증 실패:', error);
+          console.error('❌ 프로필 조회 또는 토큰 검증 실패:', error.message || error);
           
           // 401 에러가 아닌 경우 (네트워크 오류 등) 토큰 갱신 시도
           if (!error.message?.includes('401') && refreshToken && error.message !== 'AUTH_FAILED') {
@@ -540,7 +541,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       } else {
         // 토큰이 없으면 상태만 업데이트 (네비게이션 제거)
-        console.log('토큰 없음 - 인증되지 않음');
+        console.log('🔓 토큰 없음 - 인증되지 않음');
+        console.log('=== 인증 상태 확인 종료 ===\n');
         set({
           isAuthenticated: false,
           isLoading: false,

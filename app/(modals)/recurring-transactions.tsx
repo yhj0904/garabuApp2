@@ -12,13 +12,14 @@ import {
   ScrollView,
   Switch,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuthStore } from '../../stores/authStore';
 import { useBookStore } from '../../stores/bookStore';
-import axios from 'axios';
-import config from '../../config/config';
+import apiService from '../../services/api';
 
 interface RecurringTransaction {
   id: number;
@@ -66,18 +67,13 @@ export default function RecurringTransactionsScreen() {
       const currentBook = bookStore.currentBook;
       if (!currentBook?.id) return;
 
-      const response = await axios.get(
-        `${config.API_BASE_URL}/api/v2/recurring-transactions/book/${currentBook.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${authStore.token}`,
-          },
-        }
-      );
-      setTransactions(response.data);
-    } catch (error) {
+      const transactions = await apiService.getRecurringTransactions(currentBook.id);
+      setTransactions(transactions || []);
+    } catch (error: any) {
       console.error('반복 거래 목록 조회 실패:', error);
-      Alert.alert('오류', '반복 거래 목록을 불러오는데 실패했습니다.');
+      if (error.response?.status !== 404) {
+        Alert.alert('오류', '반복 거래 목록을 불러오는데 실패했습니다.');
+      }
     } finally {
       setLoading(false);
     }
@@ -85,46 +81,44 @@ export default function RecurringTransactionsScreen() {
 
   const handleSave = async () => {
     if (!name || !amount) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       Alert.alert('오류', '이름과 금액은 필수 입력 항목입니다.');
       return;
     }
+
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
       const currentBook = bookStore.currentBook;
       if (!currentBook?.id) return;
 
       const data = {
-        bookId: currentBook.id,
         name,
         amountType,
         amount: parseFloat(amount),
         recurrenceType,
         startDate: startDate.toISOString().split('T')[0],
-        endDate: hasEndDate && endDate ? endDate.toISOString().split('T')[0] : null,
-        description: description || null,
+        endDate: hasEndDate && endDate ? endDate.toISOString().split('T')[0] : undefined,
+        description: description || undefined,
+        recurrenceInterval: 1,
+        autoCreate: true,
       };
 
       if (editingTransaction) {
-        await axios.put(
-          `${config.API_BASE_URL}/api/v2/recurring-transactions/${editingTransaction.id}`,
-          data,
-          {
-            headers: {
-              Authorization: `Bearer ${authStore.token}`,
-            },
-          }
-        );
+        const updateData = {
+          name: data.name,
+          description: data.description,
+          amount: data.amount,
+          recurrenceInterval: data.recurrenceInterval,
+          endDate: data.endDate,
+          autoCreate: data.autoCreate,
+        };
+        await apiService.updateRecurringTransaction(editingTransaction.id, updateData);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert('성공', '반복 거래가 수정되었습니다.');
       } else {
-        await axios.post(
-          `${config.API_BASE_URL}/api/v2/recurring-transactions`,
-          data,
-          {
-            headers: {
-              Authorization: `Bearer ${authStore.token}`,
-            },
-          }
-        );
+        await apiService.createRecurringTransaction(currentBook.id, data);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert('성공', '반복 거래가 등록되었습니다.');
       }
 
@@ -133,33 +127,35 @@ export default function RecurringTransactionsScreen() {
       fetchTransactions();
     } catch (error) {
       console.error('반복 거래 저장 실패:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('오류', '반복 거래 저장에 실패했습니다.');
     }
   };
 
   const handleDelete = async (id: number) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     Alert.alert(
       '삭제 확인',
       '이 반복 거래를 삭제하시겠습니까?',
       [
-        { text: '취소', style: 'cancel' },
+        { 
+          text: '취소', 
+          style: 'cancel',
+          onPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+        },
         {
           text: '삭제',
           style: 'destructive',
           onPress: async () => {
             try {
-              await axios.delete(
-                `${config.API_BASE_URL}/api/v2/recurring-transactions/${id}`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${authStore.token}`,
-                  },
-                }
-              );
+              await apiService.deleteRecurringTransaction(id);
+              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert('성공', '반복 거래가 삭제되었습니다.');
               fetchTransactions();
             } catch (error) {
               console.error('반복 거래 삭제 실패:', error);
+              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               Alert.alert('오류', '반복 거래 삭제에 실패했습니다.');
             }
           },
@@ -170,23 +166,25 @@ export default function RecurringTransactionsScreen() {
 
   const handleToggleActive = async (transaction: RecurringTransaction) => {
     try {
-      await axios.patch(
-        `${config.API_BASE_URL}/api/v2/recurring-transactions/${transaction.id}/toggle-active`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${authStore.token}`,
-          },
-        }
-      );
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      if (transaction.isActive) {
+        await apiService.pauseRecurringTransaction(transaction.id);
+      } else {
+        await apiService.resumeRecurringTransaction(transaction.id);
+      }
+      
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       fetchTransactions();
     } catch (error) {
       console.error('반복 거래 상태 변경 실패:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('오류', '반복 거래 상태 변경에 실패했습니다.');
     }
   };
 
-  const handleEdit = (transaction: RecurringTransaction) => {
+  const handleEdit = async (transaction: RecurringTransaction) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEditingTransaction(transaction);
     setName(transaction.name);
     setAmountType(transaction.amountType);
@@ -287,19 +285,25 @@ export default function RecurringTransactionsScreen() {
   }
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: '반복 거래',
-          headerRight: () => (
-            <TouchableOpacity onPress={() => setModalVisible(true)}>
-              <Ionicons name="add" size={24} color="#007AFF" />
-            </TouchableOpacity>
-          ),
-        }}
-      />
+    <View style={styles.container}>
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBackButton}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>반복 거래</Text>
+        <TouchableOpacity 
+          onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setModalVisible(true);
+          }}
+          style={styles.headerAddButton}
+        >
+          <Ionicons name="add" size={24} color="#007AFF" />
+        </TouchableOpacity>
+      </View>
       
-      <View style={styles.container}>
+      <View style={styles.innerContainer}>
         {transactions.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="repeat" size={64} color="#CCC" />
@@ -493,7 +497,7 @@ export default function RecurringTransactionsScreen() {
           </View>
         </Modal>
       </View>
-    </>
+    </View>
   );
 }
 
@@ -501,6 +505,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F2F2F7',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1C1C1E',
+  },
+  headerAddButton: {
+    padding: 8,
+    borderRadius: 8,
+  },
+  headerBackButton: {
+    padding: 8,
+    borderRadius: 8,
+  },
+  innerContainer: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,

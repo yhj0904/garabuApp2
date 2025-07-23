@@ -1,7 +1,6 @@
-import { Colors } from '@/constants/Colors';
 import apiService from '@/core/api/client';
 import { notification } from '@/core/notifications/local';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import syncService from '@/services/syncService';
 import { useAssetStore } from '@/stores/assetStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -26,6 +25,18 @@ import {
 import { formatAmountInput, parseFormattedNumber, formatKoreanAmount } from '@/utils/numberFormat';
 import axios from 'axios';
 import config from '@/config/config';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+// 한국어 달력 설정
+LocaleConfig.locales['kr'] = {
+  monthNames: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+  monthNamesShort: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+  dayNames: ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'],
+  dayNamesShort: ['일', '월', '화', '수', '목', '금', '토'],
+  today: '오늘'
+};
+LocaleConfig.defaultLocale = 'kr';
 
 
 export default function AddTransactionScreen() {
@@ -54,6 +65,8 @@ export default function AddTransactionScreen() {
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [currencies, setCurrencies] = useState<any[]>([]);
   const [bookCurrencies, setBookCurrencies] = useState<any[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState<'calendar' | 'input'>('input');
   
   // Refs for scrolling to fields
   const scrollViewRef = useRef<ScrollView>(null);
@@ -67,8 +80,7 @@ export default function AddTransactionScreen() {
   const { categories, payments, fetchCategoriesByBook, fetchPaymentsByBook, createCategoryForBook, createPaymentForBook } = useCategoryStore();
   const { assets, assetTypes, fetchAssetsByBook, updateAssetBalance } = useAssetStore();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors } = useTheme();
 
   useEffect(() => {
     if (token && currentBook) {
@@ -78,23 +90,20 @@ export default function AddTransactionScreen() {
       fetchTags();
       fetchCurrencies();
     }
-  }, [token, currentBook]);
+  }, [token, currentBook, fetchCategoriesByBook, fetchPaymentsByBook, fetchAssetsByBook]);
 
   const fetchTags = async () => {
     if (!token || !currentBook?.id) return;
     
     try {
-      const response = await axios.get(
-        `${config.API_BASE_URL}/api/v2/tags/book/${currentBook.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      setTags(response.data);
-    } catch (error) {
+      const tags = await apiService.getTagsByBook(currentBook.id);
+      setTags(tags || []);
+    } catch (error: any) {
       console.error('태그 조회 실패:', error);
+      // 404는 정상적인 경우 (태그가 없음)
+      if (error.response?.status === 404) {
+        setTags([]);
+      }
     }
   };
 
@@ -103,28 +112,25 @@ export default function AddTransactionScreen() {
     
     try {
       // 가계부의 통화 설정 조회
-      const bookCurrenciesResponse = await axios.get(
-        `${config.API_BASE_URL}/api/v2/currencies/book/${currentBook.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const bookCurrencySettings = await apiService.getBookCurrencySettings(currentBook.id);
+      setBookCurrencies([bookCurrencySettings]);
       
-      setBookCurrencies(bookCurrenciesResponse.data);
-      
-      // 활성화된 통화만 필터링
-      const activeCurrencies = bookCurrenciesResponse.data.map((bc: any) => bc.currency);
-      setCurrencies(activeCurrencies);
+      // 전체 통화 목록 조회
+      const currencies = await apiService.getCurrencies();
+      setCurrencies(currencies);
       
       // 기본 통화 설정
-      const defaultCurrency = bookCurrenciesResponse.data.find((bc: any) => bc.isDefault);
-      if (defaultCurrency) {
-        setSelectedCurrency(defaultCurrency.currency.code);
+      if (bookCurrencySettings.defaultCurrency) {
+        setSelectedCurrency(bookCurrencySettings.defaultCurrency);
+      } else {
+        setSelectedCurrency('KRW');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('통화 조회 실패:', error);
+      // 에러 발생 시 기본값 설정
+      setSelectedCurrency('KRW');
+      setCurrencies([]);
+      setBookCurrencies([]);
     }
   };
 
@@ -403,11 +409,6 @@ export default function AddTransactionScreen() {
     return formatAmountInput(value);
   };
 
-  // 금액을 한글 단위로 변환 (유틸리티 함수 사용)
-  const formatKoreanAmount = (value: string) => {
-    return formatKoreanAmount(value);
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
@@ -421,7 +422,7 @@ export default function AddTransactionScreen() {
           {/* 헤더 */}
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={colors.tint} />
+              <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: colors.text }]}>거래 추가</Text>
           </View>
@@ -432,7 +433,7 @@ export default function AddTransactionScreen() {
               style={[
                 styles.typeButton,
                 amountType === 'EXPENSE' && styles.activeTypeButton,
-                { backgroundColor: amountType === 'EXPENSE' ? '#FF3B30' : colors.card }
+                { backgroundColor: amountType === 'EXPENSE' ? colors.expense : colors.card }
               ]}
               onPress={() => setAmountType('EXPENSE')}
             >
@@ -451,7 +452,7 @@ export default function AddTransactionScreen() {
               style={[
                 styles.typeButton,
                 amountType === 'INCOME' && styles.activeTypeButton,
-                { backgroundColor: amountType === 'INCOME' ? '#4CAF50' : colors.card }
+                { backgroundColor: amountType === 'INCOME' ? colors.income : colors.card }
               ]}
               onPress={() => setAmountType('INCOME')}
             >
@@ -470,7 +471,7 @@ export default function AddTransactionScreen() {
               style={[
                 styles.typeButton,
                 amountType === 'TRANSFER' && styles.activeTypeButton,
-                { backgroundColor: amountType === 'TRANSFER' ? '#FF9800' : colors.card }
+                { backgroundColor: amountType === 'TRANSFER' ? colors.transfer : colors.card }
               ]}
               onPress={() => setAmountType('TRANSFER')}
             >
@@ -501,13 +502,13 @@ export default function AddTransactionScreen() {
                     {selectedCurrency}
                   </Text>
                   {currencies.length > 1 && (
-                    <Ionicons name="chevron-down" size={16} color={colors.icon} />
+                    <Ionicons name="chevron-down" size={16} color={colors.textTertiary} />
                   )}
                 </TouchableOpacity>
                 <TextInput
                   style={[styles.amountInput, { color: colors.text, borderColor: colors.card }]}
                   placeholder="0"
-                  placeholderTextColor={colors.icon}
+                  placeholderTextColor={colors.textTertiary}
                   value={amount}
                   onChangeText={(text) => {
                     const formattedText = formatAmountInput(text);
@@ -517,7 +518,7 @@ export default function AddTransactionScreen() {
                 />
               </View>
               {amount && selectedCurrency === 'KRW' && (
-                <Text style={[styles.amountInWords, { color: colors.icon }]}>
+                <Text style={[styles.amountInWords, { color: colors.textTertiary }]}>
                   {formatKoreanAmount(amount)}
                 </Text>
               )}
@@ -529,7 +530,7 @@ export default function AddTransactionScreen() {
               <TextInput
                 style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
                 placeholder="거래 설명을 입력하세요"
-                placeholderTextColor={colors.icon}
+                placeholderTextColor={colors.textTertiary}
                 value={description}
                 onChangeText={setDescription}
               />
@@ -551,7 +552,7 @@ export default function AddTransactionScreen() {
                       {selectedCategory || '카테고리 선택'}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                  <Ionicons name="chevron-down" size={20} color={colors.textTertiary} />
                 </TouchableOpacity>
               </View>
             )}
@@ -573,7 +574,7 @@ export default function AddTransactionScreen() {
                             const assetType = assetTypes.find(type => type.type === selectedAsset.assetType);
                             return (
                               <>
-                                <View style={[styles.assetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                                <View style={[styles.assetIcon, { backgroundColor: assetType?.color || colors.primary }]}>
                                   <Ionicons name={assetType?.icon as any || 'card'} size={16} color="white" />
                                 </View>
                                 <View style={styles.assetInfo}>
@@ -596,7 +597,7 @@ export default function AddTransactionScreen() {
                       {selectedAssetId ? '' : '자산 선택'}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                  <Ionicons name="chevron-down" size={20} color={colors.textTertiary} />
                 </TouchableOpacity>
               </View>
             )}
@@ -629,7 +630,7 @@ export default function AddTransactionScreen() {
                       </Text>
                     )}
                   </View>
-                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                  <Ionicons name="chevron-down" size={20} color={colors.textTertiary} />
                 </TouchableOpacity>
               </View>
             )}
@@ -638,7 +639,7 @@ export default function AddTransactionScreen() {
             {amountType === 'TRANSFER' && (
               <View style={styles.inputContainer}>
                 <Text style={[styles.label, { color: colors.text }]}>출금 자산</Text>
-                <Text style={[styles.helperText, { color: colors.icon }]}>출금 또는 입금 자산 중 하나는 반드시 선택해야 합니다</Text>
+                <Text style={[styles.helperText, { color: colors.textTertiary }]}>출금 또는 입금 자산 중 하나는 반드시 선택해야 합니다</Text>
                 <TouchableOpacity
                   style={[styles.selectButton, { backgroundColor: colors.card }]}
                   onPress={() => setShowFromAssetModal(true)}
@@ -652,7 +653,7 @@ export default function AddTransactionScreen() {
                             const assetType = assetTypes.find(type => type.type === selectedAsset.assetType);
                             return (
                               <>
-                                <View style={[styles.assetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                                <View style={[styles.assetIcon, { backgroundColor: assetType?.color || colors.primary }]}>
                                   <Ionicons name={assetType?.icon as any || 'card'} size={16} color="white" />
                                 </View>
                                 <View style={styles.assetInfo}>
@@ -675,7 +676,7 @@ export default function AddTransactionScreen() {
                       {selectedFromAssetId ? '' : '출금 자산 선택'}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                  <Ionicons name="chevron-down" size={20} color={colors.textTertiary} />
                 </TouchableOpacity>
               </View>
             )}
@@ -697,7 +698,7 @@ export default function AddTransactionScreen() {
                             const assetType = assetTypes.find(type => type.type === selectedAsset.assetType);
                             return (
                               <>
-                                <View style={[styles.assetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                                <View style={[styles.assetIcon, { backgroundColor: assetType?.color || colors.primary }]}>
                                   <Ionicons name={assetType?.icon as any || 'card'} size={16} color="white" />
                                 </View>
                                 <View style={styles.assetInfo}>
@@ -720,28 +721,91 @@ export default function AddTransactionScreen() {
                       {selectedToAssetId ? '' : '입금 자산 선택'}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                  <Ionicons name="chevron-down" size={20} color={colors.textTertiary} />
                 </TouchableOpacity>
               </View>
             )}
 
             {/* 날짜 */}
             <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>날짜</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
-                value={date}
-                onChangeText={(text) => {
-                  // Basic format validation for YYYY-MM-DD
-                  if (text.length <= 10 && /^[0-9-]*$/.test(text)) {
-                    setDate(text);
-                  }
-                }}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.icon}
-                maxLength={10}
-                keyboardType="numeric"
-              />
+              <View style={styles.dateHeader}>
+                <Text style={[styles.label, { color: colors.text }]}>날짜</Text>
+                <View style={styles.datePickerToggle}>
+                  <TouchableOpacity
+                    style={[
+                      styles.datePickerButton,
+                      datePickerMode === 'input' && styles.datePickerButtonActive,
+                      { backgroundColor: datePickerMode === 'input' ? colors.primary : colors.card }
+                    ]}
+                    onPress={() => {
+                      setDatePickerMode('input');
+                      setShowDatePicker(false);
+                    }}
+                  >
+                    <Ionicons 
+                      name="keypad" 
+                      size={16} 
+                      color={datePickerMode === 'input' ? 'white' : colors.text} 
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.datePickerButton,
+                      datePickerMode === 'calendar' && styles.datePickerButtonActive,
+                      { backgroundColor: datePickerMode === 'calendar' ? colors.primary : colors.card }
+                    ]}
+                    onPress={() => {
+                      setDatePickerMode('calendar');
+                      setShowDatePicker(true);
+                    }}
+                  >
+                    <Ionicons 
+                      name="calendar" 
+                      size={16} 
+                      color={datePickerMode === 'calendar' ? 'white' : colors.text} 
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              {datePickerMode === 'input' ? (
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
+                  value={date}
+                  onChangeText={(text) => {
+                    // Basic format validation for YYYY-MM-DD
+                    if (text.length <= 10) {
+                      // Auto-insert hyphens
+                      if (text.length === 4 || text.length === 7) {
+                        if (!text.endsWith('-')) {
+                          text += '-';
+                        }
+                      }
+                      // Only allow numbers and hyphens
+                      if (/^[0-9-]*$/.test(text)) {
+                        setDate(text);
+                      }
+                    }
+                  }}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textTertiary}
+                  maxLength={10}
+                  keyboardType="numeric"
+                />
+              ) : (
+                <TouchableOpacity
+                  style={[styles.selectButton, { backgroundColor: colors.card }]}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <View style={styles.selectButtonContent}>
+                    <Ionicons name="calendar-outline" size={20} color={colors.textTertiary} />
+                    <Text style={[styles.selectButtonText, { color: date ? colors.text : colors.icon }]}>
+                      {date || '날짜를 선택하세요'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={20} color={colors.textTertiary} />
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* 지출자 (선택사항) */}
@@ -750,7 +814,7 @@ export default function AddTransactionScreen() {
               <TextInput
                 style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
                 placeholder="지출자를 입력하세요 (선택사항)"
-                placeholderTextColor={colors.icon}
+                placeholderTextColor={colors.textTertiary}
                 value={spender}
                 onChangeText={setSpender}
               />
@@ -762,7 +826,7 @@ export default function AddTransactionScreen() {
               <TextInput
                 style={[styles.textArea, { backgroundColor: colors.card, color: colors.text }]}
                 placeholder="추가 메모를 입력하세요 (선택사항)"
-                placeholderTextColor={colors.icon}
+                placeholderTextColor={colors.textTertiary}
                 value={memo}
                 onChangeText={setMemo}
                 multiline
@@ -772,7 +836,7 @@ export default function AddTransactionScreen() {
 
             {/* 저장 버튼 */}
             <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: colors.tint, opacity: isLoading ? 0.7 : 1 }]}
+              style={[styles.submitButton, { backgroundColor: colors.primary, opacity: isLoading ? 0.7 : 1 }]}
               onPress={handleSubmit}
               disabled={isLoading}
             >
@@ -851,12 +915,12 @@ export default function AddTransactionScreen() {
               <TextInput
                 style={[styles.modalInput, { backgroundColor: colors.card, color: colors.text }]}
                 placeholder="새 카테고리 추가"
-                placeholderTextColor={colors.icon}
+                placeholderTextColor={colors.textTertiary}
                 value={newCategory}
                 onChangeText={setNewCategory}
               />
               <TouchableOpacity
-                style={[styles.modalAddButton, { backgroundColor: colors.tint }]}
+                style={[styles.modalAddButton, { backgroundColor: colors.primary }]}
                 onPress={handleAddCategory}
               >
                 <Text style={styles.modalAddButtonText}>추가</Text>
@@ -916,7 +980,7 @@ export default function AddTransactionScreen() {
                       }}
                     >
                       <View style={styles.modalAssetItem}>
-                        <View style={[styles.modalAssetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                        <View style={[styles.modalAssetIcon, { backgroundColor: assetType?.color || colors.primary }]}>
                           <Ionicons name={assetType?.icon as any || 'card'} size={20} color="white" />
                         </View>
                         <View style={styles.modalAssetInfo}>
@@ -949,7 +1013,7 @@ export default function AddTransactionScreen() {
             </ScrollView>
 
             <TouchableOpacity
-              style={[styles.modalAddButton, { backgroundColor: colors.tint, marginVertical: 10 }]}
+              style={[styles.modalAddButton, { backgroundColor: colors.primary, marginVertical: 10 }]}
               onPress={() => {
                 setShowPaymentModal(false);
                 router.push('/(modals)/add-asset');
@@ -1011,7 +1075,7 @@ export default function AddTransactionScreen() {
                       }}
                     >
                       <View style={styles.modalAssetItem}>
-                        <View style={[styles.modalAssetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                        <View style={[styles.modalAssetIcon, { backgroundColor: assetType?.color || colors.primary }]}>
                           <Ionicons name={assetType?.icon as any || 'card'} size={20} color="white" />
                         </View>
                         <View style={styles.modalAssetInfo}>
@@ -1044,7 +1108,7 @@ export default function AddTransactionScreen() {
             </ScrollView>
 
             <TouchableOpacity
-              style={[styles.modalAddButton, { backgroundColor: colors.tint, marginVertical: 10 }]}
+              style={[styles.modalAddButton, { backgroundColor: colors.primary, marginVertical: 10 }]}
               onPress={() => {
                 setShowFromAssetModal(false);
                 router.push('/(modals)/add-asset');
@@ -1106,7 +1170,7 @@ export default function AddTransactionScreen() {
                       }}
                     >
                       <View style={styles.modalAssetItem}>
-                        <View style={[styles.modalAssetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
+                        <View style={[styles.modalAssetIcon, { backgroundColor: assetType?.color || colors.primary }]}>
                           <Ionicons name={assetType?.icon as any || 'card'} size={20} color="white" />
                         </View>
                         <View style={styles.modalAssetInfo}>
@@ -1139,7 +1203,7 @@ export default function AddTransactionScreen() {
             </ScrollView>
 
             <TouchableOpacity
-              style={[styles.modalAddButton, { backgroundColor: colors.tint, marginVertical: 10 }]}
+              style={[styles.modalAddButton, { backgroundColor: colors.primary, marginVertical: 10 }]}
               onPress={() => {
                 setShowToAssetModal(false);
                 router.push('/(modals)/add-asset');
@@ -1228,7 +1292,7 @@ export default function AddTransactionScreen() {
                     등록된 태그가 없습니다.
                   </Text>
                   <TouchableOpacity
-                    style={[styles.modalAddButton, { backgroundColor: colors.tint, marginTop: 16 }]}
+                    style={[styles.modalAddButton, { backgroundColor: colors.primary, marginTop: 16 }]}
                     onPress={() => {
                       setShowTagModal(false);
                       router.push('/(modals)/tags');
@@ -1275,9 +1339,9 @@ export default function AddTransactionScreen() {
                   style={[
                     styles.modalItem, 
                     { 
-                      backgroundColor: selectedCurrency === currency.code ? colors.tint + '20' : colors.card,
+                      backgroundColor: selectedCurrency === currency.code ? colors.primary + '20' : colors.card,
                       borderWidth: selectedCurrency === currency.code ? 1 : 0,
-                      borderColor: selectedCurrency === currency.code ? colors.tint : 'transparent'
+                      borderColor: selectedCurrency === currency.code ? colors.primary : 'transparent'
                     }
                   ]}
                   onPress={() => {
@@ -1293,7 +1357,7 @@ export default function AddTransactionScreen() {
                       {currency.name} ({currency.symbol})
                     </Text>
                     {selectedCurrency === currency.code && (
-                      <Ionicons name="checkmark-circle" size={20} color={colors.tint} />
+                      <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
                     )}
                   </View>
                 </TouchableOpacity>
@@ -1303,6 +1367,66 @@ export default function AddTransactionScreen() {
             <TouchableOpacity
               style={[styles.modalCloseButton, { backgroundColor: colors.card }]}
               onPress={() => setShowCurrencyModal(false)}
+            >
+              <Text style={[styles.modalCloseButtonText, { color: colors.text }]}>닫기</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* 날짜 선택 모달 */}
+      <Modal
+        visible={showDatePicker}
+        transparent
+        animationType="slide"
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowDatePicker(false)}
+        >
+          <TouchableOpacity 
+            style={[styles.modalContent, { backgroundColor: colors.background }]} 
+            activeOpacity={1}
+            onPress={() => {}}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>날짜 선택</Text>
+            
+            <Calendar
+              current={date || new Date().toISOString().split('T')[0]}
+              onDayPress={(day: any) => {
+                setDate(day.dateString);
+                setShowDatePicker(false);
+              }}
+              markedDates={{
+                [date]: { selected: true, selectedColor: colors.primary }
+              }}
+              maxDate={new Date().toISOString().split('T')[0]}
+              theme={{
+                backgroundColor: colors.background,
+                calendarBackground: colors.background,
+                textSectionTitleColor: colors.text,
+                selectedDayBackgroundColor: colors.primary,
+                selectedDayTextColor: 'white',
+                todayTextColor: colors.primary,
+                dayTextColor: colors.text,
+                textDisabledColor: colors.icon,
+                dotColor: colors.primary,
+                selectedDotColor: 'white',
+                arrowColor: colors.primary,
+                monthTextColor: colors.text,
+                textDayFontWeight: '300',
+                textMonthFontWeight: 'bold',
+                textDayHeaderFontWeight: '500',
+                textDayFontSize: 16,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 14
+              }}
+            />
+
+            <TouchableOpacity
+              style={[styles.modalCloseButton, { backgroundColor: colors.card }]}
+              onPress={() => setShowDatePicker(false)}
             >
               <Text style={[styles.modalCloseButtonText, { color: colors.text }]}>닫기</Text>
             </TouchableOpacity>
@@ -1329,8 +1453,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
   },
   backButton: {
     padding: 8,
@@ -1385,8 +1507,6 @@ const styles = StyleSheet.create({
   amountContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: '#E0E0E0',
     paddingVertical: 8,
   },
   currencySymbol: {
@@ -1638,5 +1758,29 @@ const styles = StyleSheet.create({
   currencyName: {
     fontSize: 14,
     flex: 1,
+  },
+  dateHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  datePickerToggle: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  datePickerButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  datePickerButtonActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
   },
 });

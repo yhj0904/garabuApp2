@@ -41,8 +41,9 @@ export default function BookSettingsModal() {
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDescription, setNewGroupDescription] = useState('');
+  const [currentUserRole, setCurrentUserRole] = useState(userRole);
 
-  const isOwner = userRole === 'OWNER';
+  const isOwner = currentUserRole === 'OWNER';
 
   useEffect(() => {
     loadData();
@@ -57,6 +58,17 @@ export default function BookSettingsModal() {
       if (token) {
         const membersData = await apiService.getBookMembersWithRoles(Number(bookId), token);
         setMembers(membersData);
+        
+        // 현재 사용자의 실제 권한 확인 및 업데이트
+        const userIdToken = await AsyncStorage.getItem('userId');
+        if (userIdToken) {
+          const currentUserId = parseInt(userIdToken);
+          const currentMember = membersData.find(member => member.memberId === currentUserId);
+          if (currentMember && currentMember.role !== currentUserRole) {
+            console.log(`권한 업데이트: ${currentUserRole} -> ${currentMember.role}`);
+            setCurrentUserRole(currentMember.role);
+          }
+        }
       }
       
       // OWNER인 경우 참가 요청 목록도 조회
@@ -235,7 +247,7 @@ export default function BookSettingsModal() {
             <TouchableOpacity
               style={styles.inviteButton}
               onPress={() => router.push({
-                pathname: '/invite-code',
+                pathname: '/(modals)/invite-code',
                 params: { bookId, bookTitle }
               })}
             >
@@ -355,7 +367,7 @@ export default function BookSettingsModal() {
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.joinBookButton}
-            onPress={() => router.push('/join-book')}
+            onPress={() => router.push('/(modals)/join-book')}
           >
             <Ionicons name="enter-outline" size={20} color="#007AFF" />
             <Text style={styles.joinBookButtonText}>다른 가계부 참가하기</Text>

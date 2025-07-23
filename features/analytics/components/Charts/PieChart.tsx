@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface PieChartData {
   value: number;
@@ -25,6 +26,7 @@ export default function PieChart({
   centerText,
   centerSubtext
 }: PieChartProps) {
+  const { colors } = useTheme();
   const center = radius + strokeWidth;
   const totalValue = data.reduce((sum, item) => sum + item.value, 0);
   
@@ -37,12 +39,12 @@ export default function PieChart({
             cy={center}
             r={radius}
             fill="none"
-            stroke="#E5E5EA"
+            stroke={colors.border}
             strokeWidth={strokeWidth}
           />
         </Svg>
         <View style={styles.centerContent}>
-          <Text style={styles.centerText}>데이터 없음</Text>
+          <Text style={[styles.centerText, { color: colors.textTertiary }]}>데이터 없음</Text>
         </View>
       </View>
     );
@@ -91,7 +93,7 @@ export default function PieChart({
               key={index}
               d={arc.pathData}
               fill={arc.color}
-              stroke="white"
+              stroke={colors.background}
               strokeWidth={2}
             />
           ))}
@@ -100,10 +102,10 @@ export default function PieChart({
         {/* Center content */}
         <View style={styles.centerContent}>
           {centerText && (
-            <Text style={styles.centerText}>{centerText}</Text>
+            <Text style={[styles.centerText, { color: colors.text }]}>{centerText}</Text>
           )}
           {centerSubtext && (
-            <Text style={styles.centerSubtext}>{centerSubtext}</Text>
+            <Text style={[styles.centerSubtext, { color: colors.textSecondary }]}>{centerSubtext}</Text>
           )}
         </View>
       </View>
@@ -114,10 +116,10 @@ export default function PieChart({
           {data.map((item, index) => (
             <View key={index} style={styles.legendItem}>
               <View style={[styles.legendColor, { backgroundColor: item.color }]} />
-              <Text style={styles.legendLabel}>
+              <Text style={[styles.legendLabel, { color: colors.text }]}>
                 {item.label} ({((item.value / totalValue) * 100).toFixed(1)}%)
               </Text>
-              <Text style={styles.legendValue}>
+              <Text style={[styles.legendValue, { color: colors.textSecondary }]}>
                 ₩{item.value.toLocaleString()}
               </Text>
             </View>
@@ -145,12 +147,10 @@ const styles = StyleSheet.create({
   centerText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
     textAlign: 'center',
   },
   centerSubtext: {
     fontSize: 12,
-    color: '#666',
     textAlign: 'center',
     marginTop: 2,
   },
@@ -173,11 +173,9 @@ const styles = StyleSheet.create({
   legendLabel: {
     flex: 1,
     fontSize: 14,
-    color: '#333',
   },
   legendValue: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#333',
   },
 });

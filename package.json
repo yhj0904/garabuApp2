@@ -53,6 +53,7 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.5",
+    "react-native-calendars": "^1.1313.0",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
@@ -71,6 +72,7 @@
     "axios": "^1.10.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
+    "sharp-cli": "^5.2.0",
     "typescript": "~5.8.3"
   },
   "private": true

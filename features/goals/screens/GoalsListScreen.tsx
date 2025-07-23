@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { 
   View, 
-  Text, 
   StyleSheet, 
   FlatList, 
   TouchableOpacity, 
@@ -9,17 +8,18 @@ import {
   ActivityIndicator, 
   Alert, 
   Modal, 
-  TextInput, 
   ScrollView, 
   KeyboardAvoidingView, 
   Platform 
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../../constants/Colors';
-import { useColorScheme } from '../../../hooks/useColorScheme';
-import { useBookStore } from '../../../stores/bookStore';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedCard } from '@/components/ThemedCard';
+import { ThemedButton } from '@/components/ThemedButton';
+import { ThemedInput } from '@/components/ThemedInput';
+import { useBookStore } from '@/stores/bookStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 
@@ -37,8 +37,7 @@ interface Goal {
 }
 
 export default function GoalsListScreen() {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
   const { currentBook } = useBookStore();
   const bookId = currentBook?.id;
   
@@ -83,9 +82,8 @@ export default function GoalsListScreen() {
   };
 
   const handleAddGoal = async () => {
-    if (!newGoal.name || !newGoal.targetAmount) {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('입력 오류', '목표 이름과 목표 금액을 입력해주세요.');
+    if (!newGoal.name || !newGoal.targetAmount || !newGoal.targetDate) {
+      Alert.alert('오류', '모든 필드를 입력해주세요.');
       return;
     }
 
@@ -97,7 +95,7 @@ export default function GoalsListScreen() {
       currentAmount: 0,
       progressPercentage: 0,
       status: 'ACTIVE',
-      targetDate: newGoal.targetDate || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      targetDate: newGoal.targetDate,
       icon: getGoalIcon(newGoal.goalType || 'SAVING'),
       color: getGoalColor(newGoal.goalType || 'SAVING'),
     };
@@ -105,28 +103,31 @@ export default function GoalsListScreen() {
     const updatedGoals = [...goals, goal];
     setGoals(updatedGoals);
     await saveGoalsToStorage(updatedGoals);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowAddModal(false);
     setNewGoal({ goalType: 'SAVING', status: 'ACTIVE' });
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const updateGoalProgress = async (goalId: number, amount: number) => {
+  const updateGoalProgress = async (id: number, amount: number) => {
     const updatedGoals = goals.map(goal => {
-      if (goal.id === goalId) {
-        const newAmount = goal.currentAmount + amount;
-        const progress = Math.min((newAmount / goal.targetAmount) * 100, 100);
+      if (goal.id === id) {
+        const newCurrentAmount = Math.min(goal.currentAmount + amount, goal.targetAmount);
+        const newProgressPercentage = (newCurrentAmount / goal.targetAmount) * 100;
+        const newStatus = newProgressPercentage >= 100 ? 'COMPLETED' : goal.status;
+        
         return {
           ...goal,
-          currentAmount: newAmount,
-          progressPercentage: progress,
-          status: progress >= 100 ? 'COMPLETED' : goal.status,
+          currentAmount: newCurrentAmount,
+          progressPercentage: newProgressPercentage,
+          status: newStatus,
         };
       }
       return goal;
     });
+    
     setGoals(updatedGoals);
     await saveGoalsToStorage(updatedGoals);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const deleteGoal = (id: number) => {
@@ -183,65 +184,66 @@ export default function GoalsListScreen() {
 
   const getGoalColor = (type: string) => {
     const colorMap: { [key: string]: string } = {
-      SAVING: '#4CAF50',
-      SPENDING_REDUCTION: '#FF5722',
-      DEBT_REPAYMENT: '#F44336',
-      EMERGENCY_FUND: '#FF9800',
-      INVESTMENT: '#2196F3',
-      PURCHASE: '#9C27B0',
-      TRAVEL: '#00BCD4',
-      EDUCATION: '#3F51B5',
-      RETIREMENT: '#795548',
-      CUSTOM: colors.tint
+      SAVING: colors.success,
+      SPENDING_REDUCTION: colors.warning,
+      DEBT_REPAYMENT: colors.error,
+      EMERGENCY_FUND: colors.info,
+      INVESTMENT: colors.primary,
+      PURCHASE: colors.transfer,
+      TRAVEL: colors.primary,
+      EDUCATION: colors.primary,
+      RETIREMENT: colors.textSecondary,
+      CUSTOM: colors.primary
     };
-    return colorMap[type] || colors.tint;
+    return colorMap[type] || colors.primary;
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ACTIVE': return colors.tint;
-      case 'COMPLETED': return '#4CAF50';
-      case 'PAUSED': return '#FFC107';
-      case 'CANCELLED': return '#9E9E9E';
-      case 'EXPIRED': return '#F44336';
-      default: return colors.tint;
+      case 'ACTIVE': return colors.primary;
+      case 'COMPLETED': return colors.success;
+      case 'PAUSED': return colors.warning;
+      case 'CANCELLED': return colors.textSecondary;
+      case 'EXPIRED': return colors.error;
+      default: return colors.primary;
     }
   };
 
   const renderGoalItem = ({ item }: { item: Goal }) => (
-    <TouchableOpacity
-      style={[styles.goalCard, { backgroundColor: colors.card }]}
+    <ThemedCard
+      variant="default"
+      style={styles.goalCard}
       onPress={() => updateGoalProgress(item.id, 10000)}
       onLongPress={() => deleteGoal(item.id)}
     >
       <View style={styles.goalHeader}>
         <View style={[styles.iconContainer, { backgroundColor: item.color + '20' }]}>
-          <Text style={styles.iconText}>{item.icon || '🎯'}</Text>
+          <ThemedText style={styles.iconText}>{item.icon || '🎯'}</ThemedText>
         </View>
         <View style={styles.goalInfo}>
-          <Text style={[styles.goalName, { color: colors.text }]}>{item.name}</Text>
-          <Text style={[styles.goalType, { color: colors.icon }]}>
+          <ThemedText type="body" weight="semibold">{item.name}</ThemedText>
+          <ThemedText type="caption" variant="secondary">
             {getGoalTypeText(item.goalType)}
-          </Text>
+          </ThemedText>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>
+          <ThemedText type="caption" variant="inverse" weight="semibold">
             {item.status === 'ACTIVE' ? '진행중' : 
              item.status === 'COMPLETED' ? '완료' : item.status}
-          </Text>
+          </ThemedText>
         </View>
       </View>
 
       <View style={styles.progressSection}>
         <View style={styles.progressInfo}>
-          <Text style={[styles.progressAmount, { color: colors.text }]}>
+          <ThemedText type="body" variant="secondary">
             ₩{item.currentAmount.toLocaleString()} / ₩{item.targetAmount.toLocaleString()}
-          </Text>
-          <Text style={[styles.progressPercentage, { color: item.color }]}>
+          </ThemedText>
+          <ThemedText type="body" weight="semibold" style={{ color: item.color }}>
             {item.progressPercentage.toFixed(1)}%
-          </Text>
+          </ThemedText>
         </View>
-        <View style={[styles.progressBar, { backgroundColor: colors.background }]}>
+        <View style={[styles.progressBar, { backgroundColor: colors.backgroundSecondary }]}>
           <View 
             style={[
               styles.progressFill, 
@@ -255,36 +257,39 @@ export default function GoalsListScreen() {
       </View>
 
       <View style={styles.goalFooter}>
-        <Text style={[styles.targetDate, { color: colors.icon }]}>
+        <ThemedText type="caption" variant="tertiary">
           목표일: {new Date(item.targetDate).toLocaleDateString('ko-KR')}
-        </Text>
-        <Text style={[styles.remainingAmount, { color: colors.icon }]}>
+        </ThemedText>
+        <ThemedText type="caption" variant="tertiary">
           남은 금액: ₩{Math.max(0, item.targetAmount - item.currentAmount).toLocaleString()}
-        </Text>
+        </ThemedText>
       </View>
-    </TouchableOpacity>
+    </ThemedCard>
   );
 
   if (loading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.tint} />
+      <View style={[styles.container, { backgroundColor: colors.background }]} >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.card }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* 헤더 */}
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>재정 목표</Text>
+        <ThemedText type="subtitle" weight="semibold">재정 목표</ThemedText>
         <TouchableOpacity 
           onPress={() => setShowAddModal(true)}
           style={styles.headerButton}
         >
-          <Ionicons name="add" size={24} color={colors.tint} />
+          <Ionicons name="add" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -297,21 +302,22 @@ export default function GoalsListScreen() {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={handleRefresh}
-            tintColor={colors.tint}
+            tintColor={colors.primary}
           />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="flag-outline" size={64} color={colors.icon} />
-            <Text style={[styles.emptyText, { color: colors.icon }]}>
+            <Ionicons name="flag-outline" size={64} color={colors.textTertiary} />
+            <ThemedText type="body" variant="tertiary" style={styles.emptyText}>
               아직 설정한 목표가 없습니다
-            </Text>
-            <TouchableOpacity 
-              style={[styles.createButton, { backgroundColor: colors.tint }]}
+            </ThemedText>
+            <ThemedButton
+              variant="primary"
               onPress={() => setShowAddModal(true)}
+              style={styles.createButton}
             >
-              <Text style={styles.createButtonText}>첫 목표 만들기</Text>
-            </TouchableOpacity>
+              첫 목표 만들기
+            </ThemedButton>
           </View>
         }
       />
@@ -329,38 +335,26 @@ export default function GoalsListScreen() {
         >
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>새 목표 추가</Text>
+              <ThemedText type="subtitle" weight="semibold">새 목표 추가</ThemedText>
               <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                <Ionicons name="close" size={24} color={colors.icon} />
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>목표 이름</Text>
-                <TextInput
-                  style={[styles.input, { 
-                    color: colors.text, 
-                    borderColor: colors.border,
-                    backgroundColor: colors.background 
-                  }]}
+                <ThemedInput
+                  label="목표 이름"
                   placeholder="예: 비상금 마련"
-                  placeholderTextColor={colors.icon}
                   value={newGoal.name}
                   onChangeText={(text) => setNewGoal({ ...newGoal, name: text })}
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>목표 금액</Text>
-                <TextInput
-                  style={[styles.input, { 
-                    color: colors.text, 
-                    borderColor: colors.border,
-                    backgroundColor: colors.background 
-                  }]}
+                <ThemedInput
+                  label="목표 금액"
                   placeholder="0"
-                  placeholderTextColor={colors.icon}
                   keyboardType="numeric"
                   value={newGoal.targetAmount?.toString()}
                   onChangeText={(text) => setNewGoal({ ...newGoal, targetAmount: parseInt(text) || 0 })}
@@ -368,7 +362,9 @@ export default function GoalsListScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>목표 유형</Text>
+                <ThemedText type="body" weight="medium" style={styles.inputLabel}>
+                  목표 유형
+                </ThemedText>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {['SAVING', 'SPENDING_REDUCTION', 'INVESTMENT', 'PURCHASE', 'TRAVEL', 'EDUCATION'].map((type) => (
                     <TouchableOpacity
@@ -376,35 +372,46 @@ export default function GoalsListScreen() {
                       style={[
                         styles.typeButton,
                         { 
-                          backgroundColor: newGoal.goalType === type ? colors.tint : colors.background,
+                          backgroundColor: newGoal.goalType === type ? colors.primary : colors.backgroundSecondary,
                           borderColor: colors.border,
                         }
                       ]}
                       onPress={() => setNewGoal({ ...newGoal, goalType: type })}
                     >
-                      <Text style={styles.typeIcon}>{getGoalIcon(type)}</Text>
-                      <Text style={{ 
-                        color: newGoal.goalType === type ? 'white' : colors.text,
-                        fontSize: 12,
-                      }}>
+                      <ThemedText style={styles.typeIcon}>{getGoalIcon(type)}</ThemedText>
+                      <ThemedText 
+                        type="caption"
+                        variant={newGoal.goalType === type ? 'inverse' : 'secondary'}
+                      >
                         {getGoalTypeText(type)}
-                      </Text>
+                      </ThemedText>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
               </View>
+
+              <View style={styles.inputGroup}>
+                <ThemedInput
+                  label="목표 날짜"
+                  placeholder="YYYY-MM-DD"
+                  value={newGoal.targetDate}
+                  onChangeText={(text) => setNewGoal({ ...newGoal, targetDate: text })}
+                />
+              </View>
             </ScrollView>
 
-            <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: colors.tint }]}
+            <ThemedButton
+              variant="primary"
+              size="large"
               onPress={handleAddGoal}
+              style={styles.saveButton}
             >
-              <Text style={styles.saveButtonText}>목표 추가</Text>
-            </TouchableOpacity>
+              목표 추가
+            </ThemedButton>
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -421,34 +428,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   headerButton: {
     padding: 8,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
   listContent: {
-    padding: 16,
+    padding: 20,
   },
   goalCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: 16,
   },
   goalHeader: {
     flexDirection: 'row',
@@ -469,23 +459,10 @@ const styles = StyleSheet.create({
   goalInfo: {
     flex: 1,
   },
-  goalName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  goalType: {
-    fontSize: 14,
-  },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
   },
   progressSection: {
     marginBottom: 12,
@@ -494,13 +471,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 8,
-  },
-  progressAmount: {
-    fontSize: 14,
-  },
-  progressPercentage: {
-    fontSize: 14,
-    fontWeight: 'bold',
   },
   progressBar: {
     height: 8,
@@ -516,12 +486,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  targetDate: {
-    fontSize: 12,
-  },
-  remainingAmount: {
-    fontSize: 12,
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -529,19 +493,11 @@ const styles = StyleSheet.create({
     paddingTop: 100,
   },
   emptyText: {
-    fontSize: 16,
     marginVertical: 20,
     textAlign: 'center',
   },
   createButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-  },
-  createButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    marginTop: 16,
   },
   modalContainer: {
     flex: 1,
@@ -560,23 +516,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
   inputGroup: {
     marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 16,
     marginBottom: 8,
-    fontWeight: '500',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
   },
   typeButton: {
     paddingHorizontal: 16,
@@ -591,14 +535,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   saveButton: {
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
     marginTop: 20,
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

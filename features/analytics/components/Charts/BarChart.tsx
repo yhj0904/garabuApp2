@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Text, ScrollView } from 'react-native';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface BarChartData {
   label: string;
@@ -21,9 +22,11 @@ export default function BarChart({
   height = 200, 
   showValues = true,
   showGrid = true,
-  barColor = '#007AFF',
+  barColor,
   maxValue
 }: BarChartProps) {
+  const { colors } = useTheme();
+  const defaultBarColor = barColor || colors.primary;
   const chartHeight = height - 40; // Space for labels
   const maxDataValue = maxValue || Math.max(...data.map(item => item.value));
   
@@ -31,7 +34,7 @@ export default function BarChart({
     return (
       <View style={[styles.container, { height }]}>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>데이터가 없습니다</Text>
+          <Text style={[styles.emptyText, { color: colors.textTertiary }]}>데이터가 없습니다</Text>
         </View>
       </View>
     );
@@ -54,7 +57,10 @@ export default function BarChart({
                   key={index}
                   style={[
                     styles.gridLine,
-                    { bottom: ratio * chartHeight }
+                    { 
+                      bottom: ratio * chartHeight,
+                      backgroundColor: colors.border
+                    }
                   ]}
                 />
               ))}
@@ -68,7 +74,10 @@ export default function BarChart({
                 key={index}
                 style={[
                   styles.yAxisLabel,
-                  { bottom: ratio * chartHeight - 6 }
+                  { 
+                    bottom: ratio * chartHeight - 6,
+                    color: colors.textSecondary
+                  }
                 ]}
               >
                 {(maxDataValue * ratio / 1000).toFixed(0)}k
@@ -80,7 +89,7 @@ export default function BarChart({
           <View style={styles.barsContainer}>
             {data.map((item, index) => {
               const barHeight = (item.value / maxDataValue) * chartHeight;
-              const itemBarColor = item.color || barColor;
+              const itemBarColor = item.color || defaultBarColor;
               
               return (
                 <View key={index} style={styles.barColumn}>
@@ -95,7 +104,7 @@ export default function BarChart({
                       ]}
                     />
                     {showValues && item.value > 0 && (
-                      <Text style={[styles.barValue, { bottom: barHeight + 4 }]}>
+                      <Text style={[styles.barValue, { bottom: barHeight + 4, color: colors.text }]}>
                         {item.value >= 1000 
                           ? `${(item.value / 1000).toFixed(0)}k`
                           : item.value.toString()
@@ -103,7 +112,7 @@ export default function BarChart({
                       </Text>
                     )}
                   </View>
-                  <Text style={styles.barLabel}>{item.label}</Text>
+                  <Text style={[styles.barLabel, { color: colors.textSecondary }]}>{item.label}</Text>
                 </View>
               );
             })}
@@ -116,7 +125,6 @@ export default function BarChart({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'white',
     borderRadius: 8,
     padding: 16,
   },
@@ -141,7 +149,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: '#E5E5EA',
   },
   yAxisLabels: {
     position: 'absolute',
@@ -152,7 +159,6 @@ const styles = StyleSheet.create({
   yAxisLabel: {
     position: 'absolute',
     fontSize: 10,
-    color: '#8E8E93',
     textAlign: 'right',
     width: 30,
   },
@@ -184,11 +190,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     fontSize: 10,
     fontWeight: '500',
-    color: '#333',
   },
   barLabel: {
     fontSize: 11,
-    color: '#8E8E93',
     textAlign: 'center',
     marginTop: 4,
     numberOfLines: 1,
@@ -200,6 +204,5 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: '#8E8E93',
   },
 });

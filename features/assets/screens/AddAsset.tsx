@@ -14,33 +14,25 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAssetStore } from '@/stores/assetStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import type { CreateAssetRequest } from '@/core/api/client';
 import { formatAmountInput, parseFormattedNumber, formatKoreanAmount } from '@/utils/numberFormat';
 
-// 기본 자산 타입들 (서버에서 제공)
-const DEFAULT_ASSET_TYPES = [
-  { type: 'CASH', name: '현금', icon: 'cash', color: '#4CAF50' },
-  { type: 'SAVINGS_ACCOUNT', name: '저축예금', icon: 'card', color: '#2196F3' },
-  { type: 'CHECKING_ACCOUNT', name: '당좌예금', icon: 'card-outline', color: '#03A9F4' },
-  { type: 'CREDIT_CARD', name: '신용카드', icon: 'card', color: '#FF9800' },
-  { type: 'DEBIT_CARD', name: '체크카드', icon: 'card-outline', color: '#FF5722' },
-] as const;
-
-// 커스텀 자산 타입들
-const CUSTOM_ASSET_TYPES = [
-  { type: 'INVESTMENT', name: '투자자산', icon: 'trending-up', color: '#9C27B0' },
-  { type: 'REAL_ESTATE', name: '부동산', icon: 'home', color: '#795548' },
-  { type: 'OTHER', name: '사용자 정의', icon: 'add-circle', color: '#607D8B' },
-] as const;
+// 주요 자산 타입들 (색상은 컴포넌트 내부에서 정의)
 
 export default function AddAssetModal() {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors } = useTheme();
+  
+  // 주요 자산 타입들
+  const MAIN_ASSET_TYPES = [
+    { type: 'CASH', name: '현금', icon: 'cash', color: colors.success },
+    { type: 'SAVINGS_ACCOUNT', name: '은행계좌', icon: 'card', color: colors.info },
+    { type: 'CREDIT_CARD', name: '카드', icon: 'card', color: colors.warning },
+    { type: 'INVESTMENT', name: '투자', icon: 'trending-up', color: colors.transfer },
+  ] as const;
   
   // Store hooks
   const { createAsset, isLoading } = useAssetStore();
@@ -72,13 +64,8 @@ export default function AddAssetModal() {
       newErrors.balance = '잔액은 0 이상이어야 합니다';
     }
 
-    if ((formData.assetType === 'SAVINGS_ACCOUNT' || formData.assetType === 'CHECKING_ACCOUNT') && !formData.bankName?.trim()) {
-      newErrors.bankName = '은행명을 입력해주세요';
-    }
-
-    if ((formData.assetType === 'CREDIT_CARD' || formData.assetType === 'DEBIT_CARD') && !formData.cardType?.trim()) {
-      newErrors.cardType = '카드 타입을 입력해주세요';
-    }
+    // 은행계좌는 은행명이 선택사항
+    // 카드는 카드사가 선택사항
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -126,7 +113,7 @@ export default function AddAssetModal() {
     }
   };
 
-  const selectedAssetType = [...DEFAULT_ASSET_TYPES, ...CUSTOM_ASSET_TYPES].find(type => type.type === formData.assetType);
+  const selectedAssetType = MAIN_ASSET_TYPES.find(type => type.type === formData.assetType);
 
   return (
     <View style={styles.container}>
@@ -142,7 +129,7 @@ export default function AddAssetModal() {
         <TouchableOpacity
           style={[
             styles.saveButton,
-            { backgroundColor: colors.tint }
+            { backgroundColor: colors.primary }
           ]}
           onPress={handleSubmit}
           disabled={isLoading}
@@ -162,49 +149,19 @@ export default function AddAssetModal() {
         {/* 자산 타입 선택 */}
         <View style={styles.section}>
           <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
-            자산 타입
-          </ThemedText>
-          {/* 기본 자산 타입들 */}
-          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
-            기본 자산
+            자산 타입을 선택하세요
           </ThemedText>
           <View style={styles.assetTypeGrid}>
-            {DEFAULT_ASSET_TYPES.map((type) => (
+            {MAIN_ASSET_TYPES.map((type) => (
               <TouchableOpacity
                 key={type.type}
                 style={[
                   styles.assetTypeButton,
-                  { backgroundColor: colors.card },
-                  formData.assetType === type.type && [
-                    styles.selectedAssetType,
-                    { borderColor: type.color }
-                  ]
-                ]}
-                onPress={() => handleAssetTypeSelect(type.type)}
-              >
-                <View style={[styles.assetTypeIcon, { backgroundColor: type.color }]}>
-                  <Ionicons name={type.icon as any} size={24} color="white" />
-                </View>
-                <ThemedText style={styles.assetTypeName}>{type.name}</ThemedText>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* 커스텀 자산 타입들 */}
-          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
-            추가 자산
-          </ThemedText>
-          <View style={styles.assetTypeGrid}>
-            {CUSTOM_ASSET_TYPES.map((type) => (
-              <TouchableOpacity
-                key={type.type}
-                style={[
-                  styles.assetTypeButton,
-                  { backgroundColor: colors.card },
-                  formData.assetType === type.type && [
-                    styles.selectedAssetType,
-                    { borderColor: type.color }
-                  ]
+                  { 
+                    backgroundColor: colors.card,
+                    borderColor: formData.assetType === type.type ? type.color : 'transparent'
+                  },
+                  formData.assetType === type.type && styles.selectedAssetType
                 ]}
                 onPress={() => handleAssetTypeSelect(type.type)}
               >
@@ -216,7 +173,7 @@ export default function AddAssetModal() {
             ))}
           </View>
           {errors.assetType && (
-            <ThemedText style={styles.errorText}>{errors.assetType}</ThemedText>
+            <ThemedText style={[styles.errorText, { color: colors.error }]}>{errors.assetType}</ThemedText>
           )}
         </View>
 
@@ -231,17 +188,17 @@ export default function AddAssetModal() {
                   { 
                     backgroundColor: colors.card,
                     color: colors.text,
-                    borderColor: errors.name ? '#F44336' : '#E0E0E0'
+                    borderColor: errors.name ? colors.error : colors.border
                   }
                 ]}
             value={formData.name}
             onChangeText={(text) => updateField('name', text)}
             placeholder="예: 주거래 통장, 비상금 등"
-            placeholderTextColor={colors.tabIconDefault}
+            placeholderTextColor={colors.textTertiary}
             autoCapitalize="none"
           />
           {errors.name && (
-            <ThemedText style={styles.errorText}>{errors.name}</ThemedText>
+            <ThemedText style={[styles.errorText, { color: colors.error }]}>{errors.name}</ThemedText>
           )}
         </View>
 
@@ -257,7 +214,7 @@ export default function AddAssetModal() {
                 { 
                   backgroundColor: colors.card,
                   color: colors.text,
-                  borderColor: errors.balance ? '#F44336' : '#E0E0E0'
+                  borderColor: errors.balance ? colors.error : colors.border
                 }
               ]}
               value={formatAmountInput(formData.balance.toString())}
@@ -267,26 +224,26 @@ export default function AddAssetModal() {
                 updateField('balance', numericValue);
               }}
               placeholder="0"
-              placeholderTextColor={colors.tabIconDefault}
+              placeholderTextColor={colors.textTertiary}
               keyboardType="numeric"
             />
             {formData.balance > 0 && (
-              <ThemedText style={[styles.amountInWords, { color: colors.icon }]}>
+              <ThemedText style={[styles.amountInWords, { color: colors.textTertiary }]}>
                 {formatKoreanAmount(formData.balance)}
               </ThemedText>
             )}
           </View>
           {errors.balance && (
-            <ThemedText style={styles.errorText}>{errors.balance}</ThemedText>
+            <ThemedText style={[styles.errorText, { color: colors.error }]}>{errors.balance}</ThemedText>
           )}
         </View>
 
         {/* 은행 계좌 추가 정보 */}
-        {(formData.assetType === 'SAVINGS_ACCOUNT' || formData.assetType === 'CHECKING_ACCOUNT') && (
+        {formData.assetType === 'SAVINGS_ACCOUNT' && (
           <>
             <View style={styles.section}>
               <ThemedText type="defaultSemiBold" style={styles.label}>
-                은행명 *
+                은행명
               </ThemedText>
               <TextInput
                 style={[
@@ -294,16 +251,16 @@ export default function AddAssetModal() {
                   { 
                     backgroundColor: colors.card,
                     color: colors.text,
-                    borderColor: errors.bankName ? '#F44336' : '#E0E0E0'
+                    borderColor: errors.bankName ? colors.error : colors.border
                   }
                 ]}
                 value={formData.bankName || ''}
                 onChangeText={(text) => updateField('bankName', text)}
                 placeholder="예: 국민은행, 신한은행"
-                placeholderTextColor={colors.tabIconDefault}
+                placeholderTextColor={colors.textTertiary}
               />
               {errors.bankName && (
-                <ThemedText style={styles.errorText}>{errors.bankName}</ThemedText>
+                <ThemedText style={[styles.errorText, { color: colors.error }]}>{errors.bankName}</ThemedText>
               )}
             </View>
 
@@ -317,13 +274,13 @@ export default function AddAssetModal() {
                   { 
                     backgroundColor: colors.card,
                     color: colors.text,
-                    borderColor: '#E0E0E0'
+                    borderColor: colors.border
                   }
                 ]}
                 value={formData.accountNumber || ''}
                 onChangeText={(text) => updateField('accountNumber', text)}
-                placeholder="계좌번호 (마지막 4자리만)"
-                placeholderTextColor={colors.tabIconDefault}
+                placeholder="메모용 (예: 1234)"
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="numeric"
               />
             </View>
@@ -331,10 +288,10 @@ export default function AddAssetModal() {
         )}
 
         {/* 카드 추가 정보 */}
-        {(formData.assetType === 'CREDIT_CARD' || formData.assetType === 'DEBIT_CARD') && (
+        {formData.assetType === 'CREDIT_CARD' && (
           <View style={styles.section}>
             <ThemedText type="defaultSemiBold" style={styles.label}>
-              카드 타입 *
+              카드사
             </ThemedText>
             <TextInput
                               style={[
@@ -342,16 +299,16 @@ export default function AddAssetModal() {
                   { 
                     backgroundColor: colors.card,
                     color: colors.text,
-                    borderColor: errors.cardType ? '#F44336' : '#E0E0E0'
+                    borderColor: errors.cardType ? colors.error : colors.border
                   }
                 ]}
               value={formData.cardType || ''}
               onChangeText={(text) => updateField('cardType', text)}
-              placeholder="예: 신용카드, 체크카드, 교통카드"
-              placeholderTextColor={colors.tabIconDefault}
+              placeholder="예: 삼성카드, 현대카드"
+              placeholderTextColor={colors.textTertiary}
             />
             {errors.cardType && (
-              <ThemedText style={styles.errorText}>{errors.cardType}</ThemedText>
+              <ThemedText style={[styles.errorText, { color: colors.error }]}>{errors.cardType}</ThemedText>
             )}
           </View>
         )}
@@ -374,7 +331,7 @@ export default function AddAssetModal() {
             value={formData.description || ''}
             onChangeText={(text) => updateField('description', text)}
             placeholder="자산에 대한 추가 설명을 입력하세요"
-            placeholderTextColor={colors.tabIconDefault}
+            placeholderTextColor={colors.textTertiary}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
@@ -386,7 +343,7 @@ export default function AddAssetModal() {
           <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
             미리보기
           </ThemedText>
-          <View style={[styles.previewCard, { backgroundColor: colors.card }]}>
+          <View style={[styles.previewCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
             <View style={styles.previewHeader}>
               <View style={[styles.previewIcon, { backgroundColor: selectedAssetType?.color }]}>
                 <Ionicons 
@@ -399,7 +356,7 @@ export default function AddAssetModal() {
                 <ThemedText type="defaultSemiBold">
                   {formData.name || '자산 이름'}
                 </ThemedText>
-                <ThemedText style={styles.previewType}>
+                <ThemedText style={[styles.previewType, { color: colors.textSecondary }]}>
                   {selectedAssetType?.name}
                 </ThemedText>
               </View>
@@ -408,7 +365,7 @@ export default function AddAssetModal() {
               </ThemedText>
             </View>
             {formData.description && (
-              <ThemedText style={styles.previewDescription}>
+              <ThemedText style={[styles.previewDescription, { color: colors.textSecondary }]}>
                 {formData.description}
               </ThemedText>
             )}
@@ -474,7 +431,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   errorText: {
-    color: '#F44336',
     fontSize: 12,
     marginTop: 4,
   },
@@ -490,7 +446,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'transparent',
   },
   selectedAssetType: {
     borderWidth: 2,
@@ -510,7 +465,6 @@ const styles = StyleSheet.create({
   previewCard: {
     padding: 16,
     borderRadius: 12,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -533,12 +487,10 @@ const styles = StyleSheet.create({
   },
   previewType: {
     fontSize: 12,
-    color: '#8E8E93',
     marginTop: 2,
   },
   previewDescription: {
     fontSize: 14,
-    color: '#8E8E93',
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,

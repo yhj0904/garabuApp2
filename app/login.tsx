@@ -1,5 +1,4 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -22,8 +21,7 @@ export default function LoginScreen() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   
   const { login, oauthLogin, isLoading, isAuthenticated } = useAuthStore();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   // 로그인 상태 확인
   useEffect(() => {
@@ -122,9 +120,9 @@ export default function LoginScreen() {
                   style={[
                     styles.input,
                     {
-                      backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
+                      backgroundColor: isDarkMode ? '#2A2A2A' : '#F5F5F5',
                       color: colors.text,
-                      borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
+                      borderColor: isDarkMode ? '#404040' : '#E0E0E0',
                     },
                   ]}
                   placeholder="이메일을 입력하세요"
@@ -145,9 +143,9 @@ export default function LoginScreen() {
                     style={[
                       styles.passwordInput,
                       {
-                        backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
+                        backgroundColor: isDarkMode ? '#2A2A2A' : '#F5F5F5',
                         color: colors.text,
-                        borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
+                        borderColor: isDarkMode ? '#404040' : '#E0E0E0',
                       },
                     ]}
                     placeholder="비밀번호를 입력하세요"

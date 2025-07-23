@@ -1,162 +1,91 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { useAssetStore } from '@/stores/assetStore';
-import type { Asset } from '@/core/api/client';
-import { useBudgetStore } from '@/stores/budgetStore';
-import { useBookStore } from '@/stores/bookStore';
-import { useAuthStore } from '@/stores/authStore';
-import { ThemedText } from '@/components/ThemedText';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import {
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-  Alert,
-} from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import axios from 'axios';
-import config from '@/config/config';
+import { useRouter } from 'expo-router';
+
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedCard } from '@/components/ThemedCard';
+import { ThemedButton } from '@/components/ThemedButton';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useAuthStore } from '@/stores/authStore';
+import { useAssetStore } from '@/stores/assetStore';
+import { useBookStore } from '@/stores/bookStore';
+import AssetDetailModal from '@/features/assets/components/AssetDetailModal';
 
 export default function AssetScreen() {
-  const [refreshing, setRefreshing] = useState(false);
-  const [currentMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
-  const [currencies, setCurrencies] = useState<any[]>([]);
-  const [exchangeRates, setExchangeRates] = useState<any[]>([]);
-  const [selectedCurrency, setSelectedCurrency] = useState<string>('ALL');
-
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-
-  const { currentBook } = useBookStore();
   const { token } = useAuthStore();
-  const { 
-    assets, 
-    assetTypes, 
-    getAssetTypeStats, 
-    getAssetsByType,
-    fetchAssetsByBook,
-    fetchAssetTypes,
-    deleteAsset 
-  } = useAssetStore();
-  const { 
-    budgetSummary, 
-    fetchBudgetsByBook, 
-    getBudgetSummary 
-  } = useBudgetStore();
+  const { currentBook, ledgers } = useBookStore();
+  const { assets, assetTypes, fetchAssetsByBook, deleteAsset, fetchAssetTypes } = useAssetStore();
+  const { colors, isDarkMode } = useTheme();
+  const router = useRouter();
+  
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<any>(null);
+  const [selectedFilter, setSelectedFilter] = useState<string>('ALL');
+  const [showAssetTypes, setShowAssetTypes] = useState(false);
 
-  // 스플래시 화면에서 이미 데이터를 로드했으므로 제거
-  // 월 변경 시에만 예산 데이터 다시 로드
   useEffect(() => {
-    if (currentBook && token && currentMonth) {
-      loadBudgetDataForMonth();
-    }
-  }, [currentMonth]);
-
-  // 통화 데이터 로드
-  useEffect(() => {
-    if (currentBook && token) {
-      fetchCurrencies();
-    }
-  }, [currentBook, token]);
-
-  // 특정 월의 예산 데이터만 로드
-  const loadBudgetDataForMonth = async () => {
-    if (!currentBook || !token) return;
-    
-    try {
-      await getBudgetSummary(currentBook.id, currentMonth, token);
-    } catch (error) {
-      console.error('예산 데이터 로드 실패:', error);
-    }
-  };
-
-  // 통화 정보 가져오기
-  const fetchCurrencies = async () => {
-    try {
-      // 가계부의 통화 설정 조회
-      const bookCurrenciesResponse = await axios.get(
-        `${config.API_BASE_URL}/api/v2/currencies/book/${currentBook?.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+    if (token) {
+      // 자산 타입을 먼저 로드
+      fetchAssetTypes(token);
       
-      const activeCurrencies = bookCurrenciesResponse.data.map((bc: any) => bc.currency);
-      setCurrencies(activeCurrencies);
-      
-      // 환율 정보 조회
-      if (activeCurrencies.length > 1) {
-        const ratesResponse = await axios.get(
-          `${config.API_BASE_URL}/api/v2/currencies/exchange-rates?from=KRW`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        setExchangeRates(ratesResponse.data);
+      if (currentBook) {
+        // 자산과 거래내역 모두 로드
+        fetchAssetsByBook(currentBook.id, token);
+        useBookStore.getState().fetchLedgers({ bookId: currentBook.id, page: 0, size: 100 }, token);
       }
-    } catch (error) {
-      console.error('통화 정보 조회 실패:', error);
     }
-  };
+  }, [token, currentBook]);
+  
+  // ledgers가 변경될 때마다 자산도 다시 로드
+  useEffect(() => {
+    if (token && currentBook && ledgers) {
+      fetchAssetsByBook(currentBook.id, token);
+    }
+  }, [ledgers?.length]);
 
-  // 새로고침 핸들러
   const onRefresh = async () => {
     try {
-      // 햅틱 피드백
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
       setRefreshing(true);
       
-      // 데이터 새로고침
-      if (currentBook && token) {
+      if (token && currentBook) {
+        // 자산 목록과 거래 내역 모두 새로고침
         await Promise.all([
-          fetchBudgetsByBook(currentBook.id, token),
-          getBudgetSummary(currentBook.id, currentMonth, token),
-          fetchAssetTypes(token),
-          fetchAssetsByBook(currentBook.id, token)
+          fetchAssetsByBook(currentBook.id, token),
+          useBookStore.getState().fetchLedgers({ bookId: currentBook.id, page: 0, size: 100 }, token)
         ]);
       }
-      
     } catch (error) {
       console.error('Failed to refresh:', error);
+      Alert.alert('새로고침 실패', '데이터를 새로고침하는 중 오류가 발생했습니다.');
     } finally {
       setRefreshing(false);
     }
   };
 
-  // 예산 설정 화면으로 이동
-  const navigateToBudgetSettings = () => {
-    router.push('/(modals)/budget-settings');
-  };
-
-  // 자산 추가 화면으로 이동
-  const navigateToAddAsset = () => {
+  const handleAddAsset = () => {
     router.push('/(modals)/add-asset');
   };
 
-  // 자산 분석 화면으로 이동
-  const navigateToAssetAnalysis = () => {
-    router.push('/(tabs)/explore'); // 통계 탭으로 이동
+  const handleEditAsset = () => {
+    if (selectedAsset) {
+      router.push({
+        pathname: '/(modals)/edit-asset',
+        params: { assetId: selectedAsset.id }
+      });
+      setSelectedAsset(null);
+    }
   };
 
-  // 자산 삭제 핸들러
-  const handleDeleteAsset = async (asset: Asset) => {
-    if (!token) return;
+  const handleDeleteAsset = async () => {
+    if (!selectedAsset) return;
     
     Alert.alert(
       '자산 삭제',
-      `"${asset.name}" 자산을 삭제하시겠습니까?\n\n삭제된 자산은 복구할 수 없습니다.`,
+      `'${selectedAsset.name}' 자산을 삭제하시겠습니까?\n\n삭제된 자산은 복구할 수 없으며, 관련된 거래 내역은 유지됩니다.`,
       [
         { text: '취소', style: 'cancel' },
         {
@@ -164,12 +93,15 @@ export default function AssetScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              await deleteAsset(asset.id, token);
-              console.log('자산 삭제 완료:', asset.name);
+              if (token) {
+                await deleteAsset(selectedAsset.id, token);
+                setSelectedAsset(null);
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert('성공', '자산이 삭제되었습니다.');
+              }
             } catch (error) {
-              console.error('자산 삭제 실패:', error);
-              Alert.alert('오류', '자산을 삭제하는 중 오류가 발생했습니다.');
+              console.error('Failed to delete asset:', error);
+              Alert.alert('삭제 실패', '자산을 삭제하는 중 오류가 발생했습니다.');
             }
           }
         }
@@ -177,426 +109,436 @@ export default function AssetScreen() {
     );
   };
 
-  // 예산 달성률 계산
-  const getAchievementRate = (actual: number, budget: number) => {
-    if (!budget || budget === 0) return 0;
-    return Math.round((actual / budget) * 100);
+  const formatAmount = (amount: number) => {
+    return new Intl.NumberFormat('ko-KR').format(amount);
   };
 
-  // 예산 달성률 색상 결정
-  const getAchievementColor = (rate: number) => {
-    if (rate <= 80) return '#4CAF50'; // 녹색 (좋음)
-    if (rate <= 100) return '#FF9800'; // 주황색 (주의)
-    return '#F44336'; // 빨간색 (초과)
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ko-KR', { 
+      month: 'short', 
+      day: 'numeric',
+    });
   };
 
-  // 통화별 자산 필터링
-  const getAssetsByCurrency = (currency?: string) => {
-    if (!currency || currency === 'ALL') {
-      return assets;
-    }
-    return assets.filter(asset => asset.currency === currency);
+  const calculateTotalAssets = () => {
+    return assets
+      .filter(asset => asset.isActive)
+      .reduce((sum, asset) => sum + asset.balance, 0);
   };
 
-  // 통화별 총 자산 계산 (환율 적용)
-  const getTotalAssetsByCurrency = (currency?: string) => {
-    const filteredAssets = getAssetsByCurrency(currency);
+  const calculateMonthlyChange = () => {
+    if (!assets || assets.length === 0) return 0;
     
-    if (!currency || currency === 'ALL') {
-      // 모든 통화의 자산을 KRW로 환산
-      return filteredAssets.reduce((total, asset) => {
-        if (asset.currency === 'KRW' || !asset.currency) {
-          return total + asset.balance;
+    // 현재 총자산
+    const currentTotal = calculateTotalAssets();
+    
+    // 이번달 초의 자산 계산 (거래내역 기반)
+    if (!ledgers) return 0;
+    
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    // 이번달 거래로 인한 자산 변화량
+    const monthlyTransactions = ledgers
+      .filter(ledger => {
+        const ledgerDate = new Date(ledger.transactionDate);
+        return ledgerDate >= startOfMonth && ledgerDate <= now;
+      })
+      .reduce((sum, ledger) => {
+        // 자산 계좌와 연결된 거래만 계산
+        if (ledger.paymentId) {
+          if (ledger.amountType === 'INCOME') return sum + ledger.amount;
+          if (ledger.amountType === 'EXPENSE') return sum - ledger.amount;
         }
-        
-        // 환율 적용
-        const rate = exchangeRates.find(r => r.toCurrency === asset.currency);
-        if (rate) {
-          return total + (asset.balance / rate.rate);
-        }
-        return total + asset.balance;
+        return sum;
       }, 0);
+    
+    return monthlyTransactions;
+  };
+
+  const getAssetTransactions = (assetId: number) => {
+    if (!ledgers) return [];
+    
+    return ledgers
+      .filter(ledger => ledger.paymentId === assetId)
+      .slice(0, 5);
+  };
+
+  const getFilteredAssets = () => {
+    let filtered = assets.filter(asset => asset.isActive);
+    
+    if (selectedFilter !== 'ALL') {
+      filtered = filtered.filter(asset => asset.assetType === selectedFilter);
     }
     
-    // 특정 통화의 자산만 합산
-    return filteredAssets.reduce((total, asset) => total + asset.balance, 0);
+    return filtered.sort((a, b) => b.balance - a.balance);
   };
+
+  const getAssetsByType = () => {
+    const assetsByType: { [key: string]: { assets: any[], total: number } } = {};
+    
+    assets.filter(asset => asset.isActive).forEach(asset => {
+      if (!assetsByType[asset.assetType]) {
+        assetsByType[asset.assetType] = { assets: [], total: 0 };
+      }
+      assetsByType[asset.assetType].assets.push(asset);
+      assetsByType[asset.assetType].total += asset.balance;
+    });
+    
+    return assetsByType;
+  };
+
+  const totalAssets = calculateTotalAssets();
+  const monthlyChange = calculateMonthlyChange();
+  const changePercentage = totalAssets > 0 ? (monthlyChange / totalAssets) * 100 : 0;
 
   return (
-    <View style={styles.container}>
-      <ScrollView 
-        style={styles.scrollView} 
-        contentContainerStyle={{ padding: 16, paddingBottom: 32 }} 
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <ScrollView
+        style={styles.scrollView}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.tint}
-            colors={[colors.tint]}
-            progressBackgroundColor={colors.background}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
-        {/* 통화 필터 */}
-        {currencies.length > 1 && (
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.currencyFilter}
-            contentContainerStyle={styles.currencyFilterContent}
-          >
-            <TouchableOpacity
-              style={[
-                styles.currencyChip,
-                { 
-                  backgroundColor: selectedCurrency === 'ALL' ? colors.tint : colors.card,
-                  borderColor: selectedCurrency === 'ALL' ? colors.tint : colors.border
-                }
-              ]}
-              onPress={() => setSelectedCurrency('ALL')}
-            >
-              <ThemedText style={{ 
-                color: selectedCurrency === 'ALL' ? 'white' : colors.text,
-                fontWeight: selectedCurrency === 'ALL' ? '600' : '400'
-              }}>
-                전체
+        {/* 헤더 */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View>
+              <ThemedText type="subtitle" variant="secondary">
+                {currentBook?.title || '가계부'}
               </ThemedText>
+              <ThemedText type="title">
+                자산 관리
+              </ThemedText>
+            </View>
+            <TouchableOpacity
+              style={[styles.headerButton, { backgroundColor: colors.backgroundSecondary }]}
+              onPress={handleAddAsset}
+            >
+              <Ionicons name="add" size={24} color={colors.primary} />
             </TouchableOpacity>
-            {currencies.map((currency) => (
-              <TouchableOpacity
-                key={currency.id}
-                style={[
-                  styles.currencyChip,
-                  { 
-                    backgroundColor: selectedCurrency === currency.code ? colors.tint : colors.card,
-                    borderColor: selectedCurrency === currency.code ? colors.tint : colors.border
-                  }
-                ]}
-                onPress={() => setSelectedCurrency(currency.code)}
+          </View>
+        </View>
+
+        {/* 총 자산 요약 */}
+        <ThemedCard variant="elevated" style={styles.balanceCard}>
+          <View style={styles.balanceHeader}>
+            <ThemedText type="subtitle" variant="secondary">
+              총 자산
+            </ThemedText>
+            <TouchableOpacity onPress={() => setShowAssetTypes(!showAssetTypes)}>
+              <Ionicons 
+                name={showAssetTypes ? "chevron-up" : "chevron-down"} 
+                size={20} 
+                color={colors.textSecondary} 
+              />
+            </TouchableOpacity>
+          </View>
+          
+          <ThemedText type="title" style={styles.balanceAmount}>
+            ₩{formatAmount(totalAssets)}
+          </ThemedText>
+          
+          <View style={styles.monthlyStats}>
+            <View style={styles.statItem}>
+              <ThemedText 
+                type="caption" 
+                variant={monthlyChange >= 0 ? 'success' : 'error'}
               >
-                <ThemedText style={{ 
-                  color: selectedCurrency === currency.code ? 'white' : colors.text,
-                  fontWeight: selectedCurrency === currency.code ? '600' : '400'
-                }}>
-                  {currency.code} ({currency.symbol})
-                </ThemedText>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                {monthlyChange >= 0 ? '+' : '-'}₩{formatAmount(Math.abs(monthlyChange))}
+              </ThemedText>
+              <ThemedText type="caption" variant="tertiary">
+                이번 달 변화
+              </ThemedText>
+            </View>
+            <View style={styles.statItem}>
+              <ThemedText type="caption" variant="secondary">
+                {totalAssets > 0 ? (changePercentage >= 0 ? '+' : '') + changePercentage.toFixed(1) + '%' : '0.0%'}
+              </ThemedText>
+              <ThemedText type="caption" variant="tertiary">
+                변화율
+              </ThemedText>
+            </View>
+          </View>
+        </ThemedCard>
+
+        {/* 자산 유형별 현황 - 토글 가능 */}
+        {showAssetTypes && (
+          <View style={styles.assetTypesSummary}>
+            {Object.entries(getAssetsByType()).map(([type, data]) => {
+              const assetType = assetTypes.find(t => t.type === type);
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.assetTypeCard, { borderLeftColor: assetType?.color || '#007AFF' }]}
+                  onPress={() => setSelectedFilter(type)}
+                >
+                  <View style={styles.assetTypeIcon}>
+                    <Ionicons name={assetType?.icon as any || 'wallet'} size={20} color={assetType?.color || '#007AFF'} />
+                  </View>
+                  <View style={styles.assetTypeInfo}>
+                    <ThemedText type="caption" variant="secondary">
+                      {assetType?.name || type}
+                    </ThemedText>
+                    <ThemedText type="body" weight="medium">
+                      ₩{formatAmount(data.total)}
+                    </ThemedText>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         )}
 
-        {/* 총 자산 카드 */}
-        <View style={[styles.totalAssetCard, { backgroundColor: colors.card }]}>
-          <View style={styles.totalAssetHeader}>
-            <ThemedText type="subtitle">
-              {selectedCurrency === 'ALL' ? '총 자산' : `${selectedCurrency} 자산`}
-            </ThemedText>
-            <Ionicons name="wallet" size={24} color={colors.tint} />
-          </View>
-          <ThemedText type="title" style={styles.totalAssetAmount}>
-            {selectedCurrency === 'ALL' || selectedCurrency === 'KRW' ? '₩' : 
-             currencies.find(c => c.code === selectedCurrency)?.symbol || ''}
-            {getTotalAssetsByCurrency(selectedCurrency).toLocaleString()}
-          </ThemedText>
-          <View style={styles.assetChange}>
-            <Ionicons name="wallet-outline" size={16} color={colors.tint} />
-            <ThemedText style={[styles.changeText, { color: colors.tint }]}>
-              {selectedCurrency === 'ALL' ? 
-                `총 ${assets.length}개 자산` : 
-                `${getAssetsByCurrency(selectedCurrency).length}개 자산`}
-            </ThemedText>
-          </View>
-          {selectedCurrency !== 'ALL' && selectedCurrency !== 'KRW' && (
-            <ThemedText style={[styles.exchangeRateText, { color: colors.icon }]}>
-              ₩{getTotalAssetsByCurrency('ALL').toLocaleString()} (환율 적용)
-            </ThemedText>
-          )}
-        </View>
-
-        {/* 예산 섹션 */}
-        <View style={styles.budgetSection}>
-          <View style={styles.sectionHeader}>
-            <ThemedText type="subtitle" style={styles.sectionTitle}>이번 달 예산</ThemedText>
-            <TouchableOpacity 
-              style={styles.budgetSettingsButton}
-              onPress={navigateToBudgetSettings}
+        {/* 자산 유형 필터 */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterContainer}
+          contentContainerStyle={styles.filterContent}
+        >
+          <TouchableOpacity
+            style={[
+              styles.filterChip,
+              selectedFilter === 'ALL' && styles.filterChipActive,
+              { 
+                backgroundColor: selectedFilter === 'ALL' ? colors.primary : colors.backgroundSecondary,
+                borderColor: selectedFilter === 'ALL' ? colors.primary : colors.border
+              }
+            ]}
+            onPress={() => setSelectedFilter('ALL')}
+          >
+            <ThemedText 
+              type="caption" 
+              variant={selectedFilter === 'ALL' ? 'inverse' : 'secondary'}
+              weight="medium"
             >
-              <Ionicons name="settings-outline" size={20} color={colors.tint} />
-            </TouchableOpacity>
-          </View>
-
-          {budgetSummary ? (
-            <View style={[styles.budgetCard, { backgroundColor: colors.card }]}>
-              {/* 수입 예산 */}
-              {budgetSummary.incomeBudget && (
-                <View style={styles.budgetItem}>
-                  <View style={styles.budgetHeader}>
-                    <Ionicons name="trending-up" size={20} color="#4CAF50" />
-                    <ThemedText type="defaultSemiBold">수입 예산</ThemedText>
-                  </View>
-                  <View style={styles.budgetAmounts}>
-                    <ThemedText type="defaultSemiBold">
-                      ₩{budgetSummary.actualIncome?.toLocaleString() || 0}
-                    </ThemedText>
-                    <ThemedText style={styles.budgetTarget}>
-                      / ₩{budgetSummary.incomeBudget.toLocaleString()}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.progressContainer}>
-                    <View style={styles.progressBar}>
-                      <View 
-                        style={[
-                          styles.progressFill, 
-                          { 
-                            width: `${Math.min(budgetSummary.incomeAchievementRate, 100)}%`,
-                            backgroundColor: getAchievementColor(budgetSummary.incomeAchievementRate)
-                          }
-                        ]} 
-                      />
-                    </View>
-                    <ThemedText style={[
-                      styles.achievementRate,
-                      { color: getAchievementColor(budgetSummary.incomeAchievementRate) }
-                    ]}>
-                      {budgetSummary.incomeAchievementRate}%
-                    </ThemedText>
-                  </View>
-                </View>
-              )}
-
-              {/* 지출 예산 */}
-              {budgetSummary.expenseBudget && (
-                <View style={styles.budgetItem}>
-                  <View style={styles.budgetHeader}>
-                    <Ionicons name="trending-down" size={20} color="#F44336" />
-                    <ThemedText type="defaultSemiBold">지출 예산</ThemedText>
-                  </View>
-                  <View style={styles.budgetAmounts}>
-                    <ThemedText type="defaultSemiBold">
-                      ₩{budgetSummary.actualExpense?.toLocaleString() || 0}
-                    </ThemedText>
-                    <ThemedText style={styles.budgetTarget}>
-                      / ₩{budgetSummary.expenseBudget.toLocaleString()}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.progressContainer}>
-                    <View style={styles.progressBar}>
-                      <View 
-                        style={[
-                          styles.progressFill, 
-                          { 
-                            width: `${Math.min(budgetSummary.expenseAchievementRate, 100)}%`,
-                            backgroundColor: getAchievementColor(budgetSummary.expenseAchievementRate)
-                          }
-                        ]} 
-                      />
-                    </View>
-                    <ThemedText style={[
-                      styles.achievementRate,
-                      { color: getAchievementColor(budgetSummary.expenseAchievementRate) }
-                    ]}>
-                      {budgetSummary.expenseAchievementRate}%
-                    </ThemedText>
-                  </View>
-                </View>
-              )}
-
-              {/* 예산 메모 */}
-              {budgetSummary.memo && (
-                <View style={styles.budgetMemo}>
-                  <ThemedText style={styles.memoText}>{budgetSummary.memo}</ThemedText>
-                </View>
-              )}
-            </View>
-          ) : (
-            // 예산이 설정되지 않은 경우
-            <View style={[styles.budgetCard, { backgroundColor: colors.card }]}>
-              <View style={styles.noBudgetContainer}>
-                <Ionicons name="calculator-outline" size={48} color={colors.icon} />
-                <ThemedText type="defaultSemiBold" style={[styles.noBudgetTitle, { color: colors.text }]}>
-                  예산이 설정되지 않았습니다
-                </ThemedText>
-                <ThemedText style={[styles.noBudgetMessage, { color: colors.icon }]}>
-                  이번 달 예산을 설정하여 지출을 관리해보세요
-                </ThemedText>
-                <TouchableOpacity 
-                  style={[styles.setBudgetButton, { backgroundColor: colors.tint }]}
-                  onPress={navigateToBudgetSettings}
-                >
-                  <Ionicons name="add" size={20} color="white" />
-                  <ThemedText style={styles.setBudgetButtonText}>예산 설정하기</ThemedText>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* 자산 카테고리 */}
-        <View style={styles.assetCategories}>
-          <ThemedText type="subtitle" style={styles.sectionTitle}>자산 분류</ThemedText>
+              전체
+            </ThemedText>
+          </TouchableOpacity>
           
-          {getAssetTypeStats().length > 0 ? (
-            getAssetTypeStats().map((stat) => {
-              const assetType = assetTypes.find(type => type.type === stat.type);
-              const typeAssets = getAssetsByType(stat.type).filter(asset => 
-                selectedCurrency === 'ALL' || asset.currency === selectedCurrency || (!asset.currency && selectedCurrency === 'KRW')
-              );
-              
-              if (!assetType || typeAssets.length === 0) return null;
-              
+          {assetTypes.map((type) => {
+            // 해당 자산 타입을 가진 자산이 있는지 확인
+            const hasAssets = assets.some(asset => asset.assetType === type.type && asset.isActive);
+            
+            // 자산이 없으면 버튼을 표시하지 않음
+            if (!hasAssets) return null;
+            
+            return (
+              <TouchableOpacity
+                key={type.type}
+                style={[
+                  styles.filterChip,
+                  selectedFilter === type.type && styles.filterChipActive,
+                  { 
+                    backgroundColor: selectedFilter === type.type ? type.color : colors.backgroundSecondary,
+                    borderColor: selectedFilter === type.type ? type.color : colors.border
+                  }
+                ]}
+                onPress={() => setSelectedFilter(type.type)}
+              >
+                {type.icon && (
+                  <Ionicons 
+                    name={type.icon as any} 
+                    size={16} 
+                    color={selectedFilter === type.type ? 'white' : colors.text} 
+                    style={{ marginRight: 4 }}
+                  />
+                )}
+                <ThemedText 
+                  type="caption" 
+                  variant={selectedFilter === type.type ? 'inverse' : 'secondary'}
+                  weight="medium"
+                >
+                  {type.name}
+                </ThemedText>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* 자산 목록 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="subtitle">내 자산</ThemedText>
+            <ThemedText type="caption" variant="tertiary">
+              {getFilteredAssets().length}개
+            </ThemedText>
+          </View>
+          
+          {getFilteredAssets().length > 0 ? (
+            getFilteredAssets().map((asset) => {
+              const assetType = assetTypes.find(type => type.type === asset.assetType);
               return (
-                <View key={stat.type} style={styles.assetTypeGroup}>
-                  {/* 타입 헤더 */}
-                  <View style={[styles.assetCard, { backgroundColor: colors.card }]}>
-                    <View style={styles.assetHeader}>
-                      <View style={[styles.assetIcon, { backgroundColor: assetType.color }]}>
-                        <Ionicons name={assetType.icon as any} size={24} color="white" />
-                      </View>
-                      <View style={styles.assetInfo}>
-                        <ThemedText type="defaultSemiBold">{assetType.name}</ThemedText>
-                        <ThemedText style={styles.assetPercent}>
-                          {stat.percentage.toFixed(1)}% • {stat.count}개
+                <ThemedCard
+                  key={asset.id}
+                  variant="default"
+                  style={styles.assetCard}
+                  onPress={() => setSelectedAsset(asset)}
+                >
+                  <View style={styles.assetCardContent}>
+                    <View style={[styles.iconContainer, { backgroundColor: assetType?.color + '20' || '#007AFF20' }]}>
+                      <Ionicons 
+                        name={assetType?.icon as any || 'card'} 
+                        size={20} 
+                        color={assetType?.color || '#007AFF'} 
+                      />
+                    </View>
+                    
+                    <View style={styles.assetInfo}>
+                      <ThemedText type="body" weight="medium">
+                        {asset.name}
+                      </ThemedText>
+                      <ThemedText type="caption" variant="tertiary">
+                        {assetType?.name} {asset.description && `• ${asset.description}`}
+                      </ThemedText>
+                    </View>
+                    
+                    <View style={styles.assetAmount}>
+                      <ThemedText type="body" weight="semibold">
+                        ₩{formatAmount(asset.balance)}
+                      </ThemedText>
+                      {asset.monthlyChange !== undefined && (
+                        <ThemedText 
+                          type="caption" 
+                          variant={asset.monthlyChange >= 0 ? 'success' : 'error'}
+                        >
+                          {asset.monthlyChange >= 0 ? '+' : ''}{formatAmount(Math.abs(asset.monthlyChange))}
                         </ThemedText>
-                      </View>
-                      <ThemedText type="defaultSemiBold">₩{stat.amount.toLocaleString()}</ThemedText>
+                      )}
                     </View>
                   </View>
-                  
-                  {/* 개별 자산 목록 */}
-                  {typeAssets.map((asset) => (
-                    <View key={asset.id} style={[styles.individualAssetCard, { backgroundColor: colors.card }]}>
-                      <TouchableOpacity
-                        style={styles.individualAssetTouchable}
-                        onPress={() => router.push(`/(modals)/asset-detail?assetId=${asset.id}`)}
-                      >
-                        <View style={styles.individualAssetHeader}>
-                          <View style={styles.individualAssetInfo}>
-                            <ThemedText style={[styles.assetName, { color: colors.text }]}>
-                              {asset.name}
-                            </ThemedText>
-                            {asset.description && (
-                              <ThemedText style={[styles.assetDescription, { color: colors.tabIconDefault }]}>
-                                {asset.description}
-                              </ThemedText>
-                            )}
-                          </View>
-                          <View style={styles.assetBalanceSection}>
-                            {asset.currency && asset.currency !== 'KRW' && (
-                              <ThemedText style={[styles.assetCurrency, { color: colors.tint }]}>
-                                {asset.currency}
-                              </ThemedText>
-                            )}
-                            <ThemedText style={[styles.assetBalance, { color: colors.text }]}>
-                              {asset.currency && asset.currency !== 'KRW' ? 
-                                currencies.find(c => c.code === asset.currency)?.symbol || '' : '₩'}
-                              {asset.balance.toLocaleString()}
-                            </ThemedText>
-                            <Ionicons name="chevron-forward" size={16} color={colors.tabIconDefault} />
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                      
-                      {/* 삭제 버튼 */}
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => handleDeleteAsset(asset)}
-                      >
-                        <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
+                </ThemedCard>
               );
             })
           ) : (
-            <View style={[styles.emptyAssetCard, { backgroundColor: colors.card }]}>
-              <Ionicons name="wallet-outline" size={48} color={colors.text} style={styles.emptyIcon} />
-              <ThemedText type="defaultSemiBold" style={styles.emptyTitle}>
+            <ThemedCard variant="outlined" style={styles.emptyCard}>
+              <Ionicons name="wallet-outline" size={48} color={colors.textTertiary} />
+              <ThemedText type="body" variant="tertiary" style={{ marginTop: 12 }}>
                 등록된 자산이 없습니다
               </ThemedText>
-              <ThemedText style={styles.emptySubtitle}>
-                자산을 추가하여 관리를 시작해보세요
-              </ThemedText>
-              <TouchableOpacity 
-                style={[styles.addFirstAssetButton, { backgroundColor: colors.tint }]}
-                onPress={navigateToAddAsset}
+              <ThemedButton
+                variant="primary"
+                size="medium"
+                style={{ marginTop: 16 }}
+                onPress={handleAddAsset}
               >
-                <ThemedText style={styles.addFirstAssetButtonText}>첫 자산 추가하기</ThemedText>
-              </TouchableOpacity>
-            </View>
+                첫 자산 등록하기
+              </ThemedButton>
+            </ThemedCard>
           )}
         </View>
-
-        {/* 빠른 액션 */}
-        <View style={styles.quickActions}>
-          <ThemedText type="subtitle" style={styles.sectionTitle}>빠른 액션</ThemedText>
-          
-          <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={navigateToAddAsset}
-            >
-              <Ionicons name="add-circle" size={28} color={colors.tint} />
-              <ThemedText type="defaultSemiBold" style={styles.actionButtonText}>자산 추가</ThemedText>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={navigateToAssetAnalysis}
-            >
-              <Ionicons name="analytics" size={28} color={colors.tint} />
-              <ThemedText type="defaultSemiBold" style={styles.actionButtonText}>자산 분석</ThemedText>
-            </TouchableOpacity>
-          </View>
-        </View>
       </ScrollView>
-    </View>
+
+      {/* 자산 상세 모달 */}
+      <AssetDetailModal
+        visible={!!selectedAsset}
+        asset={selectedAsset}
+        assetType={selectedAsset ? assetTypes.find(type => type.type === selectedAsset.assetType) : null}
+        recentTransactions={selectedAsset ? getAssetTransactions(selectedAsset.id) : []}
+        onClose={() => setSelectedAsset(null)}
+        onEdit={handleEditAsset}
+        onDelete={handleDeleteAsset}
+        formatAmount={formatAmount}
+        formatDate={formatDate}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
+  container: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
-    padding: 16,
   },
-  totalAssetCard: {
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
   },
-  totalAssetHeader: {
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  totalAssetAmount: {
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  balanceCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  balanceAmount: {
     fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 16,
   },
-  assetChange: {
+  monthlyStats: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 24,
+  },
+  statItem: {
     gap: 4,
   },
-  changeText: {
-    fontSize: 14,
-    fontWeight: '500',
+  assetTypesSummary: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    gap: 12,
   },
-  budgetSection: {
+  assetTypeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    borderRadius: 12,
+    borderLeftWidth: 3,
+  },
+  assetTypeIcon: {
+    marginRight: 12,
+  },
+  assetTypeInfo: {
+    flex: 1,
+  },
+  filterContainer: {
+    paddingVertical: 16,
+  },
+  filterContent: {
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  filterChipActive: {
+    borderWidth: 0,
+  },
+  section: {
+    paddingHorizontal: 20,
     marginBottom: 24,
   },
   sectionHeader: {
@@ -605,276 +547,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  sectionTitle: {
-    marginBottom: 0,
-  },
-  budgetSettingsButton: {
-    padding: 8,
-  },
-  budgetCard: {
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  budgetItem: {
-    marginBottom: 20,
-  },
-  budgetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  budgetAmounts: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-    marginBottom: 8,
-  },
-  budgetTarget: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#E5E5EA',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  achievementRate: {
-    fontSize: 14,
-    fontWeight: '600',
-    minWidth: 40,
-    textAlign: 'right',
-  },
-  budgetMemo: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-  },
-  memoText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    fontStyle: 'italic',
-  },
-  noBudgetContainer: {
-    alignItems: 'center',
-    padding: 24,
-  },
-  noBudgetTitle: {
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  noBudgetMessage: {
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  setBudgetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 8,
-  },
-  setBudgetButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  assetCategories: {
-    marginBottom: 24,
-  },
   assetCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    marginBottom: 12,
   },
-  assetHeader: {
+  assetCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  assetIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    alignItems: 'center',
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   assetInfo: {
     flex: 1,
   },
-  assetPercent: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 2,
+  assetAmount: {
+    alignItems: 'flex-end',
   },
-  quickActions: {
-    marginBottom: 24,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  actionButton: {
-    flex: 1,
+  emptyCard: {
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingVertical: 40,
   },
-  actionButtonText: {
-    fontSize: 13,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  emptyAssetCard: {
-    padding: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  emptyIcon: {
-    marginBottom: 16,
-    opacity: 0.6,
-  },
-  emptyTitle: {
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  addFirstAssetButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  addFirstAssetButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  assetTypeGroup: {
-    marginBottom: 16,
-  },
-  individualAssetCard: {
-    borderRadius: 8,
-    marginTop: 4,
-    marginLeft: 16,
-    marginRight: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  individualAssetTouchable: {
-    flex: 1,
-    padding: 12,
-  },
-  individualAssetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  deleteButton: {
-    padding: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  individualAssetInfo: {
-    flex: 1,
-  },
-  assetName: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  assetDescription: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  assetBalanceSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  assetBalance: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  currencyFilter: {
-    marginBottom: 16,
-    maxHeight: 50,
-  },
-  currencyFilterContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  currencyChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  exchangeRateText: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  assetCurrency: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginRight: 4,
-  },
-}); 
+});

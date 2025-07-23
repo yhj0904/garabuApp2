@@ -35,14 +35,14 @@ interface AssetState {
 
 // 기본 자산 타입 정의
 const defaultAssetTypes: AssetType[] = [
-  { type: 'CASH', name: '현금', icon: 'cash', color: '#4CAF50' },
-  { type: 'SAVINGS_ACCOUNT', name: '적금계좌', icon: 'card', color: '#2196F3' },
+  { type: 'CASH', name: '현금', icon: 'cash-outline', color: '#4CAF50' },
+  { type: 'SAVINGS_ACCOUNT', name: '적금계좌', icon: 'wallet-outline', color: '#2196F3' },
   { type: 'CHECKING_ACCOUNT', name: '입출금계좌', icon: 'card-outline', color: '#03A9F4' },
   { type: 'CREDIT_CARD', name: '신용카드', icon: 'card', color: '#FF9800' },
   { type: 'DEBIT_CARD', name: '체크카드', icon: 'card-outline', color: '#FF5722' },
   { type: 'INVESTMENT', name: '투자', icon: 'trending-up', color: '#9C27B0' },
   { type: 'REAL_ESTATE', name: '부동산', icon: 'home', color: '#795548' },
-  { type: 'OTHER', name: '기타', icon: 'diamond', color: '#607D8B' },
+  { type: 'OTHER', name: '기타', icon: 'ellipsis-horizontal', color: '#607D8B' },
 ];
 
 export const useAssetStore = create<AssetState>((set, get) => ({

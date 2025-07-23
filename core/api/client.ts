@@ -27,6 +27,7 @@ interface Book {
 interface Ledger {
   id: number;
   date: string;
+  transactionDate: string; // 호환성을 위해 추가
   amount: number;
   description: string;
   memo?: string;
@@ -397,6 +398,9 @@ class ApiService {
         'Content-Type': 'application/json',
       },
     });
+    
+    // authAxiosInstance는 access token을 자동으로 추가하지 않음
+    // (reissue 등의 엔드포인트는 refresh token만 필요)
 
     // 비즈니스 로직 API 요청용 인스턴스 (API 버전 포함)
     this.axiosInstance = axios.create({
@@ -474,6 +478,12 @@ class ApiService {
 
         // 401 에러 또는 AUTH_FAILED 에러인 경우 토큰 갱신 시도
         if ((error.response?.status === 401 || error.message === 'AUTH_FAILED') && !originalRequest._retry) {
+          // /reissue 엔드포인트 자체가 401을 반환한 경우는 토큰 갱신을 시도하지 않음
+          if (originalRequest.url?.includes('/reissue')) {
+            console.log('Reissue endpoint returned 401 - refresh token is invalid');
+            return Promise.reject(error);
+          }
+          
           if (this.isRefreshing) {
             // 이미 토큰 갱신 중이면 대기 (타임아웃 단축)
             return new Promise((resolve, reject) => {
@@ -494,13 +504,15 @@ class ApiService {
               throw new Error('No refresh token');
             }
 
-            // 토큰 재발급 - 쿠키 사용 (타임아웃 단축)
+            // 토큰 재발급 - Authorization header 사용 (타임아웃 단축)
             console.log('=== 토큰 재발급 시도 ===');
+            console.log('Refresh token:', refreshToken ? 'exists' : 'missing');
+            
             const response = await Promise.race([
               this.authAxiosInstance.post('/reissue', {}, {
-                withCredentials: true,
                 headers: {
-                  'Cookie': `refresh=${refreshToken}`
+                  'Authorization': `Bearer ${refreshToken}`,
+                  'Content-Type': 'application/json'
                 }
               }),
               new Promise((_, reject) => 
@@ -537,6 +549,13 @@ class ApiService {
             }
           } catch (refreshError: any) {
             console.error('Token refresh failed:', refreshError);
+            console.error('Refresh error details:', {
+              message: refreshError.message,
+              status: refreshError.response?.status,
+              data: refreshError.response?.data,
+              url: refreshError.config?.url
+            });
+            
             this.processQueue(refreshError);
             
             // 토큰 재발급 실패시 즉시 로그아웃 처리
@@ -560,9 +579,27 @@ class ApiService {
                 refreshError.message === 'REISSUE_TIMEOUT') {
               console.log('Refresh token expired, invalid, or timeout - redirecting to login');
               
-              // 상태 초기화 및 로그인 화면으로 이동
-              // performCompleteReset이 내부적으로 isLoading을 false로 설정함
-              await authStore.performCompleteReset();
+              // 사용자에게 알림 표시
+              const { Alert } = await import('react-native');
+              Alert.alert(
+                '로그아웃되었습니다',
+                '인증이 만료되어 다시 로그인해주세요.',
+                [
+                  {
+                    text: '확인',
+                    onPress: async () => {
+                      // 상태 초기화 및 로그인 화면으로 이동
+                      // performCompleteReset이 내부적으로 isLoading을 false로 설정함
+                      await authStore.performCompleteReset();
+                      
+                      // 로그인 화면으로 이동
+                      const router = await import('expo-router').then(m => m.router);
+                      router.replace('/(auth)/login');
+                    }
+                  }
+                ],
+                { cancelable: false }
+              );
             }
             
             return Promise.reject(refreshError);
@@ -751,6 +788,40 @@ class ApiService {
     await this.axiosInstance.delete(`/book/${bookId}`);
   }
 
+  // 현재 사용자 정보 조회 (개선된 버전)
+  async getCurrentUser(token: string): Promise<{ user: Member }> {
+    console.log('=== API: getCurrentUser 호출 ===');
+    console.log('토큰 존재:', !!token);
+    
+    try {
+      const response = await this.axiosInstance.get<{
+        id: number;
+        username: string;
+        email: string;
+        name: string;
+        role: string;
+      }>('/user/me');
+
+      console.log('=== API: getCurrentUser 성공 ===');
+      console.log('응답 데이터:', response.data);
+
+      return {
+        user: {
+          userId: response.data.id,
+          username: response.data.username,
+          email: response.data.email,
+          name: response.data.name,
+          role: response.data.role ? response.data.role.replace('ROLE_', '') : 'USER',
+        },
+      };
+    } catch (error: any) {
+      console.error('=== API: getCurrentUser 실패 ===');
+      console.error('에러 상태:', error.response?.status);
+      console.error('에러 메시지:', error.message);
+      throw error;
+    }
+  }
+
   async getMyBooks(token: string): Promise<Book[]> {
     console.log('API: getMyBooks 호출');
     const response = await this.axiosInstance.get<any>('/book/mybooks');
@@ -827,6 +898,7 @@ class ApiService {
       return {
         id: response.data.id,
         date: data.date,
+        transactionDate: data.date, // 호환성을 위해 추가
         amount: data.amount,
         description: data.description,
         memo: data.memo,
@@ -850,6 +922,11 @@ class ApiService {
   async deleteLedger(ledgerId: number, token: string): Promise<void> {
     console.log('=== deleteLedger API 호출 ===');
     console.log('삭제할 ledger ID:', ledgerId);
+    
+    if (!ledgerId || ledgerId === undefined || isNaN(ledgerId)) {
+      console.error('Invalid ledgerId:', ledgerId);
+      throw new Error('ledgerId가 유효하지 않습니다.');
+    }
     
     try {
       await this.axiosInstance.delete(`/ledger/ledgers/${ledgerId}`);
@@ -904,6 +981,7 @@ class ApiService {
       return {
         id: response.data.id,
         date: data.date,
+        transactionDate: data.date, // 호환성을 위해 추가
         amount: data.amount,
         description: data.description,
         memo: data.memo,
@@ -972,6 +1050,7 @@ class ApiService {
       const mappedLedgers = response.data.ledgers.map(ledger => ({
         id: ledger.id,
         date: ledger.date,
+        transactionDate: ledger.date, // 호환성을 위해 transactionDate 필드 추가
         amount: ledger.amount,
         description: ledger.description,
         memo: ledger.memo,
@@ -1039,6 +1118,7 @@ class ApiService {
     const mappedLedgers = response.data.ledgers.map(ledger => ({
       id: ledger.id,
       date: ledger.date,
+      transactionDate: ledger.date, // 호환성을 위해 transactionDate 필드 추가
       amount: ledger.amount,
       description: ledger.description,
       memo: ledger.memo,
@@ -1196,7 +1276,11 @@ class ApiService {
   async getPaymentListByBook(bookId: number, token: string): Promise<PaymentMethod[]> {
     const response = await this.axiosInstance.get<{
       payments: Array<{ id: number; payment: string }>;
-    }>(`/payment/book/${bookId}`);
+    }>(`/payment/book/${bookId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
     return response.data.payments;
   }
 
@@ -1231,7 +1315,7 @@ class ApiService {
   // UserBook endpoints
   async inviteUser(bookId: number, data: InviteUserRequest, token: string): Promise<InviteUserResponse> {
     const response = await this.axiosInstance.post<InviteUserResponse>(
-      `/book/${bookId}/invite`,
+      `/books/${bookId}/invite`,
       data
     );
     return response.data;
@@ -1239,22 +1323,22 @@ class ApiService {
 
   async removeMember(bookId: number, memberId: number, token: string): Promise<RemoveMemberResponse> {
     const response = await this.axiosInstance.delete<RemoveMemberResponse>(
-      `/book/${bookId}/members/${memberId}`
+      `/books/${bookId}/members/${memberId}`
     );
     return response.data;
   }
 
   async changeRole(bookId: number, memberId: number, data: ChangeRoleRequest, token: string): Promise<ChangeRoleResponse> {
     const response = await this.axiosInstance.put<ChangeRoleResponse>(
-      `/book/${bookId}/members/${memberId}/role`,
+      `/books/${bookId}/members/${memberId}/role`,
       data
     );
     return response.data;
   }
 
   async leaveBook(bookId: number, token: string): Promise<LeaveBookResponse> {
-    const response = await this.axiosInstance.post<LeaveBookResponse>(
-      `/book/${bookId}/leave`
+    const response = await this.axiosInstance.delete<LeaveBookResponse>(
+      `/books/${bookId}/leave`
     );
     return response.data;
   }
@@ -1263,7 +1347,12 @@ class ApiService {
     try {
       const response = await this.axiosInstance.get<any>(`/book/${bookId}/owners`);
       
-      console.log('가계부 멤버 조회 원본 응답:', JSON.stringify(response.data, null, 2));
+      console.log('=== [core/api/client.ts] 가계부 멤버 조회 디버깅 시작 ===');
+      console.log('요청 URL:', `/book/${bookId}/owners`);
+      console.log('응답 상태:', response.status);
+      console.log('원본 응답:', JSON.stringify(response.data, null, 2));
+      console.log('응답 타입:', typeof response.data);
+      console.log('응답 키들:', Object.keys(response.data || {}));
       
       // 응답 데이터 파싱
       let owners: any[] = [];
@@ -1312,7 +1401,7 @@ class ApiService {
           memberId: ownerData.memberId || ownerData.member_id || ownerData.id || index,
           username: ownerData.username || ownerData.name || `사용자${index + 1}`,
           email: ownerData.email || '이메일 없음',
-          role: ownerData.role || ownerData.bookRole || (index === 0 ? 'OWNER' as const : 'EDITOR' as const),
+          role: ownerData.role || ownerData.bookRole || 'VIEWER' as const,
         };
       });
     } catch (error) {
@@ -1329,6 +1418,20 @@ class ApiService {
 
   async createUserIdCode(): Promise<{ code: string; ttlSeconds: number }> {
     const response = await this.axiosInstance.post('/book/invite/user/code');
+    return response.data;
+  }
+
+  // Friend Invite endpoints  
+  async createFriendInviteCode(): Promise<{ code: string; ttlSeconds: number }> {
+    const response = await this.axiosInstance.post('/friends/invite-code');
+    return response.data;
+  }
+
+  async sendFriendRequestByCode(inviteCode: string, alias?: string): Promise<any> {
+    const response = await this.axiosInstance.post('/friends/request-by-code', { 
+      inviteCode, 
+      alias 
+    });
     return response.data;
   }
 
@@ -1413,8 +1516,11 @@ class ApiService {
     try {
       const response = await this.axiosInstance.get(`/budgets/books/${bookId}/months/${budgetMonth}`);
       return response.data;
-    } catch (error) {
-      console.error('예산 조회 실패:', error);
+    } catch (error: any) {
+      // 404 에러는 예산이 없는 정상적인 상황이므로 로그를 남기지 않음
+      if (error.response?.status !== 404) {
+        console.error('예산 조회 실패:', error);
+      }
       throw error;
     }
   }
@@ -1423,8 +1529,11 @@ class ApiService {
     try {
       const response = await this.axiosInstance.get(`/budgets/books/${bookId}/months/${budgetMonth}/summary`);
       return response.data;
-    } catch (error) {
-      console.error('예산 요약 조회 실패:', error);
+    } catch (error: any) {
+      // 404 에러는 예산이 없는 정상적인 상황이므로 로그를 남기지 않음
+      if (error.response?.status !== 404) {
+        console.error('예산 요약 조회 실패:', error);
+      }
       throw error;
     }
   }
@@ -1890,7 +1999,92 @@ class ApiService {
     }
   }
 
+  // === 태그 관련 API ===
+  
+  // 가계부별 태그 목록 조회
+  async getTagsByBook(bookId: number): Promise<any[]> {
+    try {
+      const url = `/tags/books/${bookId}`;
+      console.log('태그 API 호출:', url);
+      console.log('Base URL:', this.axiosInstance.defaults.baseURL);
+      const response = await this.axiosInstance.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('태그 목록 조회 실패:', error);
+      throw error;
+    }
+  }
 
+  // 태그 생성
+  async createTag(bookId: number, data: { name: string; color?: string }): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post(`/tags/books/${bookId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('태그 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  // 태그 수정
+  async updateTag(tagId: number, data: { name?: string; color?: string }): Promise<any> {
+    try {
+      const response = await this.axiosInstance.put(`/tags/${tagId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('태그 수정 실패:', error);
+      throw error;
+    }
+  }
+
+  // 태그 삭제
+  async deleteTag(tagId: number): Promise<void> {
+    try {
+      await this.axiosInstance.delete(`/tags/${tagId}`);
+    } catch (error) {
+      console.error('태그 삭제 실패:', error);
+      throw error;
+    }
+  }
+
+  // === 통화 관련 API ===
+  
+  // 통화 목록 조회
+  async getCurrencies(): Promise<any[]> {
+    try {
+      const response = await this.axiosInstance.get('/currencies');
+      return response.data;
+    } catch (error) {
+      console.error('통화 목록 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 가계부 통화 설정 조회
+  async getBookCurrencySettings(bookId: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.get(`/currencies/books/${bookId}/currency`);
+      return response.data;
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        // 설정이 없는 경우 기본값 반환
+        return { defaultCurrencyCode: 'KRW', enableMultiCurrency: false };
+      }
+      console.error('가계부 통화 설정 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 사용자 통화 설정 업데이트
+  async updateUserCurrencySettings(settings: any): Promise<any> {
+    try {
+      const response = await this.axiosInstance.put('/currencies/settings', settings);
+      return response.data;
+    } catch (error) {
+      console.error('사용자 통화 설정 업데이트 실패:', error);
+      throw error;
+    }
+  }
 
 }
 

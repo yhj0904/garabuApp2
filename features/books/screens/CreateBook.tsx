@@ -237,7 +237,18 @@ export default function BookCreationScreen() {
     <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
       {/* 헤더 */}
       <View style={styles.modalHeader}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity 
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.dismiss();
+            }
+          }} 
+          style={styles.backButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <Ionicons name="arrow-back" size={24} color={colors.tint} />
         </TouchableOpacity>
         <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>가계부 추가</Text>

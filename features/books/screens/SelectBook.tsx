@@ -18,7 +18,7 @@ import {
 
 export default function SelectBookScreen() {
   const { token, user } = useAuthStore();
-  const { books, currentBook, setCurrentBook, fetchBooks, deleteBook, isLoading } = useBookStore();
+  const { books, currentBook, setCurrentBook, fetchBooks, deleteBook, getOwnedBooksCount, isLoading } = useBookStore();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -61,6 +61,17 @@ export default function SelectBookScreen() {
   const handleDeleteBook = async (book: any) => {
     if (!token) return;
     
+    // 소유한 가계부 개수 확인
+    const ownedCount = getOwnedBooksCount();
+    if (ownedCount <= 1) {
+      Alert.alert(
+        '삭제 불가',
+        '최소 1개의 가계부는 유지되어야 합니다.',
+        [{ text: '확인' }]
+      );
+      return;
+    }
+    
     // 현재 선택된 가계부인지 확인
     const isCurrentBook = currentBook?.id === book.id;
     
@@ -91,9 +102,10 @@ export default function SelectBookScreen() {
               } else {
                 Alert.alert('오류', '가계부를 삭제하는 중 오류가 발생했습니다.');
               }
-            } catch (error) {
+            } catch (error: any) {
               console.error('가계부 삭제 실패:', error);
-              Alert.alert('오류', '가계부를 삭제하는 중 오류가 발생했습니다.');
+              const errorMessage = error?.message || '가계부를 삭제하는 중 오류가 발생했습니다.';
+              Alert.alert('오류', errorMessage);
             }
           }
         }

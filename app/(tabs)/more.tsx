@@ -2,18 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View, Switch } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
 
 export default function MoreScreen() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode, themeMode, setThemeMode } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleLogout = async () => {
@@ -39,12 +39,18 @@ export default function MoreScreen() {
     }
   };
 
+  // 테마 모드 변경 핸들러
+  const handleThemeModeChange = async (mode: 'light' | 'dark' | 'system') => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setThemeMode(mode);
+  };
+
   const menuItems = [
     {
-      icon: 'person-circle',
-      title: '프로필',
-      subtitle: '개인정보 관리',
-      onPress: () => router.push('/(modals)/profile'),
+      icon: 'people-circle',
+      title: '친구 관리',
+      subtitle: '친구 목록 및 요청',
+      onPress: () => router.push('/friends'),
     },
     {
       icon: 'book',
@@ -53,10 +59,10 @@ export default function MoreScreen() {
       onPress: () => router.push('/(modals)/select-book'),
     },
     {
-      icon: 'add-circle',
-      title: '가계부 추가',
-      subtitle: '새 가계부 생성',
-      onPress: () => router.push('/(modals)/book-creation?mode=modal'),
+      icon: 'share-social',
+      title: '가계부 공유',
+      subtitle: '멤버 초대 및 관리',
+      onPress: () => router.push('/(modals)/book-sharing'),
     },
     {
       icon: 'flag',
@@ -115,7 +121,7 @@ export default function MoreScreen() {
   ];
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <ScrollView 
           style={styles.scrollView} 
           contentContainerStyle={{ padding: 16, paddingBottom: 32 }} 
@@ -131,7 +137,7 @@ export default function MoreScreen() {
           }
         >
           {/* 사용자 프로필 카드 */}
-          <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
+          <View style={[styles.profileCard, { backgroundColor: colors.surface }]}>
             <View style={styles.profileHeader}>
               <View style={styles.profileIcon}>
                 <Ionicons name="person" size={32} color={colors.tint} />
@@ -146,12 +152,67 @@ export default function MoreScreen() {
             </View>
           </View>
 
+          {/* 다크모드 설정 카드 */}
+          <View style={[styles.themeCard, { backgroundColor: colors.surface }]}>
+            <View style={styles.themeHeader}>
+              <Ionicons name="moon" size={24} color={colors.primary} />
+              <ThemedText type="subtitle" style={styles.themeTitle}>테마 설정</ThemedText>
+            </View>
+            
+            <View style={styles.themeOptions}>
+              <TouchableOpacity 
+                style={[
+                  styles.themeOption, 
+                  { backgroundColor: themeMode === 'light' ? colors.primaryLight + '20' : colors.backgroundSecondary },
+                  { borderColor: themeMode === 'light' ? colors.primary : colors.border }
+                ]}
+                onPress={() => handleThemeModeChange('light')}
+              >
+                <Ionicons name="sunny" size={20} color={themeMode === 'light' ? colors.primary : colors.textSecondary} />
+                <ThemedText style={[
+                  styles.themeOptionText,
+                  { color: themeMode === 'light' ? colors.primary : colors.textSecondary }
+                ]}>라이트</ThemedText>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.themeOption, 
+                  { backgroundColor: themeMode === 'dark' ? colors.primaryLight + '20' : colors.backgroundSecondary },
+                  { borderColor: themeMode === 'dark' ? colors.primary : colors.border }
+                ]}
+                onPress={() => handleThemeModeChange('dark')}
+              >
+                <Ionicons name="moon" size={20} color={themeMode === 'dark' ? colors.primary : colors.textSecondary} />
+                <ThemedText style={[
+                  styles.themeOptionText,
+                  { color: themeMode === 'dark' ? colors.primary : colors.textSecondary }
+                ]}>다크</ThemedText>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.themeOption, 
+                  { backgroundColor: themeMode === 'system' ? colors.primaryLight + '20' : colors.backgroundSecondary },
+                  { borderColor: themeMode === 'system' ? colors.primary : colors.border }
+                ]}
+                onPress={() => handleThemeModeChange('system')}
+              >
+                <Ionicons name="phone-portrait" size={20} color={themeMode === 'system' ? colors.primary : colors.textSecondary} />
+                <ThemedText style={[
+                  styles.themeOptionText,
+                  { color: themeMode === 'system' ? colors.primary : colors.textSecondary }
+                ]}>시스템</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* 메뉴 항목들 */}
           <View style={styles.menuSection}>
             {menuItems.map((item, index) => (
               <TouchableOpacity
                 key={index}
-                style={[styles.menuItem, { backgroundColor: colors.card }]}
+                style={[styles.menuItem, { backgroundColor: colors.surface }]}
                 onPress={item.onPress}
               >
                 <View style={styles.menuIcon}>
@@ -177,7 +238,7 @@ export default function MoreScreen() {
             <ThemedText style={styles.versionText}>Garabu v1.0.0</ThemedText>
           </View>
         </ScrollView>
-      </View>
+      </SafeAreaView>
   );
 }
 
@@ -283,5 +344,46 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 14,
     color: '#8E8E93',
+  },
+  themeCard: {
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  themeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  themeTitle: {
+    marginLeft: 12,
+  },
+  themeOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  themeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginHorizontal: 4,
+  },
+  themeOptionText: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '500',
   },
 }); 

@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl, Alert, TextInput, Modal } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View, RefreshControl, Alert, TextInput, Modal } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { ThemedCard } from '@/components/ThemedCard';
+import { ThemedButton } from '@/components/ThemedButton';
+import { ThemedInput } from '@/components/ThemedInput';
+import SearchFilter, { SearchFilters } from '@/components/SearchFilter';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Ledger } from '@/core/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
@@ -13,7 +17,12 @@ import { useCategoryStore } from '@/stores/categoryStore';
 import { useBudgetStore } from '@/stores/budgetStore';
 import PieChart from '@/features/analytics/components/Charts/PieChart';
 import BarChart from '@/features/analytics/components/Charts/BarChart';
+import LineChart from '@/features/analytics/components/Charts/LineChart';
+import DonutChart from '@/features/analytics/components/Charts/DonutChart';
+import HeatMapChart from '@/features/analytics/components/Charts/HeatMapChart';
+import StackedAreaChart from '@/features/analytics/components/Charts/StackedAreaChart';
 import CommentSection from '@/components/CommentSection';
+import MemoSection from '@/components/MemoSection';
 
 const tabs = ['통계', '예산', '내역'];
 const types = ['수입', '지출'];
@@ -31,15 +40,15 @@ const getCategoryIcon = (categoryName: string) => {
 };
 
 // 카테고리 색상 매핑
-const getCategoryColor = (categoryName: string) => {
+const getCategoryColor = (categoryName: string, colors: any) => {
   const name = categoryName.toLowerCase();
-  if (name.includes('식') || name.includes('음식')) return '#FF9500';
-  if (name.includes('교통')) return '#5856D6';
-  if (name.includes('주거') || name.includes('집')) return '#34C759';
-  if (name.includes('쇼핑')) return '#AF52DE';
-  if (name.includes('의료')) return '#FF3B30';
-  if (name.includes('교육')) return '#007AFF';
-  return '#8E8E93';
+  if (name.includes('식') || name.includes('음식')) return colors.warning;
+  if (name.includes('교통')) return colors.info;
+  if (name.includes('주거') || name.includes('집')) return colors.success;
+  if (name.includes('쇼핑')) return colors.transfer;
+  if (name.includes('의료')) return colors.error;
+  if (name.includes('교육')) return colors.primary;
+  return colors.textSecondary;
 };
 
 // 거래 내역 아이콘 매핑
@@ -56,12 +65,12 @@ const getTransactionIcon = (description: string) => {
 // 거래 내역 아이콘 색상 매핑
 const getTransactionColor = (description: string, colors: any) => {
   const lowercaseDesc = description.toLowerCase();
-  if (lowercaseDesc.includes('식') || lowercaseDesc.includes('음식')) return '#FF9500';
-  if (lowercaseDesc.includes('급여') || lowercaseDesc.includes('월급')) return '#007AFF';
-  if (lowercaseDesc.includes('주유') || lowercaseDesc.includes('기름')) return '#5856D6';
-  if (lowercaseDesc.includes('교통') || lowercaseDesc.includes('지하철')) return '#FF3B30';
-  if (lowercaseDesc.includes('쇼핑') || lowercaseDesc.includes('구매')) return '#AF52DE';
-  return colors.tint;
+  if (lowercaseDesc.includes('식') || lowercaseDesc.includes('음식')) return colors.warning;
+  if (lowercaseDesc.includes('급여') || lowercaseDesc.includes('월급')) return colors.success;
+  if (lowercaseDesc.includes('주유') || lowercaseDesc.includes('기름')) return colors.info;
+  if (lowercaseDesc.includes('교통') || lowercaseDesc.includes('지하철')) return colors.error;
+  if (lowercaseDesc.includes('쇼핑') || lowercaseDesc.includes('구매')) return colors.transfer;
+  return colors.primary;
 };
 
 export default function ExploreScreen() {
@@ -69,19 +78,22 @@ export default function ExploreScreen() {
   const { currentBook, ledgers, fetchLedgers, deleteLedger } = useBookStore();
   const { categories, fetchCategories } = useCategoryStore();
   const { budgetSummary, getBudgetSummary } = useBudgetStore();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
   
   const [selectedTab, setSelectedTab] = useState(0);
   const [selectedType, setSelectedType] = useState(1); // 기본값: 지출
   const [currentDate, setCurrentDate] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [historyLedgers, setHistoryLedgers] = useState<Ledger[]>([]);
-  const [chartType, setChartType] = useState<'pie' | 'bar'>('pie'); // 차트 타입 선택
+  const [chartType, setChartType] = useState<'pie' | 'bar' | 'line' | 'donut' | 'area'>('pie'); // 차트 타입 선택
+  const [chartTimeRange, setChartTimeRange] = useState<'month' | 'week' | 'day'>('month'); // 시간 범위 선택
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [selectedLedgerId, setSelectedLedgerId] = useState<number | null>(null);
+  const [showSearchFilter, setShowSearchFilter] = useState(false);
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   
   const month = currentDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
 
@@ -94,82 +106,51 @@ export default function ExploreScreen() {
     }
   }, [selectedTab, token, currentBook]);
 
+  // 통계 탭일 때 데이터 확인
+  useEffect(() => {
+    if (selectedTab === 0 && token && currentBook) {
+      console.log('Statistics tab - ledgers:', ledgers);
+      console.log('Statistics tab - categories:', categories);
+      console.log('Statistics tab - filtered ledgers:', getFilteredLedgers());
+    }
+  }, [selectedTab, ledgers, categories, currentDate]);
+
   // 예산 탭일 때 예산 데이터 로드
   useEffect(() => {
     if (selectedTab === 1 && token && currentBook) {
       const currentMonth = currentDate.toISOString().slice(0, 7);
-      getBudgetSummary(currentBook.id, currentMonth, token);
+      console.log('Loading budget for:', currentMonth, 'bookId:', currentBook.id);
+      getBudgetSummary(currentBook.id, currentMonth, token).then((result) => {
+        console.log('Budget summary result:', result);
+        console.log('Budget summary data:', budgetSummary);
+      });
     }
-  }, [selectedTab, token, currentBook, currentDate]);
+  }, [selectedTab, currentDate, token, currentBook]);
 
-  // 현재 월의 거래 내역만 필터링
-  const currentMonthLedgers = ledgers.filter(ledger => {
-    const ledgerDate = new Date(ledger.date);
-    return ledgerDate.getMonth() === currentDate.getMonth() && 
-           ledgerDate.getFullYear() === currentDate.getFullYear();
-  });
+  // 카테고리 및 결제 수단 데이터 로드
+  useEffect(() => {
+    if (token && currentBook) {
+      // 거래 내역 로드 (모든 탭에서 필요)
+      fetchLedgers({ bookId: currentBook.id, page: 0, size: 100 }, token);
+      
+      // 카테고리 로드
+      fetchCategories(currentBook.id, token);
+      
+      // 결제 수단 데이터 가져오기 (API 클라이언트에서 직접 호출)
+      const fetchPaymentMethods = async () => {
+        try {
+          const apiService = (await import('@/core/api/client')).default;
+          const payments = await apiService.getPaymentListByBook(currentBook.id, token);
+          setPaymentMethods(payments);
+        } catch (error) {
+          console.error('결제 수단 조회 실패:', error);
+          setPaymentMethods([]);
+        }
+      };
+      fetchPaymentMethods();
+    }
+  }, [token, currentBook]);
 
-  // 수입/지출 분리
-  const incomeAmount = currentMonthLedgers
-    .filter(ledger => ledger.amountType === 'INCOME')
-    .reduce((sum, ledger) => sum + ledger.amount, 0);
-
-  const expenseAmount = currentMonthLedgers
-    .filter(ledger => ledger.amountType === 'EXPENSE')
-    .reduce((sum, ledger) => sum + ledger.amount, 0);
-
-  // 카테고리별 집계
-  const categoryStats = categories.map(category => {
-    const categoryLedgers = currentMonthLedgers.filter(ledger => 
-      ledger.categoryId === category.id && ledger.amountType === 'EXPENSE'
-    );
-    const total = categoryLedgers.reduce((sum, ledger) => sum + ledger.amount, 0);
-    const percentage = expenseAmount > 0 ? (total / expenseAmount) * 100 : 0;
-    
-    return {
-      category: category.category,
-      total,
-      percentage: Math.round(percentage),
-      icon: getCategoryIcon(category.category),
-      color: getCategoryColor(category.category)
-    };
-  }).filter(stat => stat.total > 0).sort((a, b) => b.total - a.total);
-
-  // 차트 데이터 준비
-  const pieChartData = categoryStats.slice(0, 6).map(stat => ({
-    label: stat.category,
-    value: stat.total,
-    color: stat.color
-  }));
-
-  const barChartData = categoryStats.slice(0, 8).map(stat => ({
-    label: stat.category.length > 4 ? stat.category.substring(0, 4) + '...' : stat.category,
-    value: stat.total,
-    color: stat.color
-  }));
-
-  // 월별 지출 트렌드 데이터 (최근 6개월)
-  const monthlyTrendData = Array.from({ length: 6 }, (_, i) => {
-    const trendDate = new Date(currentDate);
-    trendDate.setMonth(trendDate.getMonth() - (5 - i));
-    
-    const monthLedgers = ledgers.filter(ledger => {
-      const ledgerDate = new Date(ledger.date);
-      return ledgerDate.getMonth() === trendDate.getMonth() && 
-             ledgerDate.getFullYear() === trendDate.getFullYear() &&
-             ledger.amountType === 'EXPENSE';
-    });
-    
-    const monthTotal = monthLedgers.reduce((sum, ledger) => sum + ledger.amount, 0);
-    
-    return {
-      label: trendDate.toLocaleDateString('ko-KR', { month: 'short' }),
-      value: monthTotal,
-      color: '#007AFF'
-    };
-  });
-
-  // 월 변경 함수
   const changeMonth = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
     if (direction === 'prev') {
@@ -180,87 +161,143 @@ export default function ExploreScreen() {
     setCurrentDate(newDate);
   };
 
-  // 새로고침 핸들러
   const onRefresh = async () => {
     try {
-      // 햅틱 피드백
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
       setRefreshing(true);
       
       if (token && currentBook) {
-        // 데이터 다시 불러오기
         await Promise.all([
-          fetchLedgers({
-            bookId: currentBook.id,
-            page: 0,
-            size: 100
-          }, token),
-          fetchCategories(token)
+          fetchLedgers({ bookId: currentBook.id, page: 0, size: 100 }, token),
+          fetchCategories(currentBook.id, token)
         ]);
+        
+        if (selectedTab === 1) {
+          const currentMonth = currentDate.toISOString().slice(0, 7);
+          await getBudgetSummary(currentBook.id, currentMonth, token);
+        }
       }
     } catch (error) {
       console.error('Failed to refresh:', error);
+      Alert.alert('새로고침 실패', '데이터를 새로고침하는 중 오류가 발생했습니다.');
     } finally {
       setRefreshing(false);
     }
   };
 
-  // 금액 포맷팅
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('ko-KR').format(amount);
   };
 
-  // 날짜 포맷팅
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('ko-KR', { 
       month: 'short', 
-      day: 'numeric' 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
-  // 내역 탭에서 표시할 거래 내역 필터링
   const getFilteredLedgers = () => {
-    const filtered = historyLedgers.filter(ledger => {
-      const ledgerDate = new Date(ledger.date);
-      const isCurrentMonth = ledgerDate.getMonth() === currentDate.getMonth() && 
-                            ledgerDate.getFullYear() === currentDate.getFullYear();
-      const isCorrectType = selectedType === 0 ? ledger.amountType === 'INCOME' : ledger.amountType === 'EXPENSE';
+    if (!ledgers || ledgers.length === 0) {
+      console.log('No ledgers available');
+      return [];
+    }
+    
+    console.log('Total ledgers:', ledgers.length);
+    console.log('Current date:', currentDate);
+    console.log('Selected tab:', selectedTab);
+    console.log('Selected type:', selectedType);
+    
+    const filtered = ledgers.filter(ledger => {
+      const ledgerDate = new Date(ledger.transactionDate);
+      const isSameMonth = ledgerDate.getMonth() === currentDate.getMonth() && 
+                         ledgerDate.getFullYear() === currentDate.getFullYear();
       
-      // 검색 필터링
-      const matchesSearch = searchQuery.trim() === '' || 
-        ledger.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (ledger.memo && ledger.memo.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (ledger.spender && ledger.spender.toLowerCase().includes(searchQuery.toLowerCase()));
-      
-      return isCurrentMonth && isCorrectType && matchesSearch;
+      if (selectedTab === 0) { // 통계 탭
+        const matches = isSameMonth && ledger.amountType === (selectedType === 0 ? 'INCOME' : 'EXPENSE');
+        if (matches) {
+          console.log('Matching ledger for statistics:', ledger);
+        }
+        return matches;
+      } else if (selectedTab === 2) { // 내역 탭
+        // 기본 텍스트 검색
+        if (searchQuery && !Object.keys(searchFilters).length) {
+          return ledger.description.toLowerCase().includes(searchQuery.toLowerCase());
+        }
+        
+        // 고급 필터 검색
+        if (Object.keys(searchFilters).length > 0) {
+          // 기간 필터
+          if (searchFilters.startDate || searchFilters.endDate) {
+            const ledgerDateStr = ledger.transactionDate.split('T')[0]; // YYYY-MM-DD 형식으로 변환
+            if (searchFilters.startDate && ledgerDateStr < searchFilters.startDate) return false;
+            if (searchFilters.endDate && ledgerDateStr > searchFilters.endDate) return false;
+          }
+          
+          // 거래 유형 필터
+          if (searchFilters.amountType && ledger.amountType !== searchFilters.amountType) return false;
+          
+          // 카테고리 필터 (카테고리 이름으로 비교)
+          if (searchFilters.category) {
+            const ledgerCategory = categories.find(cat => cat.id === ledger.categoryId);
+            if (!ledgerCategory || ledgerCategory.category !== searchFilters.category) return false;
+          }
+          
+          // 결제 수단 필터 (결제 수단 이름으로 비교)
+          if (searchFilters.payment) {
+            const ledgerPayment = paymentMethods.find(pay => pay.id === ledger.paymentId);
+            if (!ledgerPayment || ledgerPayment.payment !== searchFilters.payment) return false;
+          }
+          
+          // 설명 검색
+          if (searchFilters.description && 
+              !ledger.description.toLowerCase().includes(searchFilters.description.toLowerCase())) {
+            return false;
+          }
+          
+          return true;
+        }
+        
+        return true;
+      }
+      return isSameMonth;
     });
-    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    console.log('Filtered ledgers count:', filtered.length);
+    return filtered.sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime());
   };
 
-  // 검색 초기화
   const handleClearSearch = () => {
     setSearchQuery('');
+    setSearchFilters({});
     setIsSearchVisible(false);
   };
 
-  // 검색 토글 핸들러
   const handleSearchToggle = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsSearchVisible(!isSearchVisible);
     if (isSearchVisible) {
-      handleClearSearch();
+      setSearchQuery('');
+      setSearchFilters({});
     }
   };
 
-  // 거래 내역 삭제 함수
+  const handleFilterApply = (filters: SearchFilters) => {
+    setSearchFilters(filters);
+    setSearchQuery(''); // 고급 필터 사용 시 기본 검색 비우기
+  };
+
+  const handleShowAdvancedSearch = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowSearchFilter(true);
+  };
+
   const handleDeleteLedger = async (ledger: Ledger) => {
-    if (!token) return;
-    
     Alert.alert(
-      '거래 내역 삭제',
-      `"${ledger.description}" 내역을 삭제하시겠습니까?`,
+      '거래 삭제',
+      '이 거래를 삭제하시겠습니까?',
       [
         { text: '취소', style: 'cancel' },
         {
@@ -268,942 +305,1111 @@ export default function ExploreScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              const result = await deleteLedger(ledger.id, token);
-              
-              if (result.success) {
+              if (token && currentBook) {
+                await deleteLedger(ledger.id, token);
+                await fetchLedgers({ bookId: currentBook.id, page: 0, size: 100 }, token);
                 await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                // 히스토리 데이터도 업데이트
-                setHistoryLedgers(prev => prev.filter(l => l.id !== ledger.id));
-              } else {
-                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                Alert.alert('삭제 실패', result.message || '거래 내역 삭제에 실패했습니다.');
               }
             } catch (error) {
-              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-              console.error('거래 내역 삭제 실패:', error);
-              Alert.alert('오류', '거래 내역 삭제 중 오류가 발생했습니다.');
+              console.error('Failed to delete ledger:', error);
+              Alert.alert('삭제 실패', '거래를 삭제하는 중 오류가 발생했습니다.');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
 
-  // 텍스트 하이라이트 컴포넌트
+  const getSelectedLedger = () => {
+    if (!selectedLedgerId || !ledgers) return null;
+    return ledgers.find(ledger => ledger.id === selectedLedgerId);
+  };
+
   const HighlightedText = ({ text, query, style }: { text: string; query: string; style: any }) => {
-    if (!query || !text) return <ThemedText style={style}>{text}</ThemedText>;
-    
-    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    if (!query.trim()) {
+      return <ThemedText style={style}>{text}</ThemedText>;
+    }
+
+    const regex = new RegExp(`(${query})`, 'gi');
+    const parts = text.split(regex);
+
     return (
       <ThemedText style={style}>
-        {parts.map((part, index) => (
-          part.toLowerCase() === query.toLowerCase() ? (
-            <ThemedText key={index} style={[style, { backgroundColor: colors.tint, color: 'white', borderRadius: 2 }]}>
+        {parts.map((part, index) =>
+          regex.test(part) ? (
+            <ThemedText key={index} style={[style, { backgroundColor: colors.primary + '30' }]}>
               {part}
             </ThemedText>
           ) : (
             part
           )
-        ))}
+        )}
       </ThemedText>
     );
   };
 
-  // 렌더링할 거래 내역 아이템
   const renderLedgerItem = ({ item }: { item: Ledger }) => (
-    <View style={[styles.transactionItem, { backgroundColor: colors.card }]}>
-      <View style={styles.transactionIcon}>
-        <Ionicons 
-          name={getTransactionIcon(item.description) as any} 
-          size={24} 
-          color={getTransactionColor(item.description, colors)} 
-        />
-      </View>
-      <View style={styles.transactionInfo}>
-        <HighlightedText 
-          text={item.description} 
-          query={searchQuery} 
-          style={[{ fontWeight: '600', fontSize: 16 }, { color: colors.text }]}
-        />
-        <ThemedText style={styles.transactionDate}>
-          {formatDate(item.date)}
-        </ThemedText>
-        {item.memo && (
-          <HighlightedText 
-            text={item.memo} 
-            query={searchQuery} 
-            style={styles.transactionMemo}
+    <ThemedCard
+      variant="default"
+      style={styles.ledgerItem}
+      onPress={() => {
+        setSelectedLedgerId(item.id);
+      }}
+    >
+      <View style={styles.ledgerContent}>
+        <View style={[styles.iconContainer, { backgroundColor: getTransactionColor(item.description, colors) + '20' }]}>
+          <Ionicons 
+            name={getTransactionIcon(item.description) as any} 
+            size={20} 
+            color={getTransactionColor(item.description, colors)} 
           />
-        )}
-      </View>
-      <View style={styles.transactionRight}>
-        <ThemedText style={[
-          styles.transactionAmount, 
-          { color: item.amountType === 'INCOME' ? '#4CAF50' : '#FF3B30' }
-        ]}>
-          {item.amountType === 'INCOME' ? '+' : '-'}₩{formatAmount(item.amount)}
-        </ThemedText>
-        {item.spender && (
-          <HighlightedText 
-            text={item.spender} 
-            query={searchQuery} 
-            style={styles.transactionSpender}
+        </View>
+        
+        <View style={styles.ledgerInfo}>
+          <HighlightedText
+            text={item.description}
+            query={searchQuery}
+            style={[styles.ledgerDescription, { color: colors.text }]}
           />
-        )}
+          <ThemedText type="caption" variant="tertiary">
+            {formatDate(item.transactionDate)}
+          </ThemedText>
+        </View>
+        
+        <View style={styles.ledgerActions}>
+          <ThemedText 
+            type="body" 
+            weight="semibold"
+            variant={item.amountType === 'INCOME' ? 'success' : 'error'}
+          >
+            {item.amountType === 'INCOME' ? '+' : '-'}₩{formatAmount(item.amount)}
+          </ThemedText>
+          
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => handleDeleteLedger(item)}
+          >
+            <Ionicons name="trash-outline" size={16} color={colors.error} />
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => {
-            setSelectedLedgerId(item.id);
-            setShowComments(true);
-          }}
-        >
-          <Ionicons name="chatbubble-outline" size={18} color={colors.tint} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => handleDeleteLedger(item)}
-        >
-          <Ionicons name="trash" size={18} color="#FF3B30" />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </ThemedCard>
+  );
+
+  const renderTabButton = (index: number, title: string) => (
+    <TouchableOpacity
+      key={index}
+      style={[
+        styles.tabButton,
+        {
+          backgroundColor: selectedTab === index ? colors.primary : colors.backgroundSecondary,
+          borderColor: selectedTab === index ? colors.primary : colors.border,
+        },
+      ]}
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setSelectedTab(index);
+      }}
+    >
+      <ThemedText
+        type="body"
+        weight="medium"
+        variant={selectedTab === index ? 'inverse' : 'secondary'}
+      >
+        {title}
+      </ThemedText>
+    </TouchableOpacity>
+  );
+
+  const renderTypeButton = (index: number, title: string) => (
+    <TouchableOpacity
+      key={index}
+      style={[
+        styles.typeButton,
+        {
+          backgroundColor: selectedType === index ? colors.primary : colors.backgroundSecondary,
+          borderColor: selectedType === index ? colors.primary : colors.border,
+        },
+      ]}
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setSelectedType(index);
+      }}
+    >
+      <ThemedText
+        type="body"
+        weight="medium"
+        variant={selectedType === index ? 'inverse' : 'secondary'}
+      >
+        {title}
+      </ThemedText>
+    </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
-        <ScrollView 
-          style={styles.scrollView} 
-          contentContainerStyle={{ padding: 16, paddingBottom: 32 }} 
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.tint}
-              colors={[colors.tint]}
-              progressBackgroundColor={colors.background}
-            />
-          }
-        >
-          {/* 상단 월 선택 */}
-          <View style={styles.monthRow}>
-            <TouchableOpacity style={styles.arrowButton} onPress={() => changeMonth('prev')}>
-              <Ionicons name="chevron-back" size={24} color={colors.icon} />
-            </TouchableOpacity>
-            <ThemedText type="subtitle" style={styles.month}>{month}</ThemedText>
-            <TouchableOpacity style={styles.arrowButton} onPress={() => changeMonth('next')}>
-              <Ionicons name="chevron-forward" size={24} color={colors.icon} />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 헤더 */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <ThemedText type="title">통계 & 분석</ThemedText>
+            <ThemedText type="body" variant="secondary">
+              {currentBook?.title || '가계부'}
+            </ThemedText>
+          </View>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity 
+              style={[styles.headerButton, { backgroundColor: colors.backgroundSecondary }]}
+              onPress={() => setShowComments(true)}
+            >
+              <Ionicons name="document-text-outline" size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
+        </View>
 
-          {/* 탭 */}
-          <View style={[styles.tabRow, { borderBottomColor: colors.card }]}>
-            {tabs.map((tab, idx) => (
+        {/* 탭 버튼들 */}
+        <View style={styles.tabContainer}>
+          {tabs.map((tab, index) => renderTabButton(index, tab))}
+        </View>
+
+        {/* 통계 탭 */}
+        {selectedTab === 0 && (
+          <View style={styles.tabContent}>
+            {/* 월 선택 */}
+            <View style={styles.monthSelector}>
               <TouchableOpacity
-                key={tab}
-                style={[styles.tab, selectedTab === idx && { borderBottomColor: colors.tint }]}
-                onPress={() => setSelectedTab(idx)}>
-                <ThemedText 
-                  style={[
-                    styles.tabText, 
-                    { color: selectedTab === idx ? colors.tint : colors.icon },
-                    selectedTab === idx && styles.tabTextActive
-                  ]}
-                >
-                  {tab}
-                </ThemedText>
+                style={[styles.monthButton, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => changeMonth('prev')}
+              >
+                <Ionicons name="chevron-back" size={20} color={colors.text} />
               </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* 수입/지출 구분 */}
-          <View style={styles.typeRow}>
-            {types.map((type, idx) => (
+              
+              <ThemedText type="subtitle" style={styles.monthText}>
+                {month}
+              </ThemedText>
+              
               <TouchableOpacity
-                key={type}
+                style={[styles.monthButton, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => changeMonth('next')}
+              >
+                <Ionicons name="chevron-forward" size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* 수입/지출 선택 */}
+            <View style={styles.typeContainer}>
+              {types.map((type, index) => renderTypeButton(index, type))}
+            </View>
+
+            {/* 차트 타입 선택 */}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.chartTypeContainer}
+              contentContainerStyle={styles.chartTypeContent}
+            >
+              <TouchableOpacity
                 style={[
-                  styles.typeBtn, 
-                  { backgroundColor: selectedType === idx ? colors.card : 'rgba(0,0,0,0.05)' }
+                  styles.chartTypeButton,
+                  {
+                    backgroundColor: chartType === 'pie' ? colors.primary : colors.backgroundSecondary,
+                    borderColor: chartType === 'pie' ? colors.primary : colors.border,
+                  },
                 ]}
-                onPress={() => setSelectedType(idx)}>
-                <ThemedText 
-                  style={[
-                    styles.typeText, 
-                    { color: selectedType === idx ? colors.tint : colors.icon },
-                    selectedType === idx && styles.typeTextActive
-                  ]}
+                onPress={() => setChartType('pie')}
+              >
+                <Ionicons 
+                  name="pie-chart" 
+                  size={20} 
+                  color={chartType === 'pie' ? colors.textInverse : colors.text} 
+                />
+                <ThemedText
+                  type="caption"
+                  variant={chartType === 'pie' ? 'inverse' : 'secondary'}
+                  style={{ marginLeft: 4 }}
                 >
-                  {type}
+                  파이
                 </ThemedText>
               </TouchableOpacity>
-            ))}
-          </View>
+              
+              <TouchableOpacity
+                style={[
+                  styles.chartTypeButton,
+                  {
+                    backgroundColor: chartType === 'bar' ? colors.primary : colors.backgroundSecondary,
+                    borderColor: chartType === 'bar' ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => setChartType('bar')}
+              >
+                <Ionicons 
+                  name="bar-chart" 
+                  size={20} 
+                  color={chartType === 'bar' ? colors.textInverse : colors.text} 
+                />
+                <ThemedText
+                  type="caption"
+                  variant={chartType === 'bar' ? 'inverse' : 'secondary'}
+                  style={{ marginLeft: 4 }}
+                >
+                  막대
+                </ThemedText>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.chartTypeButton,
+                  {
+                    backgroundColor: chartType === 'donut' ? colors.primary : colors.backgroundSecondary,
+                    borderColor: chartType === 'donut' ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => setChartType('donut')}
+              >
+                <Ionicons 
+                  name="pie-chart" 
+                  size={20} 
+                  color={chartType === 'donut' ? colors.textInverse : colors.text} 
+                />
+                <ThemedText
+                  type="caption"
+                  variant={chartType === 'donut' ? 'inverse' : 'secondary'}
+                  style={{ marginLeft: 4 }}
+                >
+                  도넛
+                </ThemedText>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.chartTypeButton,
+                  {
+                    backgroundColor: chartType === 'line' ? colors.primary : colors.backgroundSecondary,
+                    borderColor: chartType === 'line' ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => setChartType('line')}
+              >
+                <Ionicons 
+                  name="trending-up" 
+                  size={20} 
+                  color={chartType === 'line' ? colors.textInverse : colors.text} 
+                />
+                <ThemedText
+                  type="caption"
+                  variant={chartType === 'line' ? 'inverse' : 'secondary'}
+                  style={{ marginLeft: 4 }}
+                >
+                  라인
+                </ThemedText>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.chartTypeButton,
+                  {
+                    backgroundColor: chartType === 'area' ? colors.primary : colors.backgroundSecondary,
+                    borderColor: chartType === 'area' ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => setChartType('area')}
+              >
+                <Ionicons 
+                  name="analytics" 
+                  size={20} 
+                  color={chartType === 'area' ? colors.textInverse : colors.text} 
+                />
+                <ThemedText
+                  type="caption"
+                  variant={chartType === 'area' ? 'inverse' : 'secondary'}
+                  style={{ marginLeft: 4 }}
+                >
+                  영역
+                </ThemedText>
+              </TouchableOpacity>
+            </ScrollView>
 
-          {/* 대시보드/통계 영역 */}
-          <View style={styles.content}>
-            {selectedTab === 0 && (
-              <View style={styles.statsContainer}>
-                <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-                  <View style={styles.statHeader}>
-                    <Ionicons name="trending-down" size={24} color="#FF3B30" />
-                    <ThemedText type="subtitle">이번 달 총 지출</ThemedText>
-                  </View>
-                  <ThemedText type="title" style={styles.statAmount}>₩{formatAmount(expenseAmount)}</ThemedText>
-                  <ThemedText style={[styles.statChange, { color: '#8E8E93' }]}>
-                    {currentMonthLedgers.filter(l => l.amountType === 'EXPENSE').length}건의 지출
-                  </ThemedText>
-                </View>
+            {/* 차트 */}
+            <ThemedCard variant="elevated" style={styles.chartCard}>
+              {(() => {
+                const filteredLedgers = getFilteredLedgers();
+                console.log('Chart - filtered ledgers:', filteredLedgers);
+                console.log('Chart - categories:', categories);
+                
+                // 카테고리별로 집계
+                const categoryMap = new Map<number, { name: string; total: number }>();
+                
+                filteredLedgers.forEach(ledger => {
+                  const category = categories.find(cat => cat.id === ledger.categoryId);
+                  if (category) {
+                    const current = categoryMap.get(category.id) || { name: category.category, total: 0 };
+                    current.total += ledger.amount;
+                    categoryMap.set(category.id, current);
+                  }
+                });
+                
+                const chartData = Array.from(categoryMap.values())
+                  .filter(item => item.total > 0)
+                  .map(item => ({
+                    label: item.name,
+                    value: item.total,
+                    color: getCategoryColor(item.name, colors)
+                  }));
+                
+                console.log('Category map:', categoryMap);
+                console.log('Chart data processed:', chartData);
 
-                <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-                  <View style={styles.statHeader}>
-                    <Ionicons name="trending-up" size={24} color="#4CAF50" />
-                    <ThemedText type="subtitle">이번 달 총 수입</ThemedText>
-                  </View>
-                  <ThemedText type="title" style={styles.statAmount}>₩{formatAmount(incomeAmount)}</ThemedText>
-                  <ThemedText style={[styles.statChange, { color: '#8E8E93' }]}>
-                    {currentMonthLedgers.filter(l => l.amountType === 'INCOME').length}건의 수입
-                  </ThemedText>
-                </View>
-
-                {/* 차트 섹션 */}
-                <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
-                  <View style={styles.chartHeader}>
-                    <ThemedText type="subtitle" style={styles.chartTitle}>
-                      {selectedType === 0 ? '수입' : '지출'} 분석
-                    </ThemedText>
-                    <View style={styles.chartTypeSelector}>
-                      <TouchableOpacity
-                        style={[
-                          styles.chartTypeButton,
-                          { backgroundColor: chartType === 'pie' ? colors.tint : colors.background }
-                        ]}
-                        onPress={() => setChartType('pie')}
-                      >
-                        <Ionicons 
-                          name="pie-chart" 
-                          size={16} 
-                          color={chartType === 'pie' ? 'white' : colors.text} 
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.chartTypeButton,
-                          { backgroundColor: chartType === 'bar' ? colors.tint : colors.background }
-                        ]}
-                        onPress={() => setChartType('bar')}
-                      >
-                        <Ionicons 
-                          name="bar-chart" 
-                          size={16} 
-                          color={chartType === 'bar' ? 'white' : colors.text} 
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {categoryStats.length === 0 ? (
-                    <View style={styles.emptyChartContainer}>
-                      <ThemedText style={styles.emptyText}>이번 달 지출 내역이 없습니다.</ThemedText>
-                    </View>
-                  ) : (
-                    <View style={styles.chartContainer}>
-                      {chartType === 'pie' ? (
-                        <PieChart
-                          data={pieChartData}
-                          centerText={`₩${formatAmount(expenseAmount)}`}
-                          centerSubtext="총 지출"
-                        />
-                      ) : (
-                        <BarChart
-                          data={barChartData}
-                          height={250}
-                          showValues={true}
-                        />
-                      )}
-                    </View>
-                  )}
-                </View>
-
-                {/* 월별 트렌드 */}
-                <View style={[styles.trendCard, { backgroundColor: colors.card }]}>
-                  <ThemedText type="subtitle" style={styles.trendTitle}>
-                    최근 6개월 지출 트렌드
-                  </ThemedText>
-                  <View style={styles.trendContainer}>
-                    <BarChart
-                      data={monthlyTrendData}
-                      height={200}
-                      showValues={true}
-                      barColor="#007AFF"
+                if (chartType === 'pie') {
+                  return <PieChart data={chartData} />;
+                } else if (chartType === 'bar') {
+                  return <BarChart data={chartData} height={250} />;
+                } else if (chartType === 'donut') {
+                  const totalAmount = chartData.reduce((sum, item) => sum + item.value, 0);
+                  return (
+                    <DonutChart 
+                      data={chartData} 
+                      size={240}
+                      centerText={`₩${formatAmount(totalAmount)}`}
                     />
-                  </View>
-                </View>
+                  );
+                } else if (chartType === 'line') {
+                  // 라인 차트용 데이터 준비 (최근 7일간 추이)
+                  const lineData = [];
+                  for (let i = 6; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    const dayLedgers = filteredLedgers.filter(ledger => {
+                      const ledgerDate = new Date(ledger.transactionDate);
+                      return ledgerDate.toDateString() === date.toDateString();
+                    });
+                    const dayTotal = dayLedgers.reduce((sum, ledger) => sum + ledger.amount, 0);
+                    lineData.push({
+                      label: date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+                      value: dayTotal
+                    });
+                  }
+                  return <LineChart data={lineData} height={250} curved gradient showDots />;
+                } else if (chartType === 'area') {
+                  // 영역 차트용 데이터 준비 (최근 7일간 카테고리별)
+                  const areaData = [];
+                  for (let i = 6; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    
+                    const dayLedgers = filteredLedgers.filter(ledger => {
+                      const ledgerDate = new Date(ledger.transactionDate);
+                      return ledgerDate.toDateString() === date.toDateString();
+                    });
+                    
+                    // 카테고리별로 집계
+                    const categoriesData = [];
+                    const categoryMap = new Map<string, number>();
+                    
+                    dayLedgers.forEach(ledger => {
+                      const category = categories.find(cat => cat.id === ledger.categoryId);
+                      if (category) {
+                        const current = categoryMap.get(category.category) || 0;
+                        categoryMap.set(category.category, current + ledger.amount);
+                      }
+                    });
+                    
+                    categoryMap.forEach((value, name) => {
+                      categoriesData.push({
+                        name,
+                        value,
+                        color: getCategoryColor(name, colors)
+                      });
+                    });
+                    
+                    areaData.push({
+                      date: date.toISOString(),
+                      categories: categoriesData
+                    });
+                  }
+                  
+                  return <StackedAreaChart data={areaData} height={250} />;
+                }
+              })()}
+            </ThemedCard>
 
-                {/* 카테고리 상세 목록 */}
-                <View style={[styles.categoryCard, { backgroundColor: colors.card }]}>
-                  <ThemedText type="subtitle" style={styles.categoryTitle}>카테고리별 상세</ThemedText>
-                  {categoryStats.length === 0 ? (
-                    <ThemedText style={styles.emptyText}>이번 달 지출 내역이 없습니다.</ThemedText>
-                  ) : (
-                    categoryStats.slice(0, 5).map((stat, index) => (
-                      <View key={index} style={styles.categoryItem}>
-                        <View style={styles.categoryIcon}>
-                          <Ionicons name={stat.icon as any} size={20} color={stat.color} />
+            {/* 월간 히트맵 - 지출 타입일 때만 표시 */}
+            {selectedType === 1 && (
+              <ThemedCard variant="elevated" style={styles.heatMapCard}>
+                <ThemedText type="subtitle" style={styles.heatMapTitle}>
+                  일일 지출 패턴
+                </ThemedText>
+                <HeatMapChart
+                  data={(() => {
+                    const heatMapData = [];
+                    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+                    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+                    
+                    for (let date = new Date(startOfMonth); date <= endOfMonth; date.setDate(date.getDate() + 1)) {
+                      const dayLedgers = ledgers.filter(ledger => {
+                        const ledgerDate = new Date(ledger.transactionDate);
+                        return ledgerDate.toDateString() === date.toDateString() && 
+                               ledger.amountType === 'EXPENSE';
+                      });
+                      
+                      const dayTotal = dayLedgers.reduce((sum, ledger) => sum + ledger.amount, 0);
+                      if (dayTotal > 0) {
+                        heatMapData.push({
+                          date: date.toISOString().split('T')[0],
+                          value: dayTotal
+                        });
+                      }
+                    }
+                    
+                    return heatMapData;
+                  })()}
+                  year={currentDate.getFullYear()}
+                  month={currentDate.getMonth()}
+                />
+              </ThemedCard>
+            )}
+
+            {/* 카테고리별 상세 */}
+            <View style={styles.categoryDetails}>
+              <ThemedText type="subtitle" style={styles.sectionTitle}>
+                카테고리별 상세
+              </ThemedText>
+              
+              {(() => {
+                const filteredLedgers = getFilteredLedgers();
+                const categoryStats = new Map<number, { category: any; ledgers: any[]; total: number }>();
+                
+                // 거래 내역을 카테고리별로 그룹화
+                filteredLedgers.forEach(ledger => {
+                  const category = categories.find(cat => cat.id === ledger.categoryId);
+                  if (category) {
+                    if (!categoryStats.has(category.id)) {
+                      categoryStats.set(category.id, { category, ledgers: [], total: 0 });
+                    }
+                    const stat = categoryStats.get(category.id)!;
+                    stat.ledgers.push(ledger);
+                    stat.total += ledger.amount;
+                  }
+                });
+                
+                return Array.from(categoryStats.values())
+                  .filter(stat => stat.total > 0)
+                  .sort((a, b) => b.total - a.total)
+                  .map(({ category, ledgers, total }) => (
+                    <ThemedCard key={category.id} variant="default" style={styles.categoryItem}>
+                      <View style={styles.categoryContent}>
+                        <View style={[styles.categoryIcon, { backgroundColor: getCategoryColor(category.category, colors) + '20' }]}>
+                          <Ionicons 
+                            name={getCategoryIcon(category.category) as any} 
+                            size={20} 
+                            color={getCategoryColor(category.category, colors)} 
+                          />
                         </View>
+                        
                         <View style={styles.categoryInfo}>
-                          <ThemedText type="defaultSemiBold">{stat.category}</ThemedText>
-                          <ThemedText style={styles.categoryPercent}>{stat.percentage}%</ThemedText>
+                          <ThemedText type="body" weight="medium">
+                            {category.category}
+                          </ThemedText>
+                          <ThemedText type="caption" variant="tertiary">
+                            {ledgers.length}건
+                          </ThemedText>
                         </View>
-                        <ThemedText type="defaultSemiBold">₩{formatAmount(stat.total)}</ThemedText>
+                        
+                        <ThemedText 
+                          type="body" 
+                          weight="semibold"
+                          variant={selectedType === 0 ? 'success' : 'error'}
+                        >
+                          {selectedType === 0 ? '+' : '-'}₩{formatAmount(total)}
+                        </ThemedText>
                       </View>
-                    ))
-                  )}
+                    </ThemedCard>
+                  ));
+              })()}
+            </View>
+          </View>
+        )}
+
+        {/* 예산 탭 */}
+        {selectedTab === 1 && (
+          <View style={styles.tabContent}>
+            {/* 월 선택 */}
+            <View style={styles.monthSelector}>
+              <TouchableOpacity
+                style={[styles.monthButton, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => changeMonth('prev')}
+              >
+                <Ionicons name="chevron-back" size={20} color={colors.text} />
+              </TouchableOpacity>
+              
+              <ThemedText type="subtitle" style={styles.monthText}>
+                {month}
+              </ThemedText>
+              
+              <TouchableOpacity
+                style={[styles.monthButton, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => changeMonth('next')}
+              >
+                <Ionicons name="chevron-forward" size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ThemedCard variant="elevated" style={styles.budgetCard}>
+              <ThemedText type="subtitle" style={styles.budgetTitle}>
+                이번 달 예산 현황
+              </ThemedText>
+              
+              {budgetSummary ? (
+                <View style={styles.budgetSummary}>
+                  <View style={styles.budgetItem}>
+                    <ThemedText type="body" variant="secondary">
+                      지출 예산
+                    </ThemedText>
+                    <ThemedText type="subtitle" weight="semibold">
+                      ₩{formatAmount(budgetSummary.expenseBudget || 0)}
+                    </ThemedText>
+                  </View>
+                  
+                  <View style={styles.budgetItem}>
+                    <ThemedText type="body" variant="secondary">
+                      실제 지출
+                    </ThemedText>
+                    <ThemedText type="subtitle" weight="semibold" variant="error">
+                      ₩{formatAmount(budgetSummary.actualExpense || 0)}
+                    </ThemedText>
+                  </View>
+                  
+                  <View style={styles.budgetItem}>
+                    <ThemedText type="body" variant="secondary">
+                      남은 예산
+                    </ThemedText>
+                    <ThemedText 
+                      type="subtitle" 
+                      weight="semibold"
+                      variant={(budgetSummary.expenseBudget || 0) - (budgetSummary.actualExpense || 0) >= 0 ? 'success' : 'error'}
+                    >
+                      ₩{formatAmount((budgetSummary.expenseBudget || 0) - (budgetSummary.actualExpense || 0))}
+                    </ThemedText>
+                  </View>
+
+                  <View style={[styles.budgetItem, { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }]}>
+                    <ThemedText type="body" variant="secondary">
+                      수입 예산
+                    </ThemedText>
+                    <ThemedText type="subtitle" weight="semibold">
+                      ₩{formatAmount(budgetSummary.incomeBudget || 0)}
+                    </ThemedText>
+                  </View>
+                  
+                  <View style={styles.budgetItem}>
+                    <ThemedText type="body" variant="secondary">
+                      실제 수입
+                    </ThemedText>
+                    <ThemedText type="subtitle" weight="semibold" variant="success">
+                      ₩{formatAmount(budgetSummary.actualIncome || 0)}
+                    </ThemedText>
+                  </View>
+
+                  <View style={styles.budgetItem}>
+                    <ThemedText type="body" variant="secondary">
+                      지출 달성률
+                    </ThemedText>
+                    <ThemedText type="subtitle" weight="semibold" variant={(budgetSummary.expenseAchievementRate || 0) <= 100 ? 'success' : 'error'}>
+                      {(budgetSummary.expenseAchievementRate || 0).toFixed(1)}%
+                    </ThemedText>
+                  </View>
                 </View>
-              </View>
-            )}
+              ) : (
+                <ThemedText type="body" variant="tertiary" style={styles.noBudgetText}>
+                  예산 데이터가 없습니다.
+                </ThemedText>
+              )}
+            </ThemedCard>
+          </View>
+        )}
 
-            {selectedTab === 1 && (
-              <View style={styles.budgetContainer}>
-                {budgetSummary ? (
-                  <View style={[styles.budgetCard, { backgroundColor: colors.card }]}>
-                    <View style={styles.budgetHeader}>
-                      <ThemedText type="subtitle">이번 달 예산</ThemedText>
-                      <TouchableOpacity
-                        style={[styles.budgetEditButton, { backgroundColor: colors.tint }]}
-                        onPress={() => {
-                          // 예산 설정 모달로 이동
-                          console.log('예산 설정 모달 열기');
-                        }}
-                      >
-                        <Ionicons name="settings" size={16} color="white" />
-                      </TouchableOpacity>
-                    </View>
-                    
-                    {budgetSummary.expenseBudget && (
-                      <>
-                        <ThemedText type="title" style={styles.budgetAmount}>
-                          ₩{formatAmount(budgetSummary.expenseBudget)}
-                        </ThemedText>
-                        <View style={styles.progressBar}>
-                          <View style={[
-                            styles.progressFill, 
-                            { 
-                              width: `${Math.min(budgetSummary.expenseAchievementRate, 100)}%`, 
-                              backgroundColor: budgetSummary.expenseAchievementRate > 100 ? '#FF3B30' : '#4CAF50' 
-                            }
-                          ]} />
-                        </View>
-                        <ThemedText style={styles.budgetStatus}>
-                          {budgetSummary.expenseAchievementRate.toFixed(1)}% 사용됨 (₩{formatAmount(budgetSummary.actualExpense)})
-                        </ThemedText>
-                        <ThemedText style={[
-                          styles.budgetRemaining,
-                          { color: budgetSummary.expenseDifference >= 0 ? '#4CAF50' : '#FF3B30' }
-                        ]}>
-                          {budgetSummary.expenseDifference >= 0 ? '잔여 예산' : '예산 초과'}: ₩{formatAmount(Math.abs(budgetSummary.expenseDifference))}
-                        </ThemedText>
-                      </>
-                    )}
-                    
-                    {budgetSummary.incomeBudget && (
-                      <>
-                        <View style={styles.budgetDivider} />
-                        <ThemedText type="defaultSemiBold" style={styles.budgetIncomeTitle}>
-                          수입 목표
-                        </ThemedText>
-                        <ThemedText type="title" style={[styles.budgetAmount, { fontSize: 20 }]}>
-                          ₩{formatAmount(budgetSummary.incomeBudget)}
-                        </ThemedText>
-                        <View style={styles.progressBar}>
-                          <View style={[
-                            styles.progressFill, 
-                            { 
-                              width: `${Math.min(budgetSummary.incomeAchievementRate, 100)}%`, 
-                              backgroundColor: budgetSummary.incomeAchievementRate >= 100 ? '#4CAF50' : '#FF9800' 
-                            }
-                          ]} />
-                        </View>
-                        <ThemedText style={styles.budgetStatus}>
-                          {budgetSummary.incomeAchievementRate.toFixed(1)}% 달성 (₩{formatAmount(budgetSummary.actualIncome)})
-                        </ThemedText>
-                        <ThemedText style={[
-                          styles.budgetRemaining,
-                          { color: budgetSummary.incomeDifference >= 0 ? '#4CAF50' : '#FF3B30' }
-                        ]}>
-                          {budgetSummary.incomeDifference >= 0 ? '목표 달성' : '목표 부족'}: ₩{formatAmount(Math.abs(budgetSummary.incomeDifference))}
-                        </ThemedText>
-                      </>
-                    )}
-                    
-                    {budgetSummary.memo && (
-                      <View style={styles.budgetMemo}>
-                        <ThemedText style={styles.budgetMemoText}>
-                          {budgetSummary.memo}
-                        </ThemedText>
-                      </View>
-                    )}
-                  </View>
-                ) : (
-                  <View style={[styles.budgetCard, { backgroundColor: colors.card }]}>
-                    <View style={styles.emptyBudgetContainer}>
-                      <Ionicons name="calculator" size={48} color={colors.icon} />
-                      <ThemedText type="subtitle" style={styles.emptyBudgetTitle}>
-                        예산이 설정되지 않았습니다
-                      </ThemedText>
-                      <ThemedText style={styles.emptyBudgetDescription}>
-                        이번 달 예산을 설정하여 지출을 관리해보세요
-                      </ThemedText>
-                      <TouchableOpacity
-                        style={[styles.setBudgetButton, { backgroundColor: colors.tint }]}
-                        onPress={() => {
-                          // 예산 설정 모달로 이동
-                          console.log('예산 설정 모달 열기');
-                        }}
-                      >
-                        <ThemedText style={styles.setBudgetButtonText}>
-                          예산 설정하기
-                        </ThemedText>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {selectedTab === 2 && (
-              <View style={styles.historyContainer}>
-                {/* 검색 헤더 */}
-                <View style={styles.searchHeader}>
-                  <View style={styles.searchHeaderLeft}>
-                    <ThemedText type="subtitle">
-                      {selectedType === 0 ? '수입' : '지출'} 내역
-                    </ThemedText>
-                    <ThemedText style={[styles.searchResultCount, { color: colors.tabIconDefault }]}>
-                      총 {getFilteredLedgers().length}건
-                    </ThemedText>
-                  </View>
+        {/* 내역 탭 */}
+        {selectedTab === 2 && (
+          <View style={styles.tabContent}>
+            {/* 검색 */}
+            <View style={styles.searchContainer}>
+              {isSearchVisible ? (
+                <View style={styles.searchInputContainer}>
+                  <ThemedInput
+                    placeholder="거래 내역 검색..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    leftIcon="search"
+                    rightIcon="close"
+                    onRightIconPress={handleClearSearch}
+                  />
                   <TouchableOpacity
-                    style={[styles.searchToggleButton, { backgroundColor: isSearchVisible ? colors.tint : colors.card }]}
-                    onPress={handleSearchToggle}
+                    style={[styles.advancedSearchButton, { 
+                      backgroundColor: Object.keys(searchFilters).length > 0 ? colors.primary : colors.backgroundSecondary,
+                      borderColor: Object.keys(searchFilters).length > 0 ? colors.primary : colors.border
+                    }]}
+                    onPress={handleShowAdvancedSearch}
                   >
                     <Ionicons 
-                      name={isSearchVisible ? "close" : "search"} 
-                      size={20} 
-                      color={isSearchVisible ? "white" : colors.text} 
+                      name="options" 
+                      size={16} 
+                      color={Object.keys(searchFilters).length > 0 ? colors.textInverse : colors.textSecondary} 
                     />
+                    {Object.keys(searchFilters).length > 0 && (
+                      <View style={[styles.filterBadge, { backgroundColor: colors.textInverse }]}>
+                        <ThemedText type="caption" variant="primary" weight="medium">
+                          {Object.keys(searchFilters).length}
+                        </ThemedText>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 </View>
-
-                {/* 검색 입력창 */}
-                {isSearchVisible && (
-                  <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
-                    <Ionicons name="search" size={20} color={colors.tabIconDefault} />
-                    <TextInput
-                      style={[styles.searchInput, { color: colors.text }]}
-                      placeholder="설명, 메모, 사용자명으로 검색..."
-                      placeholderTextColor={colors.tabIconDefault}
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
-                      autoFocus
-                    />
-                    {searchQuery.length > 0 && (
-                      <TouchableOpacity
-                        style={styles.clearSearchButton}
-                        onPress={() => setSearchQuery('')}
-                      >
-                        <Ionicons name="close-circle" size={20} color={colors.tabIconDefault} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-
-                {/* 검색 결과 또는 빈 상태 */}
-                {getFilteredLedgers().length === 0 ? (
-                  <View style={styles.emptyStateContainer}>
-                    <Ionicons 
-                      name={searchQuery.trim() ? "search" : "receipt-outline"} 
-                      size={48} 
-                      color={colors.tabIconDefault} 
-                    />
-                    <ThemedText style={[styles.emptyText, { color: colors.tabIconDefault }]}>
-                      {searchQuery.trim() 
-                        ? `'${searchQuery}'에 대한 검색 결과가 없습니다.`
-                        : `${selectedType === 0 ? '수입' : '지출'} 내역이 없습니다.`
-                      }
+              ) : (
+                <View style={styles.searchButtonContainer}>
+                  <TouchableOpacity
+                    style={[styles.searchButton, { backgroundColor: colors.backgroundSecondary }]}
+                    onPress={handleSearchToggle}
+                  >
+                    <Ionicons name="search" size={20} color={colors.textSecondary} />
+                    <ThemedText type="body" variant="secondary" style={{ marginLeft: 8 }}>
+                      거래 내역 검색
                     </ThemedText>
-                    {searchQuery.trim() && (
-                      <TouchableOpacity
-                        style={[styles.clearSearchButton, { backgroundColor: colors.tint, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }]}
-                        onPress={() => setSearchQuery('')}
-                      >
-                        <ThemedText style={[styles.clearSearchText, { color: 'white' }]}>
-                          검색 지우기
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.filterOnlyButton, { 
+                      backgroundColor: Object.keys(searchFilters).length > 0 ? colors.primary : colors.backgroundSecondary,
+                      borderColor: Object.keys(searchFilters).length > 0 ? colors.primary : colors.border
+                    }]}
+                    onPress={handleShowAdvancedSearch}
+                  >
+                    <Ionicons 
+                      name="options" 
+                      size={20} 
+                      color={Object.keys(searchFilters).length > 0 ? colors.textInverse : colors.textSecondary} 
+                    />
+                    {Object.keys(searchFilters).length > 0 && (
+                      <View style={[styles.filterBadgeSmall, { backgroundColor: colors.textInverse }]}>
+                        <ThemedText type="caption" variant="primary" weight="medium">
+                          {Object.keys(searchFilters).length}
                         </ThemedText>
-                      </TouchableOpacity>
+                      </View>
                     )}
-                  </View>
-                ) : (
-                  <FlatList
-                    data={getFilteredLedgers()}
-                    renderItem={renderLedgerItem}
-                    keyExtractor={(item) => item.id.toString()}
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingBottom: 20 }}
-                    scrollEnabled={false}
-                  />
-                )}
-              </View>
-            )}
-          </View>
-        </ScrollView>
-
-        {/* 댓글 모달 */}
-        <Modal
-          visible={showComments}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setShowComments(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setShowComments(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-              <ThemedText type="subtitle">거래 댓글</ThemedText>
-              <View style={{ width: 24 }} />
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
-            {selectedLedgerId && (
-              <CommentSection type="ledger" targetId={selectedLedgerId} />
+
+            {/* 거래 내역 목록 */}
+            {getFilteredLedgers().length === 0 ? (
+              <ThemedCard variant="outlined" style={styles.emptyCard}>
+                <Ionicons name="receipt-outline" size={48} color={colors.textTertiary} />
+                <ThemedText type="body" variant="tertiary" style={{ marginTop: 12 }}>
+                  {searchQuery || Object.keys(searchFilters).length > 0 ? '검색 결과가 없습니다' : '거래 내역이 없습니다'}
+                </ThemedText>
+              </ThemedCard>
+            ) : (
+              getFilteredLedgers().map((item) => renderLedgerItem({ item }))
             )}
           </View>
-        </Modal>
-      </View>
+        )}
+
+      </ScrollView>
+      
+      {/* 검색 필터 모달 */}
+      <SearchFilter
+        visible={showSearchFilter}
+        onClose={() => setShowSearchFilter(false)}
+        onApply={handleFilterApply}
+        categories={categories}
+        paymentMethods={paymentMethods}
+        currentFilters={searchFilters}
+      />
+      
+      {/* 메모 모달 */}
+      <Modal
+        visible={showComments && !selectedLedgerId}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowComments(false)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <ThemedText type="subtitle">가계부 메모</ThemedText>
+            <TouchableOpacity onPress={() => setShowComments(false)}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+          {currentBook && (
+            <MemoSection bookId={currentBook.id} />
+          )}
+        </View>
+      </Modal>
+
+      {/* 거래 댓글 모달 */}
+      <Modal
+        visible={!!selectedLedgerId}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedLedgerId(null)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderLeft}>
+              <ThemedText type="subtitle">거래 상세</ThemedText>
+              {getSelectedLedger() && (
+                <ThemedText type="caption" variant="secondary">
+                  {getSelectedLedger()?.description}
+                </ThemedText>
+              )}
+            </View>
+            <TouchableOpacity onPress={() => setSelectedLedgerId(null)}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+          
+          {getSelectedLedger() && (
+            <ScrollView style={styles.modalContent}>
+              <ThemedCard variant="elevated" style={styles.ledgerDetailCard}>
+                <View style={styles.ledgerDetailRow}>
+                  <ThemedText type="body" variant="secondary">날짜</ThemedText>
+                  <ThemedText type="body">
+                    {formatDate(getSelectedLedger()!.transactionDate)}
+                  </ThemedText>
+                </View>
+                <View style={styles.ledgerDetailRow}>
+                  <ThemedText type="body" variant="secondary">금액</ThemedText>
+                  <ThemedText 
+                    type="body" 
+                    weight="semibold"
+                    variant={getSelectedLedger()!.amountType === 'INCOME' ? 'success' : 'error'}
+                  >
+                    {getSelectedLedger()!.amountType === 'INCOME' ? '+' : '-'}₩{formatAmount(getSelectedLedger()!.amount)}
+                  </ThemedText>
+                </View>
+                {getSelectedLedger()!.memo && (
+                  <View style={styles.ledgerDetailMemo}>
+                    <ThemedText type="body" variant="secondary">메모</ThemedText>
+                    <ThemedText type="body" style={styles.memoText}>
+                      {getSelectedLedger()!.memo}
+                    </ThemedText>
+                  </View>
+                )}
+              </ThemedCard>
+              
+              <View style={styles.commentSectionContainer}>
+                <ThemedText type="subtitle" style={styles.commentSectionTitle}>
+                  댓글
+                </ThemedText>
+                <CommentSection 
+                  type="ledger" 
+                  targetId={selectedLedgerId} 
+                />
+              </View>
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-  },
-  container: { 
-    flex: 1, 
   },
   scrollView: {
     flex: 1,
-    padding: 16,
   },
-  monthRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginTop: 16, 
-    marginBottom: 16,
-  },
-  month: { 
-    marginHorizontal: 16,
-  },
-  arrowButton: {
-    padding: 8,
-  },
-  tabRow: { 
-    flexDirection: 'row', 
-    borderBottomWidth: 1,
-    marginBottom: 16,
-  },
-  tab: { 
-    flex: 1, 
-    padding: 12, 
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
   },
-  tabText: { 
-    fontSize: 16,
-  },
-  tabTextActive: { 
-    fontWeight: 'bold',
-  },
-  typeRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
-    marginBottom: 24,
-  },
-  typeBtn: { 
-    paddingHorizontal: 16, 
-    paddingVertical: 8, 
-    borderRadius: 20, 
-    marginHorizontal: 4,
-  },
-  typeText: { 
-    fontSize: 14,
-  },
-  typeTextActive: { 
-    fontWeight: 'bold',
-  },
-  content: { 
+  headerLeft: {
     flex: 1,
   },
-  statsContainer: {
-    gap: 16,
+  commentButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  statCard: {
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 24,
+    gap: 8,
   },
-  statHeader: {
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  tabContent: {
+    paddingHorizontal: 20,
+    marginBottom: 32,
+  },
+  monthSelector: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  monthButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  monthText: {
+    textAlign: 'center',
+  },
+  typeContainer: {
+    flexDirection: 'row',
+    marginBottom: 24,
     gap: 8,
-    marginBottom: 8,
   },
-  statAmount: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 4,
+  typeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
   },
-  statChange: {
-    fontSize: 14,
-    fontWeight: '500',
+  chartTypeContainer: {
+    marginBottom: 24,
   },
-  categoryCard: {
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  chartTypeContent: {
+    paddingRight: 20,
+    gap: 8,
   },
-  categoryTitle: {
+  chartTypeButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chartCard: {
+    marginBottom: 24,
+    minHeight: 300,
+  },
+  heatMapCard: {
+    marginBottom: 24,
+  },
+  heatMapTitle: {
+    marginBottom: 16,
+  },
+  categoryDetails: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
     marginBottom: 16,
   },
   categoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 12,
   },
-  categoryIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  categoryContent: {
+    flexDirection: 'row',
     alignItems: 'center',
+  },
+  categoryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   categoryInfo: {
     flex: 1,
   },
-  categoryPercent: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 2,
+  budgetCard: {
+    marginBottom: 24,
   },
-  budgetContainer: {
+  budgetTitle: {
+    marginBottom: 16,
+  },
+  budgetSummary: {
     gap: 16,
   },
-  budgetCard: {
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  budgetHeader: {
+  budgetItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
   },
-  budgetEditButton: {
-    padding: 8,
-    borderRadius: 8,
-  },
-  budgetAmount: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginVertical: 8,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-    borderRadius: 4,
-    marginVertical: 8,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  budgetStatus: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  budgetRemaining: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  budgetDivider: {
-    height: 1,
-    backgroundColor: '#E5E5EA',
-    marginVertical: 16,
-  },
-  budgetIncomeTitle: {
-    marginBottom: 8,
-  },
-  budgetMemo: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 8,
-  },
-  budgetMemoText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    fontStyle: 'italic',
-  },
-  emptyBudgetContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyBudgetTitle: {
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyBudgetDescription: {
-    fontSize: 14,
-    color: '#8E8E93',
+  noBudgetText: {
     textAlign: 'center',
+    paddingVertical: 20,
+  },
+  searchContainer: {
     marginBottom: 24,
   },
-  setBudgetButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+  searchInputContainer: {
+    marginBottom: 16,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-end',
   },
-  setBudgetButtonText: {
-    color: 'white',
-    fontWeight: '600',
+  searchButtonContainer: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  historyContainer: {
+  searchButton: {
     flex: 1,
-    minHeight: 300,
-  },
-  emptyText: { 
-    color: '#bbb', 
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 40,
-  },
-  transactionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  deleteButton: {
-    padding: 8,
+  advancedSearchButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  filterOnlyButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-    marginLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
   },
-  transactionIcon: {
+  filterBadgeSmall: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  ledgerItem: {
+    marginBottom: 12,
+  },
+  ledgerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
-  transactionInfo: {
+  ledgerInfo: {
     flex: 1,
   },
-  transactionDate: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 2,
+  ledgerDescription: {
+    marginBottom: 4,
   },
-  transactionMemo: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 2,
-    fontStyle: 'italic',
-  },
-  transactionRight: {
+  ledgerActions: {
     alignItems: 'flex-end',
   },
-  transactionAmount: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  transactionSpender: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 2,
-  },
-  chartCard: {
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  chartHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  chartTitle: {
-    marginBottom: 0,
-  },
-  chartTypeSelector: {
-    flexDirection: 'row',
-    borderRadius: 8,
-    backgroundColor: '#F2F2F7',
-    padding: 2,
-  },
-  chartTypeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginHorizontal: 1,
-  },
-  chartContainer: {
-    alignItems: 'center',
-  },
-  emptyChartContainer: {
-    height: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trendCard: {
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  trendTitle: {
-    marginBottom: 16,
-  },
-  trendContainer: {
-    alignItems: 'center',
-  },
-  searchHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  searchHeaderLeft: {
-    flex: 1,
-  },
-  searchResultCount: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  searchToggleButton: {
-    padding: 8,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginBottom: 16,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    paddingVertical: 4,
-  },
-  clearSearchButton: {
+  deleteButton: {
     padding: 4,
+    marginTop: 4,
   },
-  clearSearchText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  actionButtons: {
-    flexDirection: 'row',
+  emptyCard: {
     alignItems: 'center',
-    gap: 8,
-  },
-  iconButton: {
-    padding: 6,
+    paddingVertical: 32,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
+    borderBottomColor: '#E2E8F0',
   },
-  emptyStateContainer: {
+  modalHeaderLeft: {
+    flex: 1,
+  },
+  modalContent: {
+    flex: 1,
+  },
+  ledgerDetailCard: {
+    margin: 16,
+    padding: 16,
+  },
+  ledgerDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
+  },
+  ledgerDetailMemo: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  memoText: {
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  commentSectionContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+  },
+  commentSectionTitle: {
+    marginBottom: 16,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
-    paddingVertical: 60,
-    gap: 16,
+    alignItems: 'center',
   },
 }); 

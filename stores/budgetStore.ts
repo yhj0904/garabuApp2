@@ -200,8 +200,10 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
         };
       }
       
-      // 실제 에러인 경우에만 error 로그
-      console.error('예산 요약 조회 실패:', error);
+      // 404 에러가 아닌 경우에만 error 로그
+      if (error.response?.status !== 404) {
+        console.error('예산 요약 조회 실패:', error);
+      }
       
       let errorMessage = '예산 요약 조회에 실패했습니다.';
       if (error.response?.data?.message) {

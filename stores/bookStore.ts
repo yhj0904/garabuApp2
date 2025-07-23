@@ -25,6 +25,9 @@ interface BookState {
   setBookMembers: (members: BookMember[]) => void;
   setLoading: (loading: boolean) => void;
   
+  // Helper methods
+  getOwnedBooksCount: () => number;
+  
   // API Actions
   fetchBooks: (token: string) => Promise<boolean>;
   createBook: (data: CreateBookRequest, token: string) => Promise<boolean>;
@@ -56,6 +59,12 @@ export const useBookStore = create<BookState>((set, get) => ({
   setLedgers: (ledgers) => set({ ledgers }),
   setBookMembers: (members) => set({ bookMembers: members }),
   setLoading: (loading) => set({ isLoading: loading }),
+  
+  // Helper methods
+  getOwnedBooksCount: () => {
+    const { books } = get();
+    return books.filter(book => book.role === 'OWNER').length;
+  },
 
   fetchBooks: async (token: string) => {
     console.log('가계부 목록 조회 시작');
@@ -152,30 +161,23 @@ export const useBookStore = create<BookState>((set, get) => ({
       const refreshSuccess = await fetchBooks(token);
       console.log('가계부 목록 새로고침 결과:', refreshSuccess ? '성공' : '실패');
       
-      // 새로 생성된 가계부에 기본 자산 및 카테고리 자동 추가
-      if (refreshSuccess) {
-        console.log('기본 데이터 자동 생성 시작');
+      // 생성된 가계부의 멤버 권한 즉시 확인
+      try {
+        console.log('생성된 가계부 멤버 권한 확인 시작');
+        const { fetchBookMembers } = get();
+        const membersSuccess = await fetchBookMembers(newBook.id, token);
+        console.log('멤버 권한 조회 결과:', membersSuccess ? '성공' : '실패');
         
-        // 기본 자산 생성
-        try {
-          const { useAssetStore } = await import('@/stores/assetStore');
-          const assetStore = useAssetStore.getState();
-          const defaultAssets = await assetStore.createDefaultAssets(newBook.id, token);
-          console.log('기본 자산 생성 완료:', defaultAssets.length, '개');
-        } catch (assetError) {
-          console.error('기본 자산 생성 실패:', assetError);
-        }
-        
-        // 기본 카테고리 생성
-        try {
-          const { useCategoryStore } = await import('@/stores/categoryStore');
-          const categoryStore = useCategoryStore.getState();
-          const defaultCategories = await categoryStore.createDefaultCategories(newBook.id, token);
-          console.log('기본 카테고리 생성 완료:', defaultCategories.length, '개');
-        } catch (categoryError) {
-          console.error('기본 카테고리 생성 실패:', categoryError);
-        }
+        const { bookMembers } = get();
+        const currentUserMember = bookMembers.find(m => m.memberId);
+        console.log('생성자 권한 확인:', currentUserMember?.role || '권한 없음');
+      } catch (memberError) {
+        console.error('멤버 권한 조회 실패:', memberError);
       }
+      
+      // 서버에서 가계부 생성 시 기본 자산과 카테고리를 자동으로 생성하므로
+      // 클라이언트에서 중복 생성할 필요 없음
+      console.log('가계부 생성 완료. 서버에서 기본 데이터 자동 생성됨.');
       
       set({ isLoading: false });
       
@@ -225,6 +227,14 @@ export const useBookStore = create<BookState>((set, get) => ({
 
   deleteBook: async (bookId: number, token: string) => {
     console.log('가계부 삭제 시작:', bookId);
+    
+    // 소유한 가계부가 1개 이상인지 확인
+    const { getOwnedBooksCount } = get();
+    const ownedCount = getOwnedBooksCount();
+    if (ownedCount <= 1) {
+      throw new Error('최소 1개의 가계부는 유지되어야 합니다.');
+    }
+    
     set({ isLoading: true });
     
     try {

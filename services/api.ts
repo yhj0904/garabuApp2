@@ -27,6 +27,7 @@ interface Book {
 interface Ledger {
   id: number;
   date: string;
+  transactionDate: string; // 호환성을 위해 추가
   amount: number;
   description: string;
   memo?: string;
@@ -35,8 +36,7 @@ interface Ledger {
   memberId: number;
   bookId: number;
   categoryId: number;
-  paymentId: number;
-}
+  paymentId: number;}
 
 interface Category {
   id: number;
@@ -78,6 +78,68 @@ interface UserBook {
   memberId: number;
   bookId: number;
   userRole: 'OWNER' | 'EDITOR' | 'VIEWER';
+}
+
+// 반복거래 관련 인터페이스
+interface RecurringTransaction {
+  id: number;
+  name: string;
+  description?: string;
+  amountType: 'INCOME' | 'EXPENSE';
+  amount: number;
+  categoryId?: number;
+  categoryName?: string;
+  paymentMethodId?: number;
+  paymentMethodName?: string;
+  assetId?: number;
+  recurrenceType: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  recurrenceInterval: number;
+  recurrenceDay?: string;
+  startDate: string;
+  endDate?: string;
+  nextExecutionDate?: string;
+  lastExecutionDate?: string;
+  isActive: boolean;
+  executionCount: number;
+  maxExecutions?: number;
+  autoCreate: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+interface CreateRecurringTransactionRequest {
+  name: string;
+  description?: string;
+  amountType: 'INCOME' | 'EXPENSE';
+  amount: number;
+  categoryId?: number;
+  paymentMethodId?: number;
+  assetId?: number;
+  recurrenceType: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  recurrenceInterval?: number;
+  recurrenceDay?: string;
+  startDate: string;
+  endDate?: string;
+  maxExecutions?: number;
+  autoCreate?: boolean;
+}
+
+interface UpdateRecurringTransactionRequest {
+  name?: string;
+  description?: string;
+  amount?: number;
+  recurrenceInterval?: number;
+  endDate?: string;
+  autoCreate?: boolean;
+}
+
+interface UpcomingTransaction {
+  id: number;
+  name: string;
+  amountType: 'INCOME' | 'EXPENSE';
+  amount: number;
+  categoryName?: string;
+  executionDate: string;
 }
 
 // 요청/응답 인터페이스
@@ -222,12 +284,72 @@ interface CreateCommentRequest {
   content: string;
 }
 
+// 메모 관련 인터페이스
+interface Memo {
+  id: number;
+  bookId: number;
+  title?: string;
+  content: string;
+  important: boolean;
+  color?: string;
+  authorId: number;
+  authorName: string;
+  lastEditorId?: number;
+  lastEditorName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CreateMemoRequest {
+  title?: string;
+  content: string;
+  important?: boolean;
+  color?: string;
+}
+
 // 알림 관련 인터페이스
 interface NotificationRequest {
   title: string;
   body: string;
   data?: any;
   type: string;
+}
+
+// 반복거래 관련 인터페이스
+interface RecurringTransaction {
+  id: number;
+  bookId: number;
+  categoryId: number;
+  paymentMethodId: number;
+  description: string;
+  amount: number;
+  amountType: 'INCOME' | 'EXPENSE';
+  dayOfMonth: number;
+  isActive: boolean;
+  lastExecutedDate?: string;
+  nextExecutionDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CreateRecurringTransactionRequest {
+  categoryId: number;
+  paymentMethodId: number;
+  description: string;
+  amount: number;
+  amountType: 'INCOME' | 'EXPENSE';
+  dayOfMonth: number;
+  isActive?: boolean;
+}
+
+interface UpdateRecurringTransactionRequest {
+  categoryId?: number;
+  paymentMethodId?: number;
+  description?: string;
+  amount?: number;
+  amountType?: 'INCOME' | 'EXPENSE';
+  dayOfMonth?: number;
+  isActive?: boolean;
 }
 
 // 가계부 생성 요청
@@ -381,7 +503,7 @@ interface BookMember {
 }
 
 class ApiService {
-  private axiosInstance: AxiosInstance;
+  public axiosInstance: AxiosInstance;
   private authAxiosInstance: AxiosInstance;
   private isRefreshing = false;
   private failedQueue: Array<{
@@ -494,11 +616,10 @@ class ApiService {
               throw new Error('No refresh token');
             }
 
-            // 토큰 재발급 - 쿠키 사용
+            // 토큰 재발급 - Authorization 헤더로 refresh token 전송
             const response = await this.authAxiosInstance.post('/reissue', {}, {
-              withCredentials: true,
               headers: {
-                'Cookie': `refresh=${refreshToken}`
+                'Authorization': `Bearer ${refreshToken}`
               }
             });
 
@@ -646,7 +767,7 @@ class ApiService {
   }
 
   async oauthLogin(oauthData: OAuthRequest): Promise<OAuthResponse> {
-    const response = await this.axiosInstance.post<OAuthResponse>('/api/v2/mobile-oauth/login', oauthData);
+    const response = await this.axiosInstance.post<OAuthResponse>('/mobile-oauth/login', oauthData);
     return response.data;
   }
 
@@ -799,6 +920,7 @@ class ApiService {
       return {
         id: response.data.id,
         date: data.date,
+        transactionDate: data.date, // 호환성을 위해 추가
         amount: data.amount,
         description: data.description,
         memo: data.memo,
@@ -876,6 +998,7 @@ class ApiService {
       return {
         id: response.data.id,
         date: data.date,
+        transactionDate: data.date, // 호환성을 위해 추가
         amount: data.amount,
         description: data.description,
         memo: data.memo,
@@ -944,6 +1067,7 @@ class ApiService {
       const mappedLedgers = response.data.ledgers.map(ledger => ({
         id: ledger.id,
         date: ledger.date,
+        transactionDate: ledger.date, // 호환성을 위해 추가
         amount: ledger.amount,
         description: ledger.description,
         memo: ledger.memo,
@@ -1011,6 +1135,7 @@ class ApiService {
     const mappedLedgers = response.data.ledgers.map(ledger => ({
       id: ledger.id,
       date: ledger.date,
+      transactionDate: ledger.date, // 호환성을 위해 추가
       amount: ledger.amount,
       description: ledger.description,
       memo: ledger.memo,
@@ -1235,7 +1360,12 @@ class ApiService {
     try {
       const response = await this.axiosInstance.get<any>(`/book/${bookId}/owners`);
       
-      console.log('가계부 멤버 조회 원본 응답:', JSON.stringify(response.data, null, 2));
+      console.log('=== 가계부 멤버 조회 디버깅 시작 ===');
+      console.log('요청 URL:', `/book/${bookId}/owners`);
+      console.log('응답 상태:', response.status);
+      console.log('원본 응답:', JSON.stringify(response.data, null, 2));
+      console.log('응답 타입:', typeof response.data);
+      console.log('응답 키들:', Object.keys(response.data || {}));
       
       // 응답 데이터 파싱
       let owners: any[] = [];
@@ -1280,12 +1410,32 @@ class ApiService {
           }
         }
         
-        return {
+        // 권한 정보를 더 정확하게 추출
+        let role: 'OWNER' | 'EDITOR' | 'VIEWER' = 'VIEWER';
+        const roleFields = ['bookRole', 'role', 'book_role', 'userRole', 'memberRole'];
+        
+        for (const field of roleFields) {
+          if (ownerData[field]) {
+            role = ownerData[field];
+            console.log(`권한 필드 '${field}'에서 발견: ${role} (memberId: ${ownerData.memberId || ownerData.member_id || ownerData.id})`);
+            break;
+          }
+        }
+        
+        if (!roleFields.some(field => ownerData[field])) {
+          console.warn('권한 정보를 찾을 수 없음. 사용 가능한 필드들:', Object.keys(ownerData));
+          console.warn('전체 데이터:', ownerData);
+        }
+        
+        const result = {
           memberId: ownerData.memberId || ownerData.member_id || ownerData.id || index,
           username: ownerData.username || ownerData.name || `사용자${index + 1}`,
           email: ownerData.email || '이메일 없음',
-          role: ownerData.role || ownerData.bookRole || (index === 0 ? 'OWNER' as const : 'EDITOR' as const),
+          role: role,
         };
+        
+        console.log(`최종 멤버 데이터:`, result);
+        return result;
       });
     } catch (error) {
       console.error('가계부 멤버 조회 실패:', error);
@@ -1559,7 +1709,7 @@ class ApiService {
   // 친구 목록 조회
   async getFriends(): Promise<{ friends: Friend[], totalElements: number }> {
     try {
-      const response = await this.axiosInstance.get('/api/v2/friends');
+      const response = await this.axiosInstance.get('/friends');
       return response.data;
     } catch (error) {
       console.error('친구 목록 조회 실패:', error);
@@ -1570,7 +1720,7 @@ class ApiService {
   // 친구 요청 보내기
   async sendFriendRequest(data: SendFriendRequestRequest): Promise<any> {
     try {
-      const response = await this.axiosInstance.post('/api/v2/friends/request', data);
+      const response = await this.axiosInstance.post('/friends/request', data);
       return response.data;
     } catch (error) {
       console.error('친구 요청 전송 실패:', error);
@@ -1581,7 +1731,7 @@ class ApiService {
   // 친구 요청 수락
   async acceptFriendRequest(friendshipId: number, data: AcceptFriendRequestRequest): Promise<any> {
     try {
-      const response = await this.axiosInstance.post(`/api/v2/friends/accept/${friendshipId}`, data);
+      const response = await this.axiosInstance.post(`/friends/accept/${friendshipId}`, data);
       return response.data;
     } catch (error) {
       console.error('친구 요청 수락 실패:', error);
@@ -1592,7 +1742,7 @@ class ApiService {
   // 친구 요청 거절
   async rejectFriendRequest(friendshipId: number): Promise<any> {
     try {
-      const response = await this.axiosInstance.post(`/api/v2/friends/reject/${friendshipId}`);
+      const response = await this.axiosInstance.post(`/friends/reject/${friendshipId}`);
       return response.data;
     } catch (error) {
       console.error('친구 요청 거절 실패:', error);
@@ -1603,7 +1753,7 @@ class ApiService {
   // 친구 삭제
   async deleteFriend(friendshipId: number): Promise<any> {
     try {
-      const response = await this.axiosInstance.delete(`/api/v2/friends/${friendshipId}`);
+      const response = await this.axiosInstance.delete(`/friends/${friendshipId}`);
       return response.data;
     } catch (error) {
       console.error('친구 삭제 실패:', error);
@@ -1614,7 +1764,7 @@ class ApiService {
   // 친구 별칭 설정
   async setFriendAlias(friendshipId: number, data: SetFriendAliasRequest): Promise<any> {
     try {
-      const response = await this.axiosInstance.put(`/api/v2/friends/${friendshipId}/alias`, data);
+      const response = await this.axiosInstance.put(`/friends/${friendshipId}/alias`, data);
       return response.data;
     } catch (error) {
       console.error('친구 별칭 설정 실패:', error);
@@ -1625,7 +1775,7 @@ class ApiService {
   // 받은 친구 요청 목록 조회
   async getReceivedFriendRequests(): Promise<{ requests: FriendRequest[], totalElements: number }> {
     try {
-      const response = await this.axiosInstance.get('/api/v2/friends/requests/received');
+      const response = await this.axiosInstance.get('/friends/requests/received');
       return response.data;
     } catch (error) {
       console.error('받은 친구 요청 조회 실패:', error);
@@ -1636,7 +1786,7 @@ class ApiService {
   // 보낸 친구 요청 목록 조회
   async getSentFriendRequests(): Promise<{ requests: FriendRequest[], totalElements: number }> {
     try {
-      const response = await this.axiosInstance.get('/api/v2/friends/requests/sent');
+      const response = await this.axiosInstance.get('/friends/requests/sent');
       return response.data;
     } catch (error) {
       console.error('보낸 친구 요청 조회 실패:', error);
@@ -1647,7 +1797,7 @@ class ApiService {
   // 친구 상태 조회
   async getFriendStatus(): Promise<{ friendCount: number, pendingRequestCount: number }> {
     try {
-      const response = await this.axiosInstance.get('/api/v2/friends/status');
+      const response = await this.axiosInstance.get('/friends/status');
       return response.data;
     } catch (error) {
       console.error('친구 상태 조회 실패:', error);
@@ -1658,7 +1808,7 @@ class ApiService {
   // 친구 검색
   async searchFriends(username: string): Promise<{ friends: Friend[], totalElements: number }> {
     try {
-      const response = await this.axiosInstance.get(`/api/v2/friends/search?username=${username}`);
+      const response = await this.axiosInstance.get(`/friends/search?username=${username}`);
       return response.data;
     } catch (error) {
       console.error('친구 검색 실패:', error);
@@ -1671,7 +1821,7 @@ class ApiService {
   // 친구 그룹 목록 조회
   async getFriendGroups(): Promise<{ groups: FriendGroup[], totalElements: number }> {
     try {
-      const response = await this.axiosInstance.get('/api/v2/friend-groups');
+      const response = await this.axiosInstance.get('/friend-groups');
       return response.data;
     } catch (error) {
       console.error('친구 그룹 조회 실패:', error);
@@ -1682,7 +1832,7 @@ class ApiService {
   // 친구 그룹 생성
   async createFriendGroup(data: CreateFriendGroupRequest): Promise<any> {
     try {
-      const response = await this.axiosInstance.post('/api/v2/friend-groups', data);
+      const response = await this.axiosInstance.post('/friend-groups', data);
       return response.data;
     } catch (error) {
       console.error('친구 그룹 생성 실패:', error);
@@ -1693,7 +1843,7 @@ class ApiService {
   // 친구 그룹 수정
   async updateFriendGroup(groupId: number, data: CreateFriendGroupRequest): Promise<any> {
     try {
-      const response = await this.axiosInstance.put(`/api/v2/friend-groups/${groupId}`, data);
+      const response = await this.axiosInstance.put(`/friend-groups/${groupId}`, data);
       return response.data;
     } catch (error) {
       console.error('친구 그룹 수정 실패:', error);
@@ -1704,7 +1854,7 @@ class ApiService {
   // 친구 그룹 삭제
   async deleteFriendGroup(groupId: number): Promise<any> {
     try {
-      const response = await this.axiosInstance.delete(`/api/v2/friend-groups/${groupId}`);
+      const response = await this.axiosInstance.delete(`/friend-groups/${groupId}`);
       return response.data;
     } catch (error) {
       console.error('친구 그룹 삭제 실패:', error);
@@ -1715,7 +1865,7 @@ class ApiService {
   // 친구 그룹에 친구 추가
   async addFriendToGroup(groupId: number, friendshipId: number): Promise<any> {
     try {
-      const response = await this.axiosInstance.post(`/api/v2/friend-groups/${groupId}/members/${friendshipId}`);
+      const response = await this.axiosInstance.post(`/friend-groups/${groupId}/members/${friendshipId}`);
       return response.data;
     } catch (error) {
       console.error('그룹에 친구 추가 실패:', error);
@@ -1726,7 +1876,7 @@ class ApiService {
   // 친구 그룹에서 친구 제거
   async removeFriendFromGroup(groupId: number, friendshipId: number): Promise<any> {
     try {
-      const response = await this.axiosInstance.delete(`/api/v2/friend-groups/${groupId}/members/${friendshipId}`);
+      const response = await this.axiosInstance.delete(`/friend-groups/${groupId}/members/${friendshipId}`);
       return response.data;
     } catch (error) {
       console.error('그룹에서 친구 제거 실패:', error);
@@ -1739,7 +1889,7 @@ class ApiService {
   // 메시지 전송
   async sendMessage(data: SendMessageRequest): Promise<any> {
     try {
-      const response = await this.axiosInstance.post('/api/v2/messages', data);
+      const response = await this.axiosInstance.post('/messages', data);
       return response.data;
     } catch (error) {
       console.error('메시지 전송 실패:', error);
@@ -1750,7 +1900,7 @@ class ApiService {
   // 대화 내역 조회
   async getConversation(friendshipId: number): Promise<{ messages: Message[], totalElements: number }> {
     try {
-      const response = await this.axiosInstance.get(`/api/v2/messages/conversation/${friendshipId}`);
+      const response = await this.axiosInstance.get(`/messages/conversation/${friendshipId}`);
       return response.data;
     } catch (error) {
       console.error('대화 내역 조회 실패:', error);
@@ -1761,7 +1911,7 @@ class ApiService {
   // 메시지 읽음 처리
   async markMessageAsRead(messageId: number): Promise<any> {
     try {
-      const response = await this.axiosInstance.post(`/api/v2/messages/${messageId}/read`);
+      const response = await this.axiosInstance.post(`/messages/${messageId}/read`);
       return response.data;
     } catch (error) {
       console.error('메시지 읽음 처리 실패:', error);
@@ -1774,7 +1924,7 @@ class ApiService {
   // 가계부 댓글 작성
   async createBookComment(bookId: number, data: CreateCommentRequest): Promise<any> {
     try {
-      const response = await this.axiosInstance.post(`/api/v2/comments/book/${bookId}`, data);
+      const response = await this.axiosInstance.post(`/comments/book/${bookId}`, data);
       return response.data;
     } catch (error) {
       console.error('가계부 댓글 작성 실패:', error);
@@ -1785,7 +1935,7 @@ class ApiService {
   // 가계부 내역 댓글 작성
   async createLedgerComment(ledgerId: number, data: CreateCommentRequest): Promise<any> {
     try {
-      const response = await this.axiosInstance.post(`/api/v2/comments/ledger/${ledgerId}`, data);
+      const response = await this.axiosInstance.post(`/comments/ledger/${ledgerId}`, data);
       return response.data;
     } catch (error) {
       console.error('가계부 내역 댓글 작성 실패:', error);
@@ -1793,13 +1943,34 @@ class ApiService {
     }
   }
 
-  // 가계부 댓글 목록 조회
-  async getBookComments(bookId: number): Promise<{ comments: Comment[], totalElements: number }> {
+  // 가계부 메모 조회
+  async getBookMemo(bookId: number): Promise<Memo> {
     try {
-      const response = await this.axiosInstance.get(`/api/v2/comments/book/${bookId}`);
+      const response = await this.axiosInstance.get(`/memos/book/${bookId}`);
       return response.data;
     } catch (error) {
-      console.error('가계부 댓글 조회 실패:', error);
+      console.error('가계부 메모 조회 실패:', error);
+      throw error;
+    }
+  }
+  
+  // 가계부 메모 생성/수정
+  async createOrUpdateBookMemo(bookId: number, request: CreateMemoRequest): Promise<Memo> {
+    try {
+      const response = await this.axiosInstance.post(`/memos/book/${bookId}`, request);
+      return response.data;
+    } catch (error) {
+      console.error('가계부 메모 생성/수정 실패:', error);
+      throw error;
+    }
+  }
+  
+  // 가계부 메모 삭제
+  async deleteBookMemo(bookId: number): Promise<void> {
+    try {
+      await this.axiosInstance.delete(`/memos/book/${bookId}`);
+    } catch (error) {
+      console.error('가계부 메모 삭제 실패:', error);
       throw error;
     }
   }
@@ -1807,7 +1978,7 @@ class ApiService {
   // 가계부 내역 댓글 목록 조회
   async getLedgerComments(ledgerId: number): Promise<{ comments: Comment[], totalElements: number }> {
     try {
-      const response = await this.axiosInstance.get(`/api/v2/comments/ledger/${ledgerId}`);
+      const response = await this.axiosInstance.get(`/comments/ledger/${ledgerId}`);
       return response.data;
     } catch (error) {
       console.error('가계부 내역 댓글 조회 실패:', error);
@@ -1818,7 +1989,7 @@ class ApiService {
   // 댓글 삭제
   async deleteComment(commentId: number): Promise<any> {
     try {
-      const response = await this.axiosInstance.delete(`/api/v2/comments/${commentId}`);
+      const response = await this.axiosInstance.delete(`/comments/${commentId}`);
       return response.data;
     } catch (error) {
       console.error('댓글 삭제 실패:', error);
@@ -1837,7 +2008,310 @@ class ApiService {
     }
   }
 
+  // === 반복거래 관련 API ===
 
+  // 반복거래 목록 조회
+  async getRecurringTransactions(bookId: number, active?: boolean): Promise<RecurringTransaction[]> {
+    try {
+      const response = await this.axiosInstance.get(`/recurring-transactions/books/${bookId}`, {
+        params: { active }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('반복거래 목록 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 생성
+  async createRecurringTransaction(bookId: number, data: CreateRecurringTransactionRequest): Promise<RecurringTransaction> {
+    try {
+      const response = await this.axiosInstance.post(`/recurring-transactions/books/${bookId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('반복거래 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 수정
+  async updateRecurringTransaction(id: number, data: UpdateRecurringTransactionRequest): Promise<RecurringTransaction> {
+    try {
+      const response = await this.axiosInstance.put(`/recurring-transactions/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('반복거래 수정 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 삭제
+  async deleteRecurringTransaction(id: number): Promise<void> {
+    try {
+      await this.axiosInstance.delete(`/recurring-transactions/${id}`);
+    } catch (error) {
+      console.error('반복거래 삭제 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 활성/비활성 토글
+  async toggleRecurringTransaction(id: number): Promise<RecurringTransaction> {
+    try {
+      const response = await this.axiosInstance.patch(`/recurring-transactions/${id}/toggle`);
+      return response.data;
+    } catch (error) {
+      console.error('반복거래 활성화 토글 실패:', error);
+      throw error;
+    }
+  }
+
+  // === 통화 관련 API ===
+  
+  // 통화 목록 조회
+  async getCurrencies(): Promise<any[]> {
+    try {
+      const response = await this.axiosInstance.get('/currencies');
+      return response.data;
+    } catch (error) {
+      console.error('통화 목록 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 가계부 통화 설정 조회
+  async getBookCurrencySettings(bookId: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.get(`/currencies/books/${bookId}/currency`);
+      return response.data;
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        // 설정이 없는 경우 기본값 반환
+        return { defaultCurrencyCode: 'KRW', enableMultiCurrency: false };
+      }
+      console.error('가계부 통화 설정 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 사용자 통화 설정 업데이트
+  async updateUserCurrencySettings(settings: any): Promise<any> {
+    try {
+      const response = await this.axiosInstance.put('/currencies/settings', settings);
+      return response.data;
+    } catch (error) {
+      console.error('사용자 통화 설정 업데이트 실패:', error);
+      throw error;
+    }
+  }
+
+  // === 태그 관련 API ===
+  
+  // 가계부별 태그 목록 조회
+  async getTagsByBook(bookId: number): Promise<any[]> {
+    try {
+      const url = `/tags/books/${bookId}`;
+      console.log('태그 API 호출:', url);
+      console.log('Base URL:', this.axiosInstance.defaults.baseURL);
+      const response = await this.axiosInstance.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('태그 목록 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 태그 생성
+  async createTag(bookId: number, data: { name: string; color?: string }): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post(`/tags/books/${bookId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('태그 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  // 태그 수정
+  async updateTag(tagId: number, data: { name?: string; color?: string }): Promise<any> {
+    try {
+      const response = await this.axiosInstance.put(`/tags/${tagId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('태그 수정 실패:', error);
+      throw error;
+    }
+  }
+
+  // 태그 삭제
+  async deleteTag(tagId: number): Promise<void> {
+    try {
+      await this.axiosInstance.delete(`/tags/${tagId}`);
+    } catch (error) {
+      console.error('태그 삭제 실패:', error);
+      throw error;
+    }
+  }
+
+  // === 반복거래 관련 API ===
+  
+  // 반복거래 목록 조회
+  async getRecurringTransactions(bookId: number, activeOnly?: boolean): Promise<RecurringTransaction[]> {
+    try {
+      const params = activeOnly !== undefined ? { active: activeOnly } : {};
+      const url = `/recurring-transactions/books/${bookId}`;
+      console.log('반복거래 API 호출:', url);
+      console.log('Base URL:', this.axiosInstance.defaults.baseURL);
+      const response = await this.axiosInstance.get(url, { params });
+      return response.data;
+    } catch (error) {
+      console.error('반복거래 목록 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 상세 조회
+  async getRecurringTransaction(recurringId: number): Promise<RecurringTransaction> {
+    try {
+      const response = await this.axiosInstance.get(`/recurring-transactions/${recurringId}`);
+      return response.data;
+    } catch (error) {
+      console.error('반복거래 상세 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 생성
+  async createRecurringTransaction(bookId: number, data: CreateRecurringTransactionRequest): Promise<RecurringTransaction> {
+    try {
+      const response = await this.axiosInstance.post(`/recurring-transactions/books/${bookId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('반복거래 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 수정
+  async updateRecurringTransaction(recurringId: number, data: UpdateRecurringTransactionRequest): Promise<RecurringTransaction> {
+    try {
+      const response = await this.axiosInstance.put(`/recurring-transactions/${recurringId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('반복거래 수정 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 삭제
+  async deleteRecurringTransaction(recurringId: number): Promise<void> {
+    try {
+      await this.axiosInstance.delete(`/recurring-transactions/${recurringId}`);
+    } catch (error) {
+      console.error('반복거래 삭제 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 일시 중지
+  async pauseRecurringTransaction(recurringId: number): Promise<void> {
+    try {
+      await this.axiosInstance.post(`/recurring-transactions/${recurringId}/pause`);
+    } catch (error) {
+      console.error('반복거래 일시 중지 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 재개
+  async resumeRecurringTransaction(recurringId: number): Promise<void> {
+    try {
+      await this.axiosInstance.post(`/recurring-transactions/${recurringId}/resume`);
+    } catch (error) {
+      console.error('반복거래 재개 실패:', error);
+      throw error;
+    }
+  }
+
+  // 반복거래 수동 실행
+  async executeRecurringTransaction(recurringId: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.post(`/recurring-transactions/${recurringId}/execute`);
+      return response.data;
+    } catch (error) {
+      console.error('반복거래 실행 실패:', error);
+      throw error;
+    }
+  }
+
+  // 예정된 반복거래 조회
+  async getUpcomingTransactions(bookId: number, days?: number): Promise<UpcomingTransaction[]> {
+    try {
+      const params = days ? { days } : {};
+      const response = await this.axiosInstance.get(`/recurring-transactions/books/${bookId}/upcoming`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('예정된 반복거래 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // === 알림 설정 관련 API ===
+  
+  // 알림 설정 조회
+  async getNotificationPreferences(): Promise<any> {
+    try {
+      const response = await this.axiosInstance.get('/notifications/preferences');
+      return response.data;
+    } catch (error) {
+      console.error('알림 설정 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 알림 설정 업데이트
+  async updateNotificationPreferences(preferences: any): Promise<any> {
+    try {
+      const response = await this.axiosInstance.put('/notifications/preferences', preferences);
+      return response.data;
+    } catch (error) {
+      console.error('알림 설정 업데이트 실패:', error);
+      throw error;
+    }
+  }
+
+  // 알림 히스토리 조회
+  async getNotificationHistory(page?: number, size?: number): Promise<any> {
+    try {
+      const response = await this.axiosInstance.get('/notifications/history', {
+        params: { page, size }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('알림 히스토리 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  // 알림 읽음 처리
+  async markNotificationAsRead(notificationId: number): Promise<void> {
+    try {
+      await this.axiosInstance.put(`/notifications/${notificationId}/read`);
+    } catch (error) {
+      console.error('알림 읽음 처리 실패:', error);
+      throw error;
+    }
+  }
+
+  // 모든 알림 읽음 처리
+  async markAllNotificationsAsRead(): Promise<void> {
+    try {
+      await this.axiosInstance.put('/notifications/read-all');
+    } catch (error) {
+      console.error('모든 알림 읽음 처리 실패:', error);
+      throw error;
+    }
+  }
 
 }
 

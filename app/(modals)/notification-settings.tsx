@@ -13,8 +13,7 @@ import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuthStore } from '../../stores/authStore';
-import axios from 'axios';
-import config from '../../config/config';
+import apiService from '../../services/api';
 
 interface NotificationPreference {
   id: number;
@@ -49,16 +48,9 @@ export default function NotificationSettingsScreen() {
 
   const fetchPreferences = async () => {
     try {
-      const response = await axios.get(
-        `${config.API_BASE_URL}/api/v2/notifications/preferences`,
-        {
-          headers: {
-            Authorization: `Bearer ${authStore.token}`,
-          },
-        }
-      );
-      setPreferences(response.data);
-      setQuietHoursEnabled(!!(response.data.quietHoursStart && response.data.quietHoursEnd));
+      const response = await apiService.getNotificationPreferences();
+      setPreferences(response);
+      setQuietHoursEnabled(!!(response.quietHoursStart && response.quietHoursEnd));
     } catch (error) {
       console.error('알림 설정 조회 실패:', error);
       Alert.alert('오류', '알림 설정을 불러오는데 실패했습니다.');
@@ -87,15 +79,7 @@ export default function NotificationSettingsScreen() {
         quietHoursEnd: quietHoursEnabled ? preferences.quietHoursEnd : null,
       };
 
-      await axios.put(
-        `${config.API_BASE_URL}/api/v2/notifications/preferences`,
-        data,
-        {
-          headers: {
-            Authorization: `Bearer ${authStore.token}`,
-          },
-        }
-      );
+      await apiService.updateNotificationPreferences(data);
       
       Alert.alert('성공', '알림 설정이 저장되었습니다.');
     } catch (error) {

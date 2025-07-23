@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { validatePassword, getPasswordStrengthColor } from '@/utils/passwordValidator';
 
 interface PasswordStrengthIndicatorProps {
@@ -14,8 +13,7 @@ export const PasswordStrengthIndicator: React.FC<PasswordStrengthIndicatorProps>
   password, 
   showRequirements = false 
 }) => {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors } = useTheme();
   
   if (!password) return null;
   

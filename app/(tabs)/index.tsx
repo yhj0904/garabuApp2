@@ -1,33 +1,48 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Alert, Modal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
 
 import CommentSection from '@/components/CommentSection';
 import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { ThemedCard } from '@/components/ThemedCard';
+import { ThemedButton } from '@/components/ThemedButton';
+import { useTheme } from '@/contexts/ThemeContext';
 import syncService from '@/services/syncService';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
 import config from '@/config/config';
+import apiService from '@/services/api';
+
+// 한국어 달력 설정
+LocaleConfig.locales['kr'] = {
+  monthNames: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+  monthNamesShort: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+  dayNames: ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'],
+  dayNamesShort: ['일', '월', '화', '수', '목', '금', '토'],
+  today: '오늘'
+};
+LocaleConfig.defaultLocale = 'kr';
 
 export default function HomeScreen() {
   const { user, token, logout } = useAuthStore();
   const { currentBook, ledgers, bookMembers, fetchBooks, fetchLedgers, fetchBookMembers } = useBookStore();
   const { fetchCategoriesByBook, fetchPaymentsByBook } = useCategoryStore();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [selectedLedgerId, setSelectedLedgerId] = useState<number | null>(null);
   const [goals, setGoals] = useState<any[]>([]);
   const [todayRecurringTransactions, setTodayRecurringTransactions] = useState<any[]>([]);
+  const [expandCalendar, setExpandCalendar] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [calendarMarkedDates, setCalendarMarkedDates] = useState<any>({});
 
   // 새로고침 핸들러
   const onRefresh = async () => {
@@ -59,7 +74,7 @@ export default function HomeScreen() {
         }
         
         // 동기화 수행
-                  await syncService.forceSync();
+        await syncService.forceSync();
       }
     } catch (error) {
       console.error('Failed to refresh:', error);
@@ -81,6 +96,8 @@ export default function HomeScreen() {
     loadGoals();
     // 오늘의 반복거래 로드
     loadTodayRecurringTransactions();
+    // 캘린더 데이터 로드
+    loadCalendarData(new Date().toISOString().substring(0, 7));
   }, [token, currentBook, user]);
 
   // 실시간 동기화 이벤트 리스너
@@ -105,66 +122,56 @@ export default function HomeScreen() {
       syncService.off('ledger-created', handleLedgerCreated);
       syncService.off('sync-status-changed', handleSyncStatusChanged);
     };
-  }, [token]);
-
-
-
-  // 컴포넌트 언마운트 시 정리
-  useEffect(() => {
-    return () => {
-      syncService.disconnect();
-    };
-  }, []);
+  }, [token, currentBook]);
 
   const handleLogout = async () => {
-    Alert.alert(
-      '로그아웃',
-      '정말 로그아웃하시겠습니까?',
-      [
-        {
-          text: '취소',
-          style: 'cancel',
-        },
-        {
-          text: '로그아웃',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-          },
-        },
-      ]
-    );
+    try {
+      await logout();
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      Alert.alert('로그아웃 실패', '로그아웃 중 오류가 발생했습니다.');
+    }
   };
 
   const openModal = () => {
-    router.push('/(modals)/' as any);
+    router.push('/(modals)/add-transaction');
   };
 
-  // 잔액 계산
   const calculateBalance = () => {
+    if (!ledgers || ledgers.length === 0) return 0;
+    
     return ledgers.reduce((total, ledger) => {
-      return ledger.amountType === 'INCOME' 
-        ? total + ledger.amount 
-        : total - ledger.amount;
+      if (ledger.amountType === 'INCOME') {
+        return total + ledger.amount;
+      } else {
+        return total - ledger.amount;
+      }
     }, 0);
   };
 
-  // 이번 달 변동량 계산
   const calculateMonthlyChange = () => {
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
+    if (!ledgers || ledgers.length === 0) return { income: 0, expense: 0 };
     
-    const thisMonthLedgers = ledgers.filter(ledger => {
-      const ledgerDate = new Date(ledger.date);
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const monthlyLedgers = ledgers.filter(ledger => {
+      const ledgerDate = new Date(ledger.transactionDate);
       return ledgerDate.getMonth() === currentMonth && 
              ledgerDate.getFullYear() === currentYear;
     });
     
-    return thisMonthLedgers.reduce((total, ledger) => {
-      return ledger.amountType === 'INCOME' 
-        ? total + ledger.amount 
-        : total - ledger.amount;
-    }, 0);
+    const income = monthlyLedgers
+      .filter(ledger => ledger.amountType === 'INCOME')
+      .reduce((sum, ledger) => sum + ledger.amount, 0);
+    
+    const expense = monthlyLedgers
+      .filter(ledger => ledger.amountType === 'EXPENSE')
+      .reduce((sum, ledger) => sum + ledger.amount, 0);
+    
+    return { income, expense };
   };
 
   // 거래 내역 아이콘 매핑
@@ -181,529 +188,746 @@ export default function HomeScreen() {
   // 거래 내역 아이콘 색상 매핑
   const getTransactionColor = (description: string) => {
     const lowercaseDesc = description.toLowerCase();
-    if (lowercaseDesc.includes('식') || lowercaseDesc.includes('음식')) return '#FF9500';
-    if (lowercaseDesc.includes('급여') || lowercaseDesc.includes('월급')) return '#007AFF';
-    if (lowercaseDesc.includes('주유') || lowercaseDesc.includes('기름')) return '#5856D6';
-    if (lowercaseDesc.includes('교통') || lowercaseDesc.includes('지하철')) return '#FF3B30';
-    if (lowercaseDesc.includes('쇼핑') || lowercaseDesc.includes('구매')) return '#AF52DE';
-    return colors.tint;
+    if (lowercaseDesc.includes('식') || lowercaseDesc.includes('음식')) return colors.warning;
+    if (lowercaseDesc.includes('급여') || lowercaseDesc.includes('월급')) return colors.success;
+    if (lowercaseDesc.includes('주유') || lowercaseDesc.includes('기름')) return colors.info;
+    if (lowercaseDesc.includes('교통') || lowercaseDesc.includes('지하철')) return colors.error;
+    if (lowercaseDesc.includes('쇼핑') || lowercaseDesc.includes('구매')) return colors.transfer;
+    return colors.primary;
   };
 
-  // 날짜 포맷팅
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 1) return '오늘';
-    if (diffDays === 2) return '어제';
-    if (diffDays <= 7) return `${diffDays - 1}일 전`;
-    
     return date.toLocaleDateString('ko-KR', { 
       month: 'short', 
-      day: 'numeric' 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
-  // 금액 포맷팅
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('ko-KR').format(amount);
   };
 
-  const balance = calculateBalance();
-  const monthlyChange = calculateMonthlyChange();
+  const getSelectedLedger = () => {
+    if (!selectedLedgerId || !ledgers) return null;
+    return ledgers.find(ledger => ledger.id === selectedLedgerId);
+  };
 
-  // 목표 데이터 로드
   const loadGoals = async () => {
     try {
-      const savedGoals = await AsyncStorage.getItem(`goals_${currentBook?.id}`);
-      if (savedGoals) {
-        const parsedGoals = JSON.parse(savedGoals);
-        // ACTIVE 상태인 목표만 필터링하고 진행률 순으로 정렬
-        const activeGoals = parsedGoals
-          .filter((goal: any) => goal.status === 'ACTIVE')
-          .sort((a: any, b: any) => b.progressPercentage - a.progressPercentage)
-          .slice(0, 3); // 상위 3개만
-        setGoals(activeGoals);
-      }
+      // 목표 기능은 아직 구현되지 않았으므로 빈 배열 반환
+      setGoals([]);
     } catch (error) {
-      console.error('목표 로드 실패:', error);
+      console.error('Failed to load goals:', error);
     }
   };
 
-  // 오늘의 반복거래 로드
   const loadTodayRecurringTransactions = async () => {
     if (!token || !currentBook?.id) return;
     
     try {
-      const response = await axios.get(
-        `${config.API_BASE_URL}/api/v2/recurring-transactions/book/${currentBook.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const transactions = await apiService.getRecurringTransactions(currentBook.id, true);
       
       // 오늘 실행될 거래만 필터링
       const today = new Date().toISOString().split('T')[0];
-      const todayTransactions = response.data.filter((transaction: any) => {
+      const todayTransactions = transactions.filter((transaction: any) => {
         return transaction.isActive && transaction.nextExecutionDate === today;
       });
       
       setTodayRecurringTransactions(todayTransactions);
     } catch (error) {
-      console.error('반복거래 로드 실패:', error);
+      console.error('Failed to load recurring transactions:', error);
+    }
+  };
+
+  const balance = calculateBalance();
+  const monthlyChange = calculateMonthlyChange();
+
+  // 캘린더 데이터 로드
+  const loadCalendarData = async (month: string) => {
+    if (!token || !currentBook) return;
+    
+    try {
+      // 해당 월의 모든 거래 내역 가져오기
+      const [year, monthNum] = month.split('-');
+      const startDate = `${year}-${monthNum}-01`;
+      const endDate = new Date(parseInt(year), parseInt(monthNum), 0).toISOString().split('T')[0];
+      
+      // API를 통해 특정 기간의 거래 내역 가져오기
+      const apiClient = (await import('@/core/api/client')).default;
+      const response = await apiClient.getLedgerList(
+        { 
+          bookId: currentBook.id, 
+          page: 0, 
+          size: 1000 
+        },
+        token
+      );
+      
+      // 날짜 범위로 필터링
+      const filteredLedgers = response.filter((ledger: any) => {
+        const ledgerDate = ledger.transactionDate.split('T')[0];
+        return ledgerDate >= startDate && ledgerDate <= endDate;
+      });
+      
+      // 날짜별로 거래 내역 그룹화
+      const dateGroups: any = {};
+      filteredLedgers.forEach((ledger: any) => {
+        const date = ledger.transactionDate.split('T')[0];
+        if (!dateGroups[date]) {
+          dateGroups[date] = { income: 0, expense: 0, total: 0, dots: [] };
+        }
+        
+        if (ledger.amountType === 'INCOME') {
+          dateGroups[date].income += ledger.amount;
+          dateGroups[date].total += ledger.amount;
+        } else {
+          dateGroups[date].expense += ledger.amount;
+          dateGroups[date].total -= ledger.amount;
+        }
+      });
+      
+      // 마크된 날짜 생성
+      const marked: any = {};
+      Object.keys(dateGroups).forEach(date => {
+        const dayData = dateGroups[date];
+        const dots = [];
+        
+        if (dayData.income > 0) {
+          dots.push({ key: 'income', color: colors.success });
+        }
+        if (dayData.expense > 0) {
+          dots.push({ key: 'expense', color: colors.error });
+        }
+        
+        marked[date] = {
+          marked: true,
+          dots,
+          customStyles: {
+            container: {
+              backgroundColor: date === selectedDate ? colors.primary : 'transparent',
+            },
+            text: {
+              color: date === selectedDate ? 'white' : colors.text,
+              fontSize: 10,
+            }
+          },
+          income: dayData.income,
+          expense: dayData.expense,
+          total: dayData.total
+        };
+      });
+      
+      // 선택된 날짜 표시
+      if (!marked[selectedDate]) {
+        marked[selectedDate] = {
+          selected: true,
+          selectedColor: colors.primary,
+        };
+      } else {
+        marked[selectedDate].selected = true;
+        marked[selectedDate].selectedColor = colors.primary;
+      }
+      
+      setCalendarMarkedDates(marked);
+    } catch (error) {
+      console.error('Failed to load calendar data:', error);
     }
   };
 
   return (
-    <ThemedView style={styles.container}>
-        <ScrollView 
-          style={styles.scrollView} 
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.tint}
-              colors={[colors.tint]}
-              progressBackgroundColor={colors.background}
-            />
-          }
-        >
-          {/* 헤더 */}
-          <View style={styles.header}>
-            <View style={styles.userInfo}>
-              <ThemedText type="title">안녕하세요!</ThemedText>
-              <ThemedText type="subtitle">{user?.name || user?.username || '사용자'}님</ThemedText>
-              {currentBook && (
-                <ThemedText style={styles.bookName}>{currentBook.title}</ThemedText>
-              )}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 헤더 섹션 */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View>
+              <ThemedText type="subtitle" variant="secondary">
+                안녕하세요, {user?.username || '사용자'}님
+              </ThemedText>
+              <ThemedText type="title">
+                {currentBook?.title || '가계부'}
+              </ThemedText>
             </View>
-            <TouchableOpacity style={styles.profileButton} onPress={openModal}>
-              <Ionicons name="person-circle" size={40} color={colors.tint} />
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={[styles.headerButton, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => router.push('/(modals)/book-sharing')}
+              >
+                <Ionicons name="share-social" size={20} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.headerButton, { backgroundColor: colors.backgroundSecondary }]}
+                onPress={() => router.push('/(modals)/profile')}
+              >
+                <Ionicons name="person" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* 캘린더 */}
+        <View style={styles.calendarSection}>
+          <View style={styles.calendarHeader}>
+            <ThemedText type="subtitle">가계부 달력</ThemedText>
+            <TouchableOpacity onPress={() => setExpandCalendar(!expandCalendar)}>
+              <Ionicons 
+                name={expandCalendar ? "chevron-up" : "chevron-down"} 
+                size={20} 
+                color={colors.textSecondary} 
+              />
             </TouchableOpacity>
           </View>
+          
+          {expandCalendar && (
+            <Calendar
+              current={selectedDate}
+              onDayPress={(day: any) => {
+                setSelectedDate(day.dateString);
+                // 선택된 날짜의 거래 내역으로 이동
+                router.push({
+                  pathname: '/(tabs)/explore',
+                  params: { date: day.dateString }
+                });
+              }}
+              onMonthChange={(month: any) => {
+                loadCalendarData(month.dateString.substring(0, 7));
+              }}
+              markedDates={calendarMarkedDates}
+              theme={{
+                backgroundColor: colors.background,
+                calendarBackground: colors.card,
+                textSectionTitleColor: colors.text,
+                selectedDayBackgroundColor: colors.primary,
+                selectedDayTextColor: 'white',
+                todayTextColor: colors.primary,
+                dayTextColor: colors.text,
+                textDisabledColor: colors.textTertiary,
+                arrowColor: colors.primary,
+                monthTextColor: colors.text,
+                textDayFontWeight: '300',
+                textMonthFontWeight: 'bold',
+                textDayHeaderFontWeight: '500',
+                textDayFontSize: 16,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 14
+              }}
+              style={styles.calendar}
+              dayComponent={({ date, state, marking }: any) => {
+                const isSelected = date.dateString === selectedDate;
+                const isToday = state === 'today';
+                const dayData = marking;
+                
+                // 금액 포맷팅 함수
+                const formatDayAmount = (amount: number) => {
+                  if (amount >= 100000000) {
+                    return `${Math.floor(amount/100000000)}억`;
+                  } else if (amount >= 10000) {
+                    const man = Math.floor(amount/10000);
+                    const remainder = Math.floor((amount % 10000) / 1000);
+                    return remainder > 0 ? `${man}.${remainder}만` : `${man}만`;
+                  } else if (amount >= 1000) {
+                    return `${(amount/1000).toFixed(1)}천`;
+                  }
+                  return amount.toString();
+                };
+                
+                return (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedDate(date.dateString);
+                      // 컬린더 데이터 업데이트로 포커스 표시
+                      const newMarked = { ...calendarMarkedDates };
+                      Object.keys(newMarked).forEach(key => {
+                        if (newMarked[key]) {
+                          newMarked[key].selected = false;
+                        }
+                      });
+                      if (newMarked[date.dateString]) {
+                        newMarked[date.dateString].selected = true;
+                      } else {
+                        newMarked[date.dateString] = {
+                          selected: true,
+                          selectedColor: colors.primary,
+                        };
+                      }
+                      setCalendarMarkedDates(newMarked);
+                      
+                      // 날짜 클릭 시 포커스만 이동, 화면 전환 없음
+                    }}
+                    style={[
+                      styles.dayContainer,
+                      isSelected && { backgroundColor: colors.primary },
+                      isToday && !isSelected && { borderWidth: 1, borderColor: colors.primary },
+                      state === 'disabled' && { opacity: 0.3 }
+                    ]}
+                  >
+                    <Text style={[
+                      styles.dayText,
+                      { color: isSelected ? 'white' : colors.text },
+                      isToday && !isSelected && { color: colors.primary, fontWeight: 'bold' }
+                    ]}>
+                      {date.day}
+                    </Text>
+                    
+                    {dayData && (dayData.income > 0 || dayData.expense > 0) && (
+                      <View style={styles.dayDataContainer}>
+                        {dayData.income > 0 && (
+                          <Text style={[styles.dayDataText, { color: colors.success }]}>
+                            +{formatDayAmount(dayData.income)}
+                          </Text>
+                        )}
+                        {dayData.expense > 0 && (
+                          <Text style={[styles.dayDataText, { color: colors.error }]}>
+                            -{formatDayAmount(dayData.expense)}
+                          </Text>
+                        )}
+                        <Text style={[
+                          styles.dayTotalText, 
+                          { color: dayData.total >= 0 ? colors.text : colors.error }
+                        ]}>
+                          {dayData.total >= 0 ? '+' : ''}{formatDayAmount(Math.abs(dayData.total))}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
+        </View>
 
-          {/* 잔액 카드 */}
-          <View style={[styles.balanceCard, { backgroundColor: colors.card }]}>
-            <View style={styles.balanceHeader}>
-              <ThemedText type="subtitle">현재 잔액</ThemedText>
-              <Ionicons name="wallet" size={24} color={colors.tint} />
-            </View>
-            <ThemedText type="title" style={styles.balanceAmount}>
-              ₩{formatAmount(balance)}
+        {/* 잔액 카드 */}
+        <ThemedCard variant="elevated" style={styles.balanceCard}>
+          <View style={styles.balanceHeader}>
+            <ThemedText type="subtitle" variant="secondary">
+              현재 잔액
             </ThemedText>
-            <View style={styles.balanceChange}>
-              <Ionicons 
-                name={monthlyChange >= 0 ? "trending-up" : "trending-down"} 
-                size={16} 
-                color={monthlyChange >= 0 ? "#4CAF50" : "#FF3B30"} 
-              />
-              <ThemedText style={[styles.changeText, { color: monthlyChange >= 0 ? "#4CAF50" : "#FF3B30" }]}>
-                {monthlyChange >= 0 ? '+' : ''}₩{formatAmount(monthlyChange)} 이번 달
+            <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          
+          <ThemedText type="title" style={styles.balanceAmount}>
+            ₩{formatAmount(balance)}
+          </ThemedText>
+          
+          <View style={styles.monthlyStats}>
+            <View style={styles.statItem}>
+              <ThemedText type="caption" variant="success">
+                +₩{formatAmount(monthlyChange.income)}
+              </ThemedText>
+              <ThemedText type="caption" variant="tertiary">
+                이번 달 수입
+              </ThemedText>
+            </View>
+            <View style={styles.statItem}>
+              <ThemedText type="caption" variant="error">
+                -₩{formatAmount(monthlyChange.expense)}
+              </ThemedText>
+              <ThemedText type="caption" variant="tertiary">
+                이번 달 지출
               </ThemedText>
             </View>
           </View>
+        </ThemedCard>
 
-          {/* 목표 진행률 위젯 */}
-          {goals.length > 0 && (
-            <View style={styles.goalsWidget}>
-              <View style={styles.sectionHeader}>
-                <ThemedText type="subtitle">재정 목표</ThemedText>
-                <TouchableOpacity onPress={() => router.push('/(modals)/goals')}>
-                  <ThemedText style={[styles.seeAllText, { color: colors.tint }]}>
-                    모두 보기
-                  </ThemedText>
-                </TouchableOpacity>
-              </View>
-              {goals.map((goal) => (
-                <TouchableOpacity
-                  key={goal.id}
-                  style={[styles.goalCard, { backgroundColor: colors.card }]}
-                  onPress={() => router.push('/(modals)/goals')}
-                >
-                  <View style={styles.goalHeader}>
-                    <View style={[styles.goalIcon, { backgroundColor: goal.color + '20' }]}>
-                      <Text style={styles.goalIconText}>{goal.icon || '🎯'}</Text>
-                    </View>
-                    <View style={styles.goalInfo}>
-                      <ThemedText type="defaultSemiBold">{goal.name}</ThemedText>
-                      <ThemedText style={styles.goalAmount}>
-                        ₩{formatAmount(goal.currentAmount)} / ₩{formatAmount(goal.targetAmount)}
-                      </ThemedText>
-                    </View>
-                    <ThemedText style={[styles.goalPercentage, { color: goal.color }]}>
-                      {goal.progressPercentage.toFixed(0)}%
-                    </ThemedText>
-                  </View>
-                  <View style={[styles.goalProgress, { backgroundColor: colors.background }]}>
-                    <View 
-                      style={[
-                        styles.goalProgressFill, 
-                        { 
-                          width: `${Math.min(goal.progressPercentage, 100)}%`,
-                          backgroundColor: goal.color
-                        }
-                      ]} 
+        {/* 빠른 액션 버튼들 */}
+        <View style={styles.quickActions}>
+          <ThemedButton
+            variant="primary"
+            size="large"
+            style={styles.addButton}
+            onPress={openModal}
+          >
+            <Ionicons name="add" size={20} color={colors.textInverse} style={{ marginRight: 8 }} />
+            거래 추가
+          </ThemedButton>
+          
+          <View style={styles.secondaryActions}>
+            <ThemedButton
+              variant="outline"
+              size="medium"
+              style={styles.secondaryButton}
+              onPress={() => router.push('/(modals)/budget-settings')}
+            >
+              <Ionicons name="pie-chart" size={16} color={colors.primary} style={{ marginRight: 4 }} />
+              예산
+            </ThemedButton>
+            
+            <ThemedButton
+              variant="outline"
+              size="medium"
+              style={styles.secondaryButton}
+              onPress={() => router.push('/(modals)/goals')}
+            >
+              <Ionicons name="flag" size={16} color={colors.primary} style={{ marginRight: 4 }} />
+              목표
+            </ThemedButton>
+          </View>
+        </View>
+
+        {/* 최근 거래 내역 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="subtitle">최근 거래</ThemedText>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
+              <ThemedText type="caption" variant="primary">
+                모두 보기
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+          
+          {ledgers && ledgers.length > 0 ? (
+            ledgers.slice(0, 5).map((ledger) => (
+              <ThemedCard
+                key={ledger.id}
+                variant="default"
+                style={styles.transactionCard}
+                onPress={() => {
+                  setSelectedLedgerId(ledger.id);
+                }}
+              >
+                <View style={styles.transactionContent}>
+                  <View style={[styles.iconContainer, { backgroundColor: getTransactionColor(ledger.description) + '20' }]}>
+                    <Ionicons 
+                      name={getTransactionIcon(ledger.description) as any} 
+                      size={20} 
+                      color={getTransactionColor(ledger.description)} 
                     />
                   </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {/* 오늘의 반복거래 알림 */}
-          {todayRecurringTransactions.length > 0 && (
-            <View style={[styles.recurringAlert, { backgroundColor: colors.tint + '10' }]}>
-              <View style={styles.recurringAlertHeader}>
-                <Ionicons name="repeat" size={24} color={colors.tint} />
-                <ThemedText type="defaultSemiBold" style={{ marginLeft: 8 }}>
-                  오늘의 반복거래
-                </ThemedText>
-              </View>
-              {todayRecurringTransactions.map((transaction) => (
-                <View key={transaction.id} style={styles.recurringItem}>
-                  <ThemedText>{transaction.name}</ThemedText>
-                  <ThemedText style={{ color: transaction.amountType === 'INCOME' ? '#4CAF50' : '#FF3B30' }}>
-                    {transaction.amountType === 'INCOME' ? '+' : '-'}₩{formatAmount(transaction.amount)}
-                  </ThemedText>
+                  
+                  <View style={styles.transactionInfo}>
+                    <ThemedText type="body" weight="medium">
+                      {ledger.description}
+                    </ThemedText>
+                    <ThemedText type="caption" variant="tertiary">
+                      {formatDate(ledger.transactionDate)}
+                    </ThemedText>
+                  </View>
+                  
+                  <View style={styles.transactionAmount}>
+                    <ThemedText 
+                      type="body" 
+                      weight="semibold"
+                      variant={ledger.amountType === 'INCOME' ? 'success' : 'error'}
+                    >
+                      {ledger.amountType === 'INCOME' ? '+' : '-'}₩{formatAmount(ledger.amount)}
+                    </ThemedText>
+                  </View>
                 </View>
-              ))}
-              <TouchableOpacity 
-                style={[styles.executeButton, { backgroundColor: colors.tint }]}
-                onPress={() => Alert.alert('알림', '반복거래 자동 실행 기능은 개발 중입니다.')}
-              >
-                <ThemedText style={styles.executeButtonText}>거래 실행하기</ThemedText>
-              </TouchableOpacity>
-            </View>
+              </ThemedCard>
+            ))
+          ) : (
+            <ThemedCard variant="outlined" style={styles.emptyCard}>
+              <Ionicons name="receipt-outline" size={48} color={colors.textTertiary} />
+              <ThemedText type="body" variant="tertiary" style={{ marginTop: 12 }}>
+                거래 내역이 없습니다
+              </ThemedText>
+            </ThemedCard>
           )}
+        </View>
 
-          {/* 빠른 액션 버튼들 */}
-          <View style={styles.quickActions}>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => router.push('/(modals)/add-transaction')}
-            >
-              <Ionicons name="add-circle" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">수입 추가</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => router.push('/(modals)/add-transaction')}
-            >
-              <Ionicons name="remove-circle" size={32} color="#FF3B30" />
-              <ThemedText type="defaultSemiBold">지출 추가</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => router.push('/(modals)/advanced-stats')}
-            >
-              <Ionicons name="analytics" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">통계 보기</ThemedText>
-            </TouchableOpacity>
-          </View>
-
-          {/* 추가 기능 버튼들 */}
-          <View style={styles.quickActions}>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => router.push('/(modals)/select-book')}
-            >
-              <Ionicons name="book" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">가계부 선택</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={async () => {
-                if (currentBook && currentBook.id) {
-                  try {
-                    console.log('가계부 설정 버튼 클릭:', { currentBook });
-                    
-                    // 현재 가계부의 멤버 정보 가져오기
-                    let members = bookMembers;
-                    if (token) {
-                      const success = await fetchBookMembers(currentBook.id, token);
-                      if (success) {
-                        // fetchBookMembers가 성공하면 store에서 다시 가져오기
-                        members = useBookStore.getState().bookMembers;
-                      }
-                    }
-                    
-                    // 현재 사용자의 역할 찾기
-                    const currentUserMember = members.find(member => member.memberId === user?.id);
-                    const userRole = currentUserMember?.role || 'VIEWER';
-                    
-                    console.log('가계부 설정 열기:', {
-                      bookId: currentBook.id,
-                      bookTitle: currentBook.title,
-                      userRole: userRole,
-                      members: members,
-                      currentUser: user?.id
-                    });
-                    
-                    router.push({
-                      pathname: '/(modals)/settings',
-                      params: { 
-                        bookId: currentBook.id.toString(), 
-                        bookTitle: currentBook.title,
-                        userRole: userRole
-                      }
-                    });
-                  } catch (error) {
-                    console.error('가계부 설정 열기 실패:', error);
-                    Alert.alert('오류', '가계부 설정을 불러올 수 없습니다.');
-                  }
-                } else {
-                  Alert.alert('알림', '먼저 가계부를 선택해주세요.');
-                }
-              }}
-            >
-              <Ionicons name="settings" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">가계부 설정</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => router.push('/(modals)/book-creation?mode=modal')}
-            >
-              <Ionicons name="add" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">가계부 추가</ThemedText>
-            </TouchableOpacity>
-          </View>
-
-          {/* 관리 기능 버튼들 - 한 줄에 3개씩 */}
-          <View style={styles.quickActions}>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => router.push('/(modals)/manage-categories')}
-            >
-              <Ionicons name="pricetag" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">카테고리</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => router.push('/(modals)/book-sharing')}
-            >
-              <Ionicons name="people" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">공유 관리</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => {
-                // 알림 설정으로 이동
-                router.push('/(modals)/notifications');
-              }}
-            >
-              <Ionicons name="notifications" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">알림 설정</ThemedText>
-            </TouchableOpacity>
-          </View>
-
-          {/* 댓글 버튼 추가 */}
-          <View style={styles.quickActions}>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => {
-                if (currentBook) {
-                  setShowComments(true);
-                } else {
-                  Alert.alert('알림', '먼저 가계부를 선택해주세요.');
-                }
-              }}
-            >
-              <Ionicons name="chatbubbles" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">가계부 댓글</ThemedText>
-            </TouchableOpacity>
-          </View>
-
-          {/* 동기화 버튼 */}
-          <View style={styles.quickActions}>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: colors.card }]}
-              onPress={() => {
-                // 동기화 상태 확인
-                const syncStatus = syncService.getSyncStatus();
-                Alert.alert(
-                  '동기화 상태',
-                  `연결 상태: ${syncStatus.isConnected ? '연결됨' : '연결 안됨'}\n` +
-                  `마지막 동기화: ${new Date(syncStatus.lastSyncTime).toLocaleString()}\n` +
-                  `대기 중인 변경사항: ${syncStatus.pendingChanges}개`,
-                  [
-                    { text: '확인', style: 'default' },
-                    { text: '재동기화', onPress: () => syncService.forceSync() }
-                  ]
-                );
-              }}
-            >
-              <Ionicons name="sync" size={32} color={colors.tint} />
-              <ThemedText type="defaultSemiBold">동기화</ThemedText>
-            </TouchableOpacity>
-          </View>
-
-          {/* 최근 거래 내역 */}
-          <View style={styles.recentTransactions}>
+        {/* 목표 섹션 */}
+        {goals && goals.length > 0 && (
+          <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <ThemedText type="subtitle">최근 거래</ThemedText>
-              <TouchableOpacity onPress={() => {
-                router.push('/(tabs)/explore');
-                // 내역 탭으로 이동하도록 설정할 수 있지만, 현재는 탭 상태가 전역이 아니므로 생략
-              }}>
-                <ThemedText style={[styles.seeAllText, { color: colors.tint }]}>
+              <ThemedText type="subtitle">목표</ThemedText>
+              <TouchableOpacity onPress={() => router.push('/(modals)/goals')}>
+                <ThemedText type="caption" variant="primary">
                   모두 보기
                 </ThemedText>
               </TouchableOpacity>
             </View>
-
-            {ledgers.length === 0 ? (
-              <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
-                <Ionicons name="receipt-outline" size={48} color={colors.icon} />
-                <ThemedText style={styles.emptyStateText}>거래 내역이 없습니다</ThemedText>
-                <ThemedText style={styles.emptyStateSubtext}>첫 거래를 추가해보세요!</ThemedText>
-              </View>
-            ) : (
-              ledgers.slice(0, 3).map((ledger) => (
-                <View key={ledger.id} style={[styles.transactionItem, { backgroundColor: colors.card }]}>
-                  <View style={styles.transactionIcon}>
-                    <Ionicons 
-                      name={getTransactionIcon(ledger.description) as any} 
-                      size={24} 
-                      color={getTransactionColor(ledger.description)} 
-                    />
-                  </View>
-                  <View style={styles.transactionInfo}>
-                    <ThemedText type="defaultSemiBold">{ledger.description}</ThemedText>
-                    <ThemedText style={styles.transactionDate}>
-                      {formatDate(ledger.date)}
+            
+            {goals.slice(0, 3).map((goal) => (
+              <ThemedCard
+                key={goal.goalId}
+                variant="default"
+                style={styles.goalCard}
+                onPress={() => router.push(`/goal/${goal.goalId}`)}
+              >
+                <View style={styles.goalContent}>
+                  <View style={styles.goalInfo}>
+                    <ThemedText type="body" weight="medium">
+                      {goal.title}
+                    </ThemedText>
+                    <ThemedText type="caption" variant="secondary">
+                      ₩{formatAmount(goal.currentAmount)} / ₩{formatAmount(goal.targetAmount)}
                     </ThemedText>
                   </View>
-                  <ThemedText style={[
-                    styles.transactionAmount, 
-                    { color: ledger.amountType === 'INCOME' ? '#4CAF50' : '#FF3B30' }
-                  ]}>
-                    {ledger.amountType === 'INCOME' ? '+' : '-'}₩{formatAmount(ledger.amount)}
+                  
+                  <View style={styles.progressContainer}>
+                    <View style={[styles.progressBar, { backgroundColor: colors.backgroundSecondary }]}>
+                      <View 
+                        style={[
+                          styles.progressFill, 
+                          { 
+                            backgroundColor: colors.success,
+                            width: `${Math.min((goal.currentAmount / goal.targetAmount) * 100, 100)}%`
+                          }
+                        ]} 
+                      />
+                    </View>
+                    <ThemedText type="caption" variant="success">
+                      {Math.round((goal.currentAmount / goal.targetAmount) * 100)}%
+                    </ThemedText>
+                  </View>
+                </View>
+              </ThemedCard>
+            ))}
+          </View>
+        )}
+
+        {/* 오늘의 반복 거래 */}
+        {todayRecurringTransactions && todayRecurringTransactions.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="subtitle">오늘의 반복 거래</ThemedText>
+              <TouchableOpacity onPress={() => router.push('/(modals)/recurring-transactions')}>
+                <ThemedText type="caption" variant="primary">
+                  모두 보기
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+            
+            {todayRecurringTransactions.map((transaction) => (
+              <ThemedCard
+                key={transaction.id}
+                variant="default"
+                style={styles.recurringCard}
+              >
+                <View style={styles.transactionContent}>
+                  <View style={[styles.iconContainer, { backgroundColor: colors.infoLight }]}>
+                    <Ionicons name="repeat" size={20} color={colors.info} />
+                  </View>
+                  
+                  <View style={styles.transactionInfo}>
+                    <ThemedText type="body" weight="medium">
+                      {transaction.name}
+                    </ThemedText>
+                    <ThemedText type="caption" variant="tertiary">
+                      반복 거래
+                    </ThemedText>
+                  </View>
+                  
+                  <View style={styles.transactionAmount}>
+                    <ThemedText 
+                      type="body" 
+                      weight="semibold"
+                      variant={transaction.type === 'INCOME' ? 'success' : 'error'}
+                    >
+                      {transaction.type === 'INCOME' ? '+' : '-'}₩{formatAmount(transaction.amount)}
+                    </ThemedText>
+                  </View>
+                </View>
+              </ThemedCard>
+            ))}
+          </View>
+        )}
+
+        {/* 댓글 섹션은 모달에서 처리 */}
+      </ScrollView>
+
+      {/* 거래 댓글 모달 */}
+      <Modal
+        visible={!!selectedLedgerId}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedLedgerId(null)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderLeft}>
+              <ThemedText type="subtitle">거래 상세</ThemedText>
+              {getSelectedLedger() && (
+                <ThemedText type="caption" variant="secondary">
+                  {getSelectedLedger()?.description}
+                </ThemedText>
+              )}
+            </View>
+            <TouchableOpacity onPress={() => setSelectedLedgerId(null)}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+          
+          {getSelectedLedger() && (
+            <ScrollView style={styles.modalContent}>
+              <ThemedCard variant="elevated" style={styles.ledgerDetailCard}>
+                <View style={styles.ledgerDetailRow}>
+                  <ThemedText type="body" variant="secondary">날짜</ThemedText>
+                  <ThemedText type="body">
+                    {formatDate(getSelectedLedger()!.transactionDate)}
                   </ThemedText>
                 </View>
-              ))
-            )}
-          </View>
-
-          {/* 로그아웃 버튼 */}
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out" size={20} color="white" />
-            <ThemedText style={styles.logoutButtonText}>로그아웃</ThemedText>
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* 댓글 모달 */}
-        <Modal
-          visible={showComments}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setShowComments(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setShowComments(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-              <ThemedText type="subtitle">가계부 댓글</ThemedText>
-              <View style={{ width: 24 }} />
-            </View>
-            {currentBook && (
-              <CommentSection type="book" targetId={currentBook.id} />
-            )}
-          </View>
-        </Modal>
-      </ThemedView>
+                <View style={styles.ledgerDetailRow}>
+                  <ThemedText type="body" variant="secondary">금액</ThemedText>
+                  <ThemedText 
+                    type="body" 
+                    weight="semibold"
+                    variant={getSelectedLedger()!.amountType === 'INCOME' ? 'success' : 'error'}
+                  >
+                    {getSelectedLedger()!.amountType === 'INCOME' ? '+' : '-'}₩{formatAmount(getSelectedLedger()!.amount)}
+                  </ThemedText>
+                </View>
+                {getSelectedLedger()!.memo && (
+                  <View style={styles.ledgerDetailMemo}>
+                    <ThemedText type="body" variant="secondary">메모</ThemedText>
+                    <ThemedText type="body" style={styles.memoText}>
+                      {getSelectedLedger()!.memo}
+                    </ThemedText>
+                  </View>
+                )}
+              </ThemedCard>
+              
+              <View style={styles.commentSectionContainer}>
+                <ThemedText type="subtitle" style={styles.commentSectionTitle}>
+                  댓글
+                </ThemedText>
+                <CommentSection 
+                  type="ledger" 
+                  targetId={selectedLedgerId} 
+                />
+              </View>
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
   container: {
     flex: 1,
   },
   scrollView: {
     flex: 1,
-    padding: 16,
   },
   header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarSection: {
+    marginHorizontal: 20,
     marginBottom: 24,
-    marginTop: 8,
   },
-  userInfo: {
-    flex: 1,
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  bookName: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 2,
+  calendar: {
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    paddingBottom: 10,
   },
-  profileButton: {
+  dayContainer: {
+    width: 48,
+    height: 85,
     padding: 4,
+    margin: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  dayText: {
+    fontSize: 14,
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  dayDataContainer: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  dayDataText: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginVertical: 1,
+  },
+  dayTotalText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    marginTop: 2,
+    paddingTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
   },
   balanceCard: {
-    padding: 20,
-    borderRadius: 16,
+    marginHorizontal: 20,
     marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
   balanceHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   balanceAmount: {
     fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 16,
   },
-  balanceChange: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  changeText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  quickActions: {
+  monthlyStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  quickActions: {
+    paddingHorizontal: 20,
     marginBottom: 32,
   },
-  actionButton: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginHorizontal: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+  addButton: {
+    marginBottom: 16,
   },
-  recentTransactions: {
-    marginBottom: 24,
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  secondaryButton: {
+    flex: 1,
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 32,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -711,169 +935,101 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  seeAllText: {
-    fontSize: 14,
-    fontWeight: '500',
+  transactionCard: {
+    marginBottom: 12,
   },
-  transactionItem: {
+  transactionContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  transactionIcon: {
+  iconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   transactionInfo: {
     flex: 1,
   },
-  transactionDate: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 2,
-  },
   transactionAmount: {
-    fontSize: 16,
-    fontWeight: '600',
+    alignItems: 'flex-end',
   },
-  logoutButton: {
-    backgroundColor: '#FF3B30',
+  emptyCard: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  goalCard: {
+    marginBottom: 12,
+  },
+  goalContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-    marginTop: 16,
+    justifyContent: 'space-between',
   },
-  logoutButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
+  goalInfo: {
+    flex: 1,
   },
-  emptyState: {
-    padding: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 8,
+  progressContainer: {
+    alignItems: 'flex-end',
+    minWidth: 80,
   },
-  emptyStateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 16,
-    textAlign: 'center',
+  progressBar: {
+    width: 60,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 4,
   },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 4,
-    textAlign: 'center',
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  recurringCard: {
+    marginBottom: 12,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
+    borderBottomColor: '#E2E8F0',
   },
-  goalsWidget: {
-    marginBottom: 24,
-  },
-  goalCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  goalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  goalIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  goalIconText: {
-    fontSize: 20,
-  },
-  goalInfo: {
+  modalHeaderLeft: {
     flex: 1,
   },
-  goalAmount: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 2,
+  modalContent: {
+    flex: 1,
   },
-  goalPercentage: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  goalProgress: {
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  goalProgressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  recurringAlert: {
+  ledgerDetailCard: {
+    margin: 16,
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 24,
   },
-  recurringAlertHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  recurringItem: {
+  ledgerDetailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    marginBottom: 12,
   },
-  executeButton: {
-    marginTop: 12,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+  ledgerDetailMemo: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
   },
-  executeButtonText: {
-    color: 'white',
-    fontWeight: '600',
+  memoText: {
+    marginTop: 8,
+    lineHeight: 20,
   },
-}); 
+  commentSectionContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+  },
+  commentSectionTitle: {
+    marginBottom: 16,
+  },
+});

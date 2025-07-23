@@ -1,5 +1,4 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { ThemedText } from '@/components/ThemedText';
@@ -29,8 +28,7 @@ export default function CreateFirstBookScreen() {
 
   const { token, user, loadInitialData } = useAuthStore();
   const { createBook } = useBookStore();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   const handleCreateBook = async () => {
     if (!bookTitle.trim()) {
@@ -90,7 +88,7 @@ export default function CreateFirstBookScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       
       <View style={[styles.gradient, { backgroundColor: colors.background }]}>
         <KeyboardAvoidingView 

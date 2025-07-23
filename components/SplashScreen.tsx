@@ -1,5 +1,4 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
@@ -16,8 +15,7 @@ interface SplashScreenProps {
 }
 
 export default function SplashScreen({ onLoadingComplete }: SplashScreenProps) {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors } = useTheme();
   const [statusMessage, setStatusMessage] = useState('앱을 준비하고 있습니다...');
   const [progress, setProgress] = useState(0);
   
@@ -47,10 +45,10 @@ export default function SplashScreen({ onLoadingComplete }: SplashScreenProps) {
       setStatusMessage('인증 상태 확인 중...');
       setProgress(10);
       
-      // 인증 상태 확인에 타임아웃 추가 (3초로 단축)
+      // 인증 상태 확인에 타임아웃 추가 (7초로 증가)
       const authPromise = checkAuthStatus();
       const authTimeoutPromise = new Promise<void>((_, reject) => 
-        setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 3000)
+        setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 7000)
       );
       
       try {

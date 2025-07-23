@@ -79,7 +79,7 @@ export function handleDeepLink(url: string) {
       '(modals)/help': '(modals)/help',
       '(modals)/about': '(modals)/about',
       '(modals)/add-transaction': '(modals)/add-transaction',
-      '(modals)/add-book': 'add-book',
+      '(modals)/book-creation': '(modals)/book-creation',
       '(modals)/book-sharing': '(modals)/book-sharing',
       '(modals)/advanced-stats': '(modals)/advanced-stats',
       '(modals)/budget-settings': '(modals)/budget-settings',

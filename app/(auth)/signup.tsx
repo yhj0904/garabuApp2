@@ -1,5 +1,4 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import appleService from '@/features/auth/services/appleService';
 import { useAuthStore } from '@/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -11,42 +10,42 @@ import {
     Platform,
     ScrollView,
     StyleSheet,
-    Text,
-    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { PasswordStrengthIndicator } from '@/components/PasswordStrengthIndicator';
 import { validatePassword } from '@/utils/passwordValidator';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedInput } from '@/components/ThemedInput';
+import { ThemedButton } from '@/components/ThemedButton';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function SignupScreen() {
-  const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
-  // const [name, setName] = useState(''); // 서버 API에서 받지 않으므로 제거
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   
-  const { signup, isLoading, isAuthenticated } = useAuthStore();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { signup, signupWithKakao, signupWithGoogle, signupWithApple, isLoading, isAuthenticated } = useAuthStore();
+  const { colors, isDarkMode } = useTheme();
 
-  // 로그인 상태 확인
+  // 회원가입 상태 확인
   useEffect(() => {
     if (isAuthenticated) {
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated]);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
-
   const handleSignup = async () => {
-    if (!email || !username || !password || !confirmPassword) {
+    if (!username || !email || !password || !confirmPassword) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('오류', '모든 필드를 입력해주세요.');
       return;
@@ -58,13 +57,12 @@ export default function SignupScreen() {
       return;
     }
 
-    if (username.length < 2) {
+    if (password !== confirmPassword) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('오류', '이름은 최소 2자 이상이어야 합니다.');
+      Alert.alert('오류', '비밀번호가 일치하지 않습니다.');
       return;
     }
 
-    // 유틸리티 함수 사용으로 변경
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -72,26 +70,47 @@ export default function SignupScreen() {
       return;
     }
 
-    if (password !== confirmPassword) {
+    try {
+      const result = await signup(email, username, password, username); // name으로 username 사용
+      
+      if (result.success) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert('회원가입 실패', result.error || '회원가입 중 오류가 발생했습니다.');
+      }
+    } catch (error: any) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('오류', '비밀번호가 일치하지 않습니다.');
-      return;
-    }
-
-    const result = await signup(email, username, password, username); // name 대신 username 사용
-    
-    if (!result.success) {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      // 서버에서 반환한 구체적인 에러 메시지 표시
-      Alert.alert('회원가입 실패', result.error || '회원가입 중 오류가 발생했습니다. 다시 시도해주세요.');
-    } else {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('회원가입 실패', error.message || '회원가입 중 오류가 발생했습니다.');
     }
   };
 
-
   const handleBackToLogin = () => {
-    router.push('/(auth)/login');
+    router.back();
+  };
+
+  const handleKakaoSignup = async () => {
+    const success = await signupWithKakao();
+    
+    if (!success) {
+      Alert.alert('카카오 회원가입 실패', '다시 시도해주세요.');
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    const success = await signupWithGoogle();
+    
+    if (!success) {
+      Alert.alert('구글 회원가입 실패', '다시 시도해주세요.');
+    }
+  };
+
+  const handleAppleSignup = async () => {
+    const success = await signupWithApple();
+    
+    if (!success) {
+      Alert.alert('애플 회원가입 실패', '다시 시도해주세요.');
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -102,208 +121,187 @@ export default function SignupScreen() {
     setIsConfirmPasswordVisible(!isConfirmPasswordVisible);
   };
 
+  const passwordsMatch = password === confirmPassword && password.length > 0;
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.content}>
             {/* 헤더 */}
             <View style={styles.header}>
               <TouchableOpacity onPress={handleBackToLogin} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={24} color={colors.tint} />
+                <Ionicons name="arrow-back" size={24} color={colors.primary} />
               </TouchableOpacity>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>회원가입</Text>
+              <ThemedText type="subtitle" style={styles.headerTitle}>
+                회원가입
+              </ThemedText>
             </View>
-
 
             {/* 회원가입 폼 */}
             <View style={styles.formContainer}>
-              <View style={styles.inputContainer}>
-                <View style={styles.inputLabelContainer}>
-                  <Ionicons name="mail" size={16} color={colors.icon} />
-                  <Text style={[styles.label, { color: colors.text }]}>이메일</Text>
-                </View>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
-                      color: colors.text,
-                      borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
-                    },
-                  ]}
-                  placeholder="이메일을 입력하세요"
-                  placeholderTextColor={colors.icon}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="email"
-                />
-              </View>
+              <ThemedInput
+                label="사용자명"
+                leftIcon="person"
+                placeholder="사용자명을 입력하세요"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
 
-              <View style={styles.inputContainer}>
-                <View style={styles.inputLabelContainer}>
-                  <Ionicons name="person" size={16} color={colors.icon} />
-                  <Text style={[styles.label, { color: colors.text }]}>이름</Text>
-                </View>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
-                      color: colors.text,
-                      borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
-                    },
-                  ]}
-                  placeholder="이름을 입력하세요"
-                  placeholderTextColor={colors.icon}
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  autoComplete="name"
-                />
-              </View>
+              <ThemedInput
+                label="이메일"
+                leftIcon="mail"
+                placeholder="이메일을 입력하세요"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+              />
 
-              <View style={styles.inputContainer}>
-                <View style={styles.inputLabelContainer}>
-                  <Ionicons name="lock-closed" size={16} color={colors.icon} />
-                  <Text style={[styles.label, { color: colors.text }]}>비밀번호</Text>
-                </View>
-                <View style={styles.passwordContainer}>
-                  <TextInput
-                    style={[
-                      styles.passwordInput,
-                      {
-                        backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
-                        color: colors.text,
-                        borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
-                      },
-                    ]}
-                    placeholder="비밀번호를 입력하세요 (최소 8자)"
-                    placeholderTextColor={colors.icon}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!isPasswordVisible}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoComplete="new-password"
+              <ThemedInput
+                label="비밀번호"
+                leftIcon="lock-closed"
+                rightIcon={isPasswordVisible ? "eye-off" : "eye"}
+                onRightIconPress={togglePasswordVisibility}
+                placeholder="비밀번호를 입력하세요"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!isPasswordVisible}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="new-password"
+              />
+              
+              {/* 비밀번호 강도 표시 */}
+              {password.length > 0 && (
+                <PasswordStrengthIndicator password={password} />
+              )}
+
+              <ThemedInput
+                label="비밀번호 확인"
+                leftIcon="lock-closed"
+                rightIcon={isConfirmPasswordVisible ? "eye-off" : "eye"}
+                onRightIconPress={toggleConfirmPasswordVisibility}
+                placeholder="비밀번호를 다시 입력하세요"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!isConfirmPasswordVisible}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="new-password"
+              />
+
+              {/* 비밀번호 일치 표시 */}
+              {confirmPassword.length > 0 && (
+                <View style={styles.matchIndicator}>
+                  <Ionicons 
+                    name={passwordsMatch ? "checkmark-circle" : "close-circle"} 
+                    size={16} 
+                    color={passwordsMatch ? colors.success : colors.error} 
                   />
-                  <TouchableOpacity
-                    style={styles.eyeButton}
-                    onPress={togglePasswordVisibility}
+                  <ThemedText 
+                    type="caption" 
+                    variant={passwordsMatch ? "success" : "error"}
+                    style={styles.matchText}
                   >
-                    <Ionicons 
-                      name={isPasswordVisible ? "eye-off" : "eye"} 
-                      size={20} 
-                      color={colors.icon} 
-                    />
-                  </TouchableOpacity>
+                    {passwordsMatch ? '비밀번호가 일치합니다' : '비밀번호가 일치하지 않습니다'}
+                  </ThemedText>
                 </View>
-                
-                {/* 비밀번호 강도 표시 - 회원가입에서는 상세 표시 */}
-                {password.length > 0 && (
-                  <PasswordStrengthIndicator 
-                    password={password} 
-                    showRequirements={true}
-                  />
-                )}
-              </View>
-
-              <View style={styles.inputContainer}>
-                <View style={styles.inputLabelContainer}>
-                  <Ionicons name="lock-closed" size={16} color={colors.icon} />
-                  <Text style={[styles.label, { color: colors.text }]}>비밀번호 확인</Text>
-                </View>
-                <View style={styles.passwordContainer}>
-                  <TextInput
-                    style={[
-                      styles.passwordInput,
-                      {
-                        backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
-                        color: colors.text,
-                        borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
-                      },
-                    ]}
-                    placeholder="비밀번호를 다시 입력하세요"
-                    placeholderTextColor={colors.icon}
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry={!isConfirmPasswordVisible}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoComplete="new-password"
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeButton}
-                    onPress={toggleConfirmPasswordVisibility}
-                  >
-                    <Ionicons 
-                      name={isConfirmPasswordVisible ? "eye-off" : "eye"} 
-                      size={20} 
-                      color={colors.icon} 
-                    />
-                  </TouchableOpacity>
-                </View>
-                
-                {/* 비밀번호 일치 여부 표시 */}
-                {confirmPassword.length > 0 && (
-                  <View style={styles.matchIndicator}>
-                    <Ionicons 
-                      name={password === confirmPassword ? "checkmark-circle" : "close-circle"} 
-                      size={16} 
-                      color={password === confirmPassword ? '#00C851' : '#FF4444'} 
-                    />
-                    <Text style={[
-                      styles.matchText, 
-                      { color: password === confirmPassword ? '#00C851' : '#FF4444' }
-                    ]}>
-                      {password === confirmPassword ? '비밀번호가 일치합니다' : '비밀번호가 일치하지 않습니다'}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              )}
 
               {/* 회원가입 버튼 */}
-              <TouchableOpacity
-                style={[
-                  styles.signupButton,
-                  {
-                    backgroundColor: colors.tint,
-                    opacity: isLoading ? 0.7 : 1,
-                  },
-                ]}
+              <ThemedButton
+                variant="primary"
+                size="large"
+                loading={isLoading}
+                disabled={!passwordsMatch || !username || !email || !password}
                 onPress={handleSignup}
-                disabled={isLoading}
-                activeOpacity={0.8}
+                style={styles.signupButton}
               >
-                <Ionicons name="person-add" size={20} color="white" />
-                <Text style={styles.signupButtonText}>
-                  {isLoading ? '회원가입 중...' : '회원가입'}
-                </Text>
-              </TouchableOpacity>
+                <Ionicons name="person-add" size={20} color={colors.textInverse} style={{ marginRight: 8 }} />
+                {isLoading ? '회원가입 중...' : '회원가입'}
+              </ThemedButton>
 
               {/* 로그인 링크 */}
               <View style={styles.loginContainer}>
-                <Text style={[styles.loginText, { color: colors.icon }]}>
+                <ThemedText type="body" variant="secondary">
                   이미 계정이 있으신가요?{' '}
-                </Text>
+                </ThemedText>
                 <TouchableOpacity onPress={handleBackToLogin}>
-                  <Text style={[styles.loginLink, { color: colors.tint }]}>
+                  <ThemedText type="body" variant="primary" weight="semibold">
                     로그인
-                  </Text>
+                  </ThemedText>
                 </TouchableOpacity>
+              </View>
+
+              {/* 구분선 */}
+              <View style={styles.dividerContainer}>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <ThemedText type="caption" variant="tertiary" style={styles.dividerText}>
+                  OR
+                </ThemedText>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              </View>
+
+              {/* 소셜 회원가입 버튼들 */}
+              <View style={styles.socialButtonsContainer}>
+                {/* 카카오 회원가입 버튼 */}
+                <TouchableOpacity
+                  style={[
+                    styles.socialButton,
+                    { backgroundColor: '#FEE500' }, // 카카오 노란색
+                  ]}
+                  onPress={handleKakaoSignup}
+                  activeOpacity={0.8}
+                >
+                  <ThemedText type="button" style={[styles.socialButtonText, { color: '#000000' }]}>
+                    카카오로 회원가입
+                  </ThemedText>
+                </TouchableOpacity>
+
+                {/* 구글 회원가입 버튼 */}
+                <TouchableOpacity
+                  style={[
+                    styles.socialButton,
+                    { 
+                      backgroundColor: colors.surface,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  onPress={handleGoogleSignup}
+                  activeOpacity={0.8}
+                >
+                  <ThemedText type="button" style={[styles.socialButtonText, { color: colors.text }]}>
+                    구글로 회원가입
+                  </ThemedText>
+                </TouchableOpacity>
+
+                {/* 애플 회원가입 버튼 (iOS만) */}
+                {Platform.OS === 'ios' && (
+                  <View style={{ width: '100%' }}>
+                    {appleService.renderButton({
+                      onPress: handleAppleSignup,
+                      style: { width: '100%', height: 50 },
+                    })}
+                  </View>
+                )}
               </View>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -316,6 +314,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingVertical: 20,
   },
   content: {
     flex: 1,
@@ -332,82 +331,18 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   headerTitle: {
-    fontSize: 24,
     fontWeight: 'bold',
   },
   formContainer: {
     flex: 1,
   },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  inputLabelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  input: {
-    height: 50,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-  },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    height: 50,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingRight: 50,
-    fontSize: 16,
-  },
-  eyeButton: {
-    position: 'absolute',
-    right: 16,
-    top: 15,
-    padding: 4,
-  },
   signupButton: {
-    height: 50,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginTop: 20,
-    flexDirection: 'row',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  signupButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
   },
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 24,
-  },
-  loginText: {
-    fontSize: 14,
-  },
-  loginLink: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   matchIndicator: {
     flexDirection: 'row',
@@ -415,8 +350,35 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   matchText: {
-    fontSize: 12,
     marginLeft: 6,
     fontWeight: '500',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    opacity: 0.3,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontWeight: '500',
+  },
+  socialButtonsContainer: {
+    gap: 12,
+  },
+  socialButton: {
+    height: 50,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  socialButtonText: {
+    fontWeight: '600',
   },
 }); 

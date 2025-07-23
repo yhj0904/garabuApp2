@@ -1,5 +1,4 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,8 +43,7 @@ export default function BookSharingScreen() {
     leaveBook 
   } = useBookStore();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors } = useTheme();
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -67,7 +65,7 @@ export default function BookSharingScreen() {
           role: 'USER'
         },
         role: member.role,
-        joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
+        joinedAt: member.joinedAt
       }));
       
       setBookMembersWithJoinDate(membersWithJoinDate);
@@ -92,7 +90,7 @@ export default function BookSharingScreen() {
             role: 'USER'
           },
           role: member.role,
-          joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
+          joinedAt: member.joinedAt
         }));
         
         setBookMembersWithJoinDate(membersWithJoinDate);

@@ -79,10 +79,10 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
     try {
       set({ isLoading: true });
       const response = await apiService.axiosInstance.get('/friends');
-      set({ friends: response.data.friends, isLoading: false });
+      set({ friends: response.data.friends || [], isLoading: false });
     } catch (error) {
       console.error('친구 목록 로드 실패:', error);
-      set({ isLoading: false });
+      set({ friends: [], isLoading: false });
     }
   },
 
@@ -90,10 +90,10 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
     try {
       set({ isLoading: true });
       const response = await apiService.axiosInstance.get('/friends/requests/received');
-      set({ friendRequests: response.data.requests, isLoading: false });
+      set({ friendRequests: response.data.requests || [], isLoading: false });
     } catch (error) {
       console.error('받은 친구 요청 로드 실패:', error);
-      set({ isLoading: false });
+      set({ friendRequests: [], isLoading: false });
     }
   },
 
@@ -101,10 +101,10 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
     try {
       set({ isLoading: true });
       const response = await apiService.axiosInstance.get('/friends/requests/sent');
-      set({ sentRequests: response.data.requests, isLoading: false });
+      set({ sentRequests: response.data.requests || [], isLoading: false });
     } catch (error) {
       console.error('보낸 친구 요청 로드 실패:', error);
-      set({ isLoading: false });
+      set({ sentRequests: [], isLoading: false });
     }
   },
 
@@ -123,11 +123,15 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
     try {
       const response = await apiService.axiosInstance.get('/friends/status');
       set({ 
-        friendCount: response.data.friendCount,
-        pendingRequestCount: response.data.pendingRequestCount
+        friendCount: response.data.friendCount || 0,
+        pendingRequestCount: response.data.pendingRequestCount || 0
       });
     } catch (error) {
       console.error('친구 상태 로드 실패:', error);
+      set({ 
+        friendCount: 0,
+        pendingRequestCount: 0
+      });
     }
   },
 

@@ -141,18 +141,7 @@ export default function FriendRequestsScreen() {
   const currentData = activeTab === 'received' ? friendRequests : sentRequests;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>친구 요청</Text>
-        <View style={styles.headerRight} />
-      </View>
-
+    <View style={styles.container}>
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[
@@ -208,7 +197,7 @@ export default function FriendRequestsScreen() {
           </View>
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -216,27 +205,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    padding: 5,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  headerRight: {
-    width: 34,
   },
   tabContainer: {
     flexDirection: 'row',

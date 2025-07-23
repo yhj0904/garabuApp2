@@ -14,8 +14,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/ThemedText';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAssetStore } from '@/stores/assetStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
@@ -23,8 +22,7 @@ import type { Asset, UpdateAssetRequest } from '@/core/api/client';
 import { formatAmountInput, parseFormattedNumber, formatKoreanAmount } from '@/utils/numberFormat';
 
 export default function AssetDetailModal() {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
   const { assetId } = useLocalSearchParams<{ assetId: string }>();
   
   // Store hooks

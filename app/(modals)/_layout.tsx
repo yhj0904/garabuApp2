@@ -25,6 +25,13 @@ export default function ModalLayout() {
         <Stack.Screen name="book-settings" options={{ title: '가계부 설정' }} />
         <Stack.Screen name="invite-code" options={{ title: '초대 코드' }} />
         <Stack.Screen name="join-book" options={{ title: '가계부 참여' }} />
+        <Stack.Screen name="add-category" options={{ title: '카테고리 추가' }} />
+        <Stack.Screen name="currencies" options={{ title: '통화 설정' }} />
+        <Stack.Screen name="edit-asset" options={{ title: '자산 편집' }} />
+        <Stack.Screen name="goals" options={{ title: '목표' }} />
+        <Stack.Screen name="notification-settings" options={{ title: '알림 설정' }} />
+        <Stack.Screen name="recurring-transactions" options={{ title: '반복 거래' }} />
+        <Stack.Screen name="tags" options={{ title: '태그 관리' }} />
       </Stack>
     </SafeAreaView>
   );
