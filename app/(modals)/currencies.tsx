@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/authStore';
 import { useBookStore } from '../../stores/bookStore';
 import apiService from '../../services/api';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface Currency {
   id: number;
@@ -38,8 +39,8 @@ interface ExchangeRate {
 
 interface BookCurrency {
   bookId: number;
-  currencyId: number;
-  isDefault: boolean;
+  defaultCurrency: string;
+  useMultiCurrency: boolean;
 }
 
 const POPULAR_CURRENCIES = [
@@ -53,6 +54,7 @@ const POPULAR_CURRENCIES = [
 export default function CurrenciesScreen() {
   const { token } = useAuthStore();
   const { currentBook } = useBookStore();
+  const { colors } = useTheme();
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [bookCurrencies, setBookCurrencies] = useState<BookCurrency[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,8 +76,8 @@ export default function CurrenciesScreen() {
       setCurrencies(currenciesResponse.data);
       
       // 현재 가계부의 활성 통화 조회
-      const bookCurrenciesResponse = await apiService.axiosInstance.get(`/book/${currentBook.id}/currencies`);
-      setBookCurrencies(bookCurrenciesResponse.data);
+      const bookCurrencyResponse = await apiService.axiosInstance.get(`/currencies/books/${currentBook.id}/currency`);
+      setBookCurrencies([bookCurrencyResponse.data]); // 단일 객체를 배열로 감싸기
       
     } catch (error) {
       console.error('통화 데이터 로드 실패:', error);
@@ -88,19 +90,14 @@ export default function CurrenciesScreen() {
   const toggleCurrency = async (currency: Currency) => {
     if (!token || !currentBook) return;
     
-    const isActive = bookCurrencies.some(bc => bc.currencyId === currency.id);
+    const isActive = bookCurrencies.some(bc => bc.defaultCurrency === (currency.currencyCode || currency.code));
     
     try {
-      if (isActive) {
-        // 비활성화
-        await apiService.axiosInstance.delete(`/book/${currentBook.id}/currencies/${currency.id}`);
-      } else {
-        // 활성화
-        await apiService.axiosInstance.post(`/book/${currentBook.id}/currencies`, {
-          currencyId: currency.id,
-          isDefault: bookCurrencies.length === 0 // 첫 번째 통화면 기본값으로 설정
-        });
-      }
+      // 가계부 기본 통화 설정으로 통합
+      await apiService.axiosInstance.put(`/currencies/books/${currentBook.id}/currency`, {
+        currencyCode: currency.currencyCode || currency.code,
+        useMultiCurrency: true
+      });
       
       fetchData(); // 데이터 새로고침
     } catch (error) {
@@ -110,8 +107,8 @@ export default function CurrenciesScreen() {
   };
 
   const renderCurrency = ({ item }: { item: Currency }) => {
-    const isActive = bookCurrencies.some(bc => bc.currencyId === item.id);
-    const isDefault = bookCurrencies.find(bc => bc.currencyId === item.id)?.isDefault;
+    const isActive = bookCurrencies.some(bc => bc.defaultCurrency === (item.currencyCode || item.code));
+    const isDefault = isActive; // 현재 API에서는 defaultCurrency만 설정됨
     
     const code = item.currencyCode || item.code || '';
     const name = item.currencyName || item.name || '';
@@ -119,22 +116,22 @@ export default function CurrenciesScreen() {
     
     return (
       <TouchableOpacity
-        style={[styles.currencyItem, isActive && styles.activeCurrency]}
+        style={[styles.currencyItem, { backgroundColor: colors.card }, isActive && { backgroundColor: colors.background, borderColor: colors.primary }]}
         onPress={() => toggleCurrency(item)}
       >
         <View style={styles.currencyInfo}>
           <View style={styles.currencyHeader}>
-            <Text style={styles.currencyCode}>{code}</Text>
-            <Text style={styles.currencySymbol}>{item.symbol}</Text>
+            <Text style={[styles.currencyCode, { color: colors.text }]}>{code}</Text>
+            <Text style={[styles.currencySymbol, { color: colors.textSecondary }]}>{item.symbol}</Text>
             {isDefault && (
-              <View style={styles.defaultBadge}>
+              <View style={[styles.defaultBadge, { backgroundColor: colors.primary }]}>
                 <Text style={styles.defaultText}>기본</Text>
               </View>
             )}
           </View>
-          <Text style={styles.currencyName}>{nameKr || name}</Text>
+          <Text style={[styles.currencyName, { color: colors.textSecondary }]}>{nameKr || name}</Text>
         </View>
-        <View style={[styles.checkbox, isActive && styles.checkedCheckbox]}>
+        <View style={[styles.checkbox, { borderColor: colors.border }, isActive && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
           {isActive && <Ionicons name="checkmark" size={16} color="white" />}
         </View>
       </TouchableOpacity>
@@ -202,44 +199,45 @@ export default function CurrenciesScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 헤더 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBackButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>통화 관리</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>통화 관리</Text>
         <TouchableOpacity onPress={addCustomCurrency} style={styles.headerAddButton}>
-          <Ionicons name="add" size={24} color="#007AFF" />
+          <Ionicons name="add" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
       
       <View style={styles.innerContainer}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#8E8E93" />
+        <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
+          <Ionicons name="search" size={20} color={colors.textTertiary} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.text }]}
             placeholder="통화 검색"
+            placeholderTextColor={colors.textTertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
         </View>
 
-        <View style={styles.filterContainer}>
-          <Text style={styles.filterLabel}>모든 통화 표시</Text>
+        <View style={[styles.filterContainer, { backgroundColor: colors.card }]}>
+          <Text style={[styles.filterLabel, { color: colors.text }]}>모든 통화 표시</Text>
           <Switch value={showAll} onValueChange={setShowAll} />
         </View>
 
-        <View style={styles.infoContainer}>
-          <Ionicons name="information-circle" size={20} color="#007AFF" />
-          <Text style={styles.infoText}>
+        <View style={[styles.infoContainer, { backgroundColor: colors.info + '20' }]}>
+          <Ionicons name="information-circle" size={20} color={colors.info} />
+          <Text style={[styles.infoText, { color: colors.info }]}>
             여러 통화를 활성화하여 다중 통화로 거래를 기록할 수 있습니다.
           </Text>
         </View>
@@ -258,7 +256,6 @@ export default function CurrenciesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
   },
   header: {
     flexDirection: 'row',
@@ -266,14 +263,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#F2F2F7',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
   },
   headerTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1C1C1E',
   },
   headerBackButton: {
     padding: 8,
@@ -294,7 +288,6 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
     margin: 16,
     marginBottom: 8,
     paddingHorizontal: 12,
@@ -312,19 +305,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'white',
     marginHorizontal: 16,
     marginBottom: 8,
     borderRadius: 10,
   },
   filterLabel: {
     fontSize: 16,
-    color: '#1C1C1E',
   },
   infoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E3F2FD',
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginHorizontal: 16,
@@ -334,7 +324,6 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 14,
-    color: '#1976D2',
     marginLeft: 8,
   },
   listContainer: {
@@ -344,7 +333,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'white',
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginHorizontal: 16,
@@ -352,9 +340,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   activeCurrency: {
-    backgroundColor: '#F0F8FF',
     borderWidth: 1,
-    borderColor: '#007AFF',
   },
   currencyInfo: {
     flex: 1,
@@ -367,16 +353,13 @@ const styles = StyleSheet.create({
   currencyCode: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1C1C1E',
     marginRight: 8,
   },
   currencySymbol: {
     fontSize: 16,
-    color: '#8E8E93',
     marginRight: 8,
   },
   defaultBadge: {
-    backgroundColor: '#007AFF',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -388,19 +371,16 @@ const styles = StyleSheet.create({
   },
   currencyName: {
     fontSize: 14,
-    color: '#8E8E93',
   },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#E5E5EA',
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkedCheckbox: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
   },
 });

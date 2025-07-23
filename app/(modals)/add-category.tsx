@@ -1,5 +1,4 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import { useCategoryStore } from '@/stores/categoryStore';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,8 +21,7 @@ export default function AddCategoryScreen() {
   const { token } = useAuthStore();
   const { createCategory } = useCategoryStore();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   const handleSubmit = async () => {
     if (!categoryName.trim()) {
@@ -50,9 +48,9 @@ export default function AddCategoryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 헤더 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.tint} />
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>카테고리 추가</Text>
         <View style={styles.placeholder} />
@@ -69,7 +67,7 @@ export default function AddCategoryScreen() {
                 style={[
                   styles.emojiButton,
                   { backgroundColor: colors.card },
-                  selectedEmoji === emoji && { backgroundColor: colors.tint }
+                  selectedEmoji === emoji && { backgroundColor: colors.primary }
                 ]}
                 onPress={() => setSelectedEmoji(emoji)}
               >
@@ -84,7 +82,7 @@ export default function AddCategoryScreen() {
           <TextInput
             style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
             placeholder="카테고리명을 입력하세요"
-            placeholderTextColor={colors.icon}
+            placeholderTextColor={colors.textTertiary}
             value={categoryName}
             onChangeText={setCategoryName}
             autoFocus
@@ -92,7 +90,7 @@ export default function AddCategoryScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.submitButton, { backgroundColor: colors.tint, opacity: isLoading ? 0.7 : 1 }]}
+          style={[styles.submitButton, { backgroundColor: colors.primary, opacity: isLoading ? 0.7 : 1 }]}
           onPress={handleSubmit}
           disabled={isLoading}
         >

@@ -13,9 +13,11 @@ import {
 import { useRouter } from 'expo-router';
 import { requestJoinBook } from '@/services/inviteService';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function JoinBookModal() {
   const router = useRouter();
+  const { colors, isDarkMode } = useTheme();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
@@ -91,23 +93,23 @@ export default function JoinBookModal() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={24} color="#333" />
+          <Ionicons name="close" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>가계부 참가</Text>
+        <Text style={[styles.title, { color: colors.text }]}>가계부 참가</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <View style={styles.content}>
         <View style={styles.iconContainer}>
-          <Ionicons name="book-outline" size={64} color="#007AFF" />
+          <Ionicons name="book-outline" size={64} color={colors.primary} />
         </View>
 
-        <Text style={styles.instructionText}>
+        <Text style={[styles.instructionText, { color: colors.text }]}>
           초대받은 8자리 코드를 입력하세요
         </Text>
 
@@ -120,7 +122,8 @@ export default function JoinBookModal() {
               }}
               style={[
                 styles.codeInput,
-                code[index] && styles.codeInputFilled,
+                { borderColor: colors.border, color: colors.text },
+                code[index] && { borderColor: colors.primary, backgroundColor: isDarkMode ? colors.primary + '20' : '#f0f8ff' },
               ]}
               value={code[index] || ''}
               onChangeText={(text) => handleCodeChange(text, index)}
@@ -129,6 +132,7 @@ export default function JoinBookModal() {
               maxLength={1}
               selectTextOnFocus
               editable={!loading}
+              placeholderTextColor={colors.textTertiary}
             />
           ))}
         </View>
@@ -136,7 +140,8 @@ export default function JoinBookModal() {
         <TouchableOpacity
           style={[
             styles.joinButton,
-            (code.length !== 8 || loading) && styles.joinButtonDisabled,
+            { backgroundColor: colors.primary },
+            (code.length !== 8 || loading) && { backgroundColor: colors.textTertiary },
           ]}
           onPress={handleJoinRequest}
           disabled={code.length !== 8 || loading}
@@ -148,14 +153,14 @@ export default function JoinBookModal() {
           )}
         </TouchableOpacity>
 
-        <View style={styles.infoContainer}>
-          <Text style={styles.infoText}>
+        <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             • 가계부 소유자로부터 받은 초대 코드를 입력하세요.
           </Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             • 참가 요청 후 소유자의 승인이 필요합니다.
           </Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             • 초대 코드는 30분간 유효합니다.
           </Text>
         </View>
@@ -167,7 +172,6 @@ export default function JoinBookModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
@@ -177,7 +181,6 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   closeButton: {
     padding: 4,
@@ -185,7 +188,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
   },
   content: {
     flex: 1,
@@ -198,7 +200,6 @@ const styles = StyleSheet.create({
   },
   instructionText: {
     fontSize: 18,
-    color: '#333',
     marginBottom: 30,
     textAlign: 'center',
   },
@@ -211,19 +212,13 @@ const styles = StyleSheet.create({
     width: 40,
     height: 50,
     borderWidth: 2,
-    borderColor: '#ddd',
     borderRadius: 8,
     fontSize: 20,
     fontWeight: 'bold',
     textAlign: 'center',
-    color: '#333',
   },
-  codeInputFilled: {
-    borderColor: '#007AFF',
-    backgroundColor: '#f0f8ff',
-  },
+  // codeInputFilled now handled inline
   joinButton: {
-    backgroundColor: '#007AFF',
     paddingHorizontal: 40,
     paddingVertical: 16,
     borderRadius: 8,
@@ -231,23 +226,19 @@ const styles = StyleSheet.create({
     minWidth: 200,
     alignItems: 'center',
   },
-  joinButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
+  // joinButtonDisabled now handled inline
   joinButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
   },
   infoContainer: {
-    backgroundColor: '#f9f9f9',
     borderRadius: 8,
     padding: 16,
     width: '100%',
   },
   infoText: {
     fontSize: 14,
-    color: '#666',
     lineHeight: 20,
     marginBottom: 4,
   },

@@ -16,6 +16,7 @@ import { useFriendStore } from '@/stores/friendStore';
 import { useAuthStore } from '@/stores/authStore';
 import apiService from '@/core/api/client';
 import * as Clipboard from 'expo-clipboard';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function AddFriendScreen() {
   const [userCode, setUserCode] = useState('');
@@ -23,6 +24,7 @@ export default function AddFriendScreen() {
   const [ttlSeconds, setTtlSeconds] = useState(0);
   const [loading, setLoading] = useState(false);
   const { user } = useAuthStore();
+  const { colors, isDarkMode } = useTheme();
 
   useEffect(() => {
     generateMyCode();
@@ -109,64 +111,65 @@ export default function AddFriendScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>친구 초대 코드로 추가</Text>
-          <Text style={styles.sectionDescription}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>친구 초대 코드로 추가</Text>
+          <Text style={[styles.sectionDescription, { color: colors.textSecondary }]}>
             친구의 8자리 초대 코드를 입력하여 친구 요청을 보낼 수 있습니다.
           </Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
             placeholder="8자리 친구 초대 코드 입력"
+            placeholderTextColor={colors.textTertiary}
             value={userCode}
             onChangeText={setUserCode}
             keyboardType="numeric"
             maxLength={8}
           />
           <TouchableOpacity
-            style={styles.sendButton}
+            style={[styles.sendButton, { backgroundColor: colors.primary }]}
             onPress={handleSendRequest}
           >
-            <Text style={styles.sendButtonText}>친구 요청 보내기</Text>
+            <Text style={[styles.sendButtonText, { color: colors.textInverse }]}>친구 요청 보내기</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>내 친구 초대 코드</Text>
-          <Text style={styles.sectionDescription}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>내 친구 초대 코드</Text>
+          <Text style={[styles.sectionDescription, { color: colors.textSecondary }]}>
             친구에게 이 코드를 공유하여 친구 요청을 받을 수 있습니다.
           </Text>
           
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#007AFF" />
-              <Text style={styles.loadingText}>코드 생성 중...</Text>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>코드 생성 중...</Text>
             </View>
           ) : (
             <>
-              <View style={styles.myCodeContainer}>
-                <Text style={styles.myCode}>{myUserCode || '--------'}</Text>
+              <View style={[styles.myCodeContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.myCode, { color: colors.text }]}>{myUserCode || '--------'}</Text>
                 <View style={styles.codeActions}>
                   <TouchableOpacity
                     style={styles.actionButton}
                     onPress={copyToClipboard}
                   >
-                    <Ionicons name="copy-outline" size={20} color="#007AFF" />
+                    <Ionicons name="copy-outline" size={20} color={colors.primary} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.actionButton}
                     onPress={shareCode}
                   >
-                    <Ionicons name="share-outline" size={20} color="#007AFF" />
+                    <Ionicons name="share-outline" size={20} color={colors.primary} />
                   </TouchableOpacity>
                 </View>
               </View>
               
               {ttlSeconds > 0 && (
-                <Text style={styles.ttlText}>
+                <Text style={[styles.ttlText, { color: colors.textSecondary }]}>
                   남은 시간: {formatTime(ttlSeconds)}
                 </Text>
               )}
@@ -175,18 +178,18 @@ export default function AddFriendScreen() {
                 style={styles.refreshButton}
                 onPress={generateMyCode}
               >
-                <Ionicons name="refresh-outline" size={16} color="#666" />
-                <Text style={styles.refreshButtonText}>새 코드 생성</Text>
+                <Ionicons name="refresh-outline" size={16} color={colors.textSecondary} />
+                <Text style={[styles.refreshButtonText, { color: colors.textSecondary }]}>새 코드 생성</Text>
               </TouchableOpacity>
               
               <View style={styles.infoContainer}>
-                <Text style={styles.infoText}>
+                <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                   • 이 코드는 30분간 유효합니다.
                 </Text>
-                <Text style={styles.infoText}>
+                <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                   • 가계부 초대 코드와는 다른 별도의 친구 전용 코드입니다.
                 </Text>
-                <Text style={styles.infoText}>
+                <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                   • 코드를 안전하게 보관하세요.
                 </Text>
               </View>
@@ -201,7 +204,6 @@ export default function AddFriendScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   content: {
     flex: 1,
@@ -209,7 +211,6 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   section: {
-    backgroundColor: 'white',
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
@@ -217,17 +218,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   sectionDescription: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 16,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -235,34 +233,31 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sendButton: {
-    backgroundColor: '#007AFF',
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
   },
   sendButtonText: {
-    color: 'white',
     fontSize: 16,
     fontWeight: '600',
   },
   divider: {
     height: 1,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: 'rgba(0,0,0,0.1)',
     marginVertical: 20,
   },
   myCodeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f5f5f5',
     borderRadius: 8,
+    borderWidth: 1,
     padding: 16,
     marginBottom: 12,
   },
   myCode: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#007AFF',
     letterSpacing: 2,
   },
   codeActions: {
@@ -271,7 +266,6 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: 8,
-    backgroundColor: 'white',
     borderRadius: 6,
   },
   loadingContainer: {
@@ -281,7 +275,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#666',
   },
   ttlText: {
     fontSize: 14,
@@ -300,14 +293,12 @@ const styles = StyleSheet.create({
   },
   refreshButtonText: {
     fontSize: 14,
-    color: '#666',
   },
   infoContainer: {
     paddingHorizontal: 8,
   },
   infoText: {
     fontSize: 12,
-    color: '#666',
     marginBottom: 6,
     lineHeight: 18,
   },

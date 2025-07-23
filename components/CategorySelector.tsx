@@ -1,5 +1,4 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Category } from '@/core/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
@@ -32,8 +31,7 @@ export default function CategorySelector({ selectedCategoryId, onCategorySelect,
   const { categories, isLoading, fetchCategoriesByBook, createCategoryForBook } = useCategoryStore();
   const { currentBookId } = useBookStore();
   const { token } = useAuthStore();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   const targetBookId = bookId || currentBookId;
   const selectedCategory = categories.find(cat => cat.id === selectedCategoryId);
@@ -93,7 +91,7 @@ export default function CategorySelector({ selectedCategoryId, onCategorySelect,
         key={category.id}
         style={[
           styles.categoryItem,
-          { backgroundColor: colors.card },
+          { backgroundColor: colors.card, shadowColor: colors.shadow },
           selectedCategoryId === category.id && { backgroundColor: colors.tint, opacity: 0.8 }
         ]}
         onPress={() => handleCategoryPress(category)}
@@ -102,7 +100,7 @@ export default function CategorySelector({ selectedCategoryId, onCategorySelect,
           <Text style={styles.categoryEmoji}>{category.emoji}</Text>
           <Text style={[
             styles.categoryText,
-            { color: selectedCategoryId === category.id ? 'white' : colors.text }
+            { color: selectedCategoryId === category.id ? colors.textInverse : colors.text }
           ]}>
             {category.category}
           </Text>
@@ -118,7 +116,7 @@ export default function CategorySelector({ selectedCategoryId, onCategorySelect,
         key={category.id}
         style={[
           styles.categoryItem,
-          { backgroundColor: colors.card },
+          { backgroundColor: colors.card, shadowColor: colors.shadow },
           selectedCategoryId === category.id && { backgroundColor: colors.tint, opacity: 0.8 }
         ]}
         onPress={() => handleCategoryPress(category)}
@@ -129,7 +127,7 @@ export default function CategorySelector({ selectedCategoryId, onCategorySelect,
           </Text>
           <Text style={[
             styles.categoryText,
-            { color: selectedCategoryId === category.id ? 'white' : colors.text }
+            { color: selectedCategoryId === category.id ? colors.textInverse : colors.text }
           ]}>
             {category.category}
           </Text>
@@ -192,7 +190,7 @@ export default function CategorySelector({ selectedCategoryId, onCategorySelect,
         onRequestClose={() => setIsModalVisible(false)}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={() => setIsModalVisible(false)}>
               <Text style={[styles.modalCancel, { color: colors.tint }]}>취소</Text>
             </TouchableOpacity>
@@ -286,7 +284,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 25,
     marginBottom: 8,
-    shadowColor: '#000',
+    shadowColor: 'transparent', // Will be overridden by inline style
     shadowOffset: {
       width: 0,
       height: 2,
@@ -340,7 +338,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
   },
   modalCancel: {
     fontSize: 16,

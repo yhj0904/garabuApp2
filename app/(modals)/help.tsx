@@ -5,13 +5,11 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function HelpModal() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   const helpItems = [
     {
@@ -52,12 +50,12 @@ export default function HelpModal() {
           <View style={styles.section}>
             {helpItems.map((item, index) => (
               <View key={index} style={[styles.helpItem, { backgroundColor: colors.card }]}>
-                <View style={styles.helpIcon}>
-                  <Ionicons name={item.icon as any} size={24} color={colors.tint} />
+                <View style={[styles.helpIcon, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }]}>
+                  <Ionicons name={item.icon as any} size={24} color={colors.primary} />
                 </View>
                 <View style={styles.helpContent}>
                   <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
-                  <ThemedText style={styles.helpDescription}>{item.description}</ThemedText>
+                  <ThemedText style={[styles.helpDescription, { color: colors.textSecondary }]}>{item.description}</ThemedText>
                 </View>
               </View>
             ))}
@@ -66,10 +64,10 @@ export default function HelpModal() {
           {/* 문의하기 */}
           <View style={[styles.contactSection, { backgroundColor: colors.card }]}>
             <ThemedText type="subtitle" style={styles.contactTitle}>추가 도움이 필요하신가요?</ThemedText>
-            <ThemedText style={styles.contactDescription}>
+            <ThemedText style={[styles.contactDescription, { color: colors.textSecondary }]}>
               앱 사용 중 궁금한 점이 있으시면 언제든 문의해주세요.
             </ThemedText>
-            <TouchableOpacity style={[styles.contactButton, { backgroundColor: colors.tint }]}>
+            <TouchableOpacity style={[styles.contactButton, { backgroundColor: colors.primary }]}>
               <Ionicons name="mail" size={20} color="white" />
               <ThemedText style={styles.contactButtonText}>문의하기</ThemedText>
             </TouchableOpacity>
@@ -115,7 +113,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -125,7 +122,6 @@ const styles = StyleSheet.create({
   },
   helpDescription: {
     fontSize: 14,
-    color: '#8E8E93',
     marginTop: 4,
   },
   contactSection: {
@@ -138,7 +134,6 @@ const styles = StyleSheet.create({
   },
   contactDescription: {
     fontSize: 14,
-    color: '#8E8E93',
     textAlign: 'center',
     marginBottom: 16,
   },

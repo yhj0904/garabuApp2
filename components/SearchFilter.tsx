@@ -28,9 +28,9 @@ export interface SearchFilters {
   description?: string;
 }
 
-const AmountTypeOptions = [
-  { value: 'INCOME', label: '수입', color: '#10B981', icon: 'add-circle' },
-  { value: 'EXPENSE', label: '지출', color: '#EF4444', icon: 'remove-circle' },
+const getAmountTypeOptions = (colors: any) => [
+  { value: 'INCOME', label: '수입', color: colors.income, icon: 'add-circle' },
+  { value: 'EXPENSE', label: '지출', color: colors.expense, icon: 'remove-circle' },
 ] as const;
 
 export default function SearchFilter({ 
@@ -43,6 +43,7 @@ export default function SearchFilter({
 }: SearchFilterProps) {
   const { colors, isDarkMode } = useTheme();
   const [filters, setFilters] = useState<SearchFilters>(currentFilters || {});
+  const AmountTypeOptions = getAmountTypeOptions(colors);
 
   // 모달이 열릴 때마다 현재 필터로 초기화
   useEffect(() => {

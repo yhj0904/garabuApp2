@@ -277,11 +277,14 @@ export default function AssetScreen() {
               return (
                 <TouchableOpacity
                   key={type}
-                  style={[styles.assetTypeCard, { borderLeftColor: assetType?.color || '#007AFF' }]}
+                  style={[styles.assetTypeCard, { 
+                    backgroundColor: colors.backgroundSecondary,
+                    borderLeftColor: assetType?.color || colors.primary 
+                  }]}
                   onPress={() => setSelectedFilter(type)}
                 >
                   <View style={styles.assetTypeIcon}>
-                    <Ionicons name={assetType?.icon as any || 'wallet'} size={20} color={assetType?.color || '#007AFF'} />
+                    <Ionicons name={assetType?.icon as any || 'wallet'} size={20} color={assetType?.color || colors.primary} />
                   </View>
                   <View style={styles.assetTypeInfo}>
                     <ThemedText type="caption" variant="secondary">
@@ -384,11 +387,11 @@ export default function AssetScreen() {
                   onPress={() => setSelectedAsset(asset)}
                 >
                   <View style={styles.assetCardContent}>
-                    <View style={[styles.iconContainer, { backgroundColor: assetType?.color + '20' || '#007AFF20' }]}>
+                    <View style={[styles.iconContainer, { backgroundColor: (assetType?.color || colors.primary) + '20' }]}>
                       <Ionicons 
                         name={assetType?.icon as any || 'card'} 
                         size={20} 
-                        color={assetType?.color || '#007AFF'} 
+                        color={assetType?.color || colors.primary} 
                       />
                     </View>
                     
@@ -508,7 +511,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.02)',
     borderRadius: 12,
     borderLeftWidth: 3,
   },

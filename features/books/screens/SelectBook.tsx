@@ -1,5 +1,4 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import * as Haptics from 'expo-haptics';
@@ -20,8 +19,7 @@ export default function SelectBookScreen() {
   const { token, user } = useAuthStore();
   const { books, currentBook, setCurrentBook, fetchBooks, deleteBook, getOwnedBooksCount, isLoading } = useBookStore();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -116,13 +114,13 @@ export default function SelectBookScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 헤더 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.tint} />
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>가계부 선택</Text>
         <TouchableOpacity onPress={handleAddBook} style={styles.addButton}>
-          <Ionicons name="add" size={24} color={colors.tint} />
+          <Ionicons name="add" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -130,7 +128,7 @@ export default function SelectBookScreen() {
       {currentBook && (
         <View style={styles.currentBookSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>현재 선택된 가계부</Text>
-          <View style={[styles.currentBookCard, { backgroundColor: colors.tint }]}>
+          <View style={[styles.currentBookCard, { backgroundColor: colors.primary }]}>
             <Ionicons name="bookmark" size={24} color="white" />
             <Text style={styles.currentBookTitle}>{currentBook.title}</Text>
             <Ionicons name="checkmark-circle" size={24} color="white" />
@@ -144,15 +142,15 @@ export default function SelectBookScreen() {
         
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.tint} />
-            <Text style={[styles.loadingText, { color: colors.icon }]}>가계부 목록을 불러오는 중...</Text>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>가계부 목록을 불러오는 중...</Text>
           </View>
         ) : loadError ? (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={48} color={colors.icon} />
-            <Text style={[styles.errorText, { color: colors.icon }]}>{loadError}</Text>
+            <Ionicons name="alert-circle" size={48} color={colors.textSecondary} />
+            <Text style={[styles.errorText, { color: colors.textSecondary }]}>{loadError}</Text>
             <TouchableOpacity
-              style={[styles.retryButton, { backgroundColor: colors.tint }]}
+              style={[styles.retryButton, { backgroundColor: colors.primary }]}
               onPress={handleRetry}
             >
               <Text style={styles.retryButtonText}>다시 시도</Text>
@@ -173,7 +171,7 @@ export default function SelectBookScreen() {
                   style={[
                     styles.bookCard,
                     { backgroundColor: colors.card },
-                    currentBook?.id === book.id && styles.selectedBookCard
+                    currentBook?.id === book.id && [styles.selectedBookCard, { borderColor: colors.primary }]
                   ]}
                 >
                   <TouchableOpacity
@@ -184,17 +182,17 @@ export default function SelectBookScreen() {
                       <Ionicons 
                         name="book" 
                         size={24} 
-                        color={currentBook?.id === book.id ? colors.tint : colors.icon} 
+                        color={currentBook?.id === book.id ? colors.primary : colors.textSecondary} 
                       />
                       <Text style={[
                         styles.bookTitle,
-                        { color: currentBook?.id === book.id ? colors.tint : colors.text }
+                        { color: currentBook?.id === book.id ? colors.primary : colors.text }
                       ]}>
                         {book.title || '제목 없음'}
                       </Text>
                     </View>
                     {currentBook?.id === book.id && (
-                      <Ionicons name="checkmark-circle" size={24} color={colors.tint} />
+                      <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
                     )}
                   </TouchableOpacity>
                   
@@ -203,7 +201,7 @@ export default function SelectBookScreen() {
                     style={styles.deleteButton}
                     onPress={() => handleDeleteBook(book)}
                   >
-                    <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                    <Ionicons name="trash-outline" size={20} color={colors.error} />
                   </TouchableOpacity>
                 </View>
               );
@@ -211,12 +209,12 @@ export default function SelectBookScreen() {
             
             {(!Array.isArray(books) || books.length === 0) && (
               <View style={styles.emptyContainer}>
-                <Ionicons name="book-outline" size={64} color={colors.icon} />
-                <Text style={[styles.emptyText, { color: colors.icon }]}>
+                <Ionicons name="book-outline" size={64} color={colors.textSecondary} />
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                   아직 가계부가 없습니다.
                 </Text>
                 <TouchableOpacity
-                  style={[styles.addBookButton, { backgroundColor: colors.tint }]}
+                  style={[styles.addBookButton, { backgroundColor: colors.primary }]}
                   onPress={handleAddBook}
                 >
                   <Ionicons name="add" size={20} color="white" />

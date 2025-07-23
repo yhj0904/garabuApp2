@@ -5,13 +5,11 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function AboutModal() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   const appInfo = {
     name: 'Garabu',
@@ -53,12 +51,12 @@ export default function AboutModal() {
 
           {/* 앱 정보 */}
           <View style={[styles.appInfoSection, { backgroundColor: colors.card }]}>
-            <View style={styles.appLogo}>
-              <Ionicons name="wallet" size={48} color={colors.tint} />
+            <View style={[styles.appLogo, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }]}>
+              <Ionicons name="wallet" size={48} color={colors.primary} />
             </View>
             <ThemedText type="title" style={styles.appName}>{appInfo.name}</ThemedText>
-            <ThemedText style={styles.appVersion}>버전 {appInfo.version}</ThemedText>
-            <ThemedText style={styles.appDescription}>{appInfo.description}</ThemedText>
+            <ThemedText style={[styles.appVersion, { color: colors.textSecondary }]}>버전 {appInfo.version}</ThemedText>
+            <ThemedText style={[styles.appDescription, { color: colors.textSecondary }]}>{appInfo.description}</ThemedText>
           </View>
 
           {/* 정보 항목들 */}
@@ -69,13 +67,13 @@ export default function AboutModal() {
                 style={[styles.infoItem, { backgroundColor: colors.card }]}
                 onPress={item.onPress}
               >
-                <View style={styles.infoIcon}>
-                  <Ionicons name={item.icon as any} size={24} color={colors.tint} />
+                <View style={[styles.infoIcon, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }]}>
+                  <Ionicons name={item.icon as any} size={24} color={colors.primary} />
                 </View>
                 <View style={styles.infoContent}>
                   <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={colors.icon} />
+                <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
               </TouchableOpacity>
             ))}
           </View>
@@ -84,14 +82,14 @@ export default function AboutModal() {
           <View style={[styles.contactSection, { backgroundColor: colors.card }]}>
             <ThemedText type="subtitle" style={styles.contactTitle}>연락처</ThemedText>
             <View style={styles.contactItem}>
-              <Ionicons name="mail" size={20} color={colors.icon} />
-              <ThemedText style={styles.contactText}>{appInfo.email}</ThemedText>
+              <Ionicons name="mail" size={20} color={colors.textTertiary} />
+              <ThemedText style={[styles.contactText, { color: colors.textSecondary }]}>{appInfo.email}</ThemedText>
             </View>
           </View>
 
           {/* 저작권 */}
           <View style={styles.copyrightSection}>
-            <ThemedText style={styles.copyrightText}>
+            <ThemedText style={[styles.copyrightText, { color: colors.textTertiary }]}>
               © 2024 {appInfo.name}. All rights reserved.
             </ThemedText>
           </View>
@@ -133,7 +131,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -143,13 +140,11 @@ const styles = StyleSheet.create({
   },
   appVersion: {
     fontSize: 14,
-    color: '#8E8E93',
     marginBottom: 8,
   },
   appDescription: {
     fontSize: 16,
     textAlign: 'center',
-    color: '#8E8E93',
   },
   section: {
     gap: 8,
@@ -173,7 +168,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -196,7 +190,6 @@ const styles = StyleSheet.create({
   },
   contactText: {
     fontSize: 16,
-    color: '#8E8E93',
   },
   copyrightSection: {
     alignItems: 'center',
@@ -204,7 +197,6 @@ const styles = StyleSheet.create({
   },
   copyrightText: {
     fontSize: 12,
-    color: '#8E8E93',
     textAlign: 'center',
   },
 });

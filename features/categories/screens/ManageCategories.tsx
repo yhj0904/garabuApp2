@@ -1,7 +1,6 @@
 import { ThemedText } from '@/components/ThemedText';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { Category } from '@/core/api/client';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
@@ -41,8 +40,7 @@ export default function ManageCategoriesScreen() {
     createCategoryForBook 
   } = useCategoryStore();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   useEffect(() => {
     if (token) {
@@ -163,11 +161,11 @@ export default function ManageCategoriesScreen() {
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.tint} />
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
         <ThemedText type="title" style={styles.headerTitle}>카테고리 관리</ThemedText>
         <TouchableOpacity onPress={() => setShowAddModal(true)} style={styles.addButton}>
-          <Ionicons name="add" size={24} color={colors.tint} />
+          <Ionicons name="add" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -179,8 +177,8 @@ export default function ManageCategoriesScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.tint}
-            colors={[colors.tint]}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
             progressBackgroundColor={colors.background}
           />
         }
@@ -188,7 +186,7 @@ export default function ManageCategoriesScreen() {
         {/* 카테고리 섹션 */}
         <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>카테고리</ThemedText>
-          <ThemedText style={[styles.sectionDescription, { color: colors.tabIconDefault }]}>
+          <ThemedText style={[styles.sectionDescription, { color: colors.textSecondary }]}>
             현재 가계부에서 사용할 수 있는 카테고리입니다.
           </ThemedText>
           
@@ -198,12 +196,12 @@ export default function ManageCategoriesScreen() {
             </View>
           ) : (
             <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
-              <Ionicons name="pricetag-outline" size={48} color={colors.tabIconDefault} />
-              <ThemedText style={[styles.emptyText, { color: colors.tabIconDefault }]}>
+              <Ionicons name="pricetag-outline" size={48} color={colors.textSecondary} />
+              <ThemedText style={[styles.emptyText, { color: colors.textSecondary }]}>
                 등록된 카테고리가 없습니다
               </ThemedText>
               <TouchableOpacity
-                style={[styles.emptyAddButton, { backgroundColor: colors.tint }]}
+                style={[styles.emptyAddButton, { backgroundColor: colors.primary }]}
                 onPress={() => setShowAddModal(true)}
               >
                 <Ionicons name="add" size={20} color="white" />
@@ -241,7 +239,7 @@ export default function ManageCategoriesScreen() {
                     style={[
                       styles.emojiButton,
                       { backgroundColor: colors.card },
-                      selectedEmoji === emoji && { backgroundColor: colors.tint }
+                      selectedEmoji === emoji && { backgroundColor: colors.primary }
                     ]}
                     onPress={() => setSelectedEmoji(emoji)}
                   >
@@ -257,7 +255,7 @@ export default function ManageCategoriesScreen() {
               <TextInput
                 style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
                 placeholder="카테고리명을 입력하세요"
-                placeholderTextColor={colors.icon}
+                placeholderTextColor={colors.textTertiary}
                 value={categoryName}
                 onChangeText={setCategoryName}
                 autoFocus
@@ -266,7 +264,7 @@ export default function ManageCategoriesScreen() {
 
             {/* 추가 버튼 */}
             <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: colors.tint, opacity: isLoading ? 0.7 : 1 }]}
+              style={[styles.submitButton, { backgroundColor: colors.primary, opacity: isLoading ? 0.7 : 1 }]}
               onPress={handleAddCategory}
               disabled={isLoading}
             >

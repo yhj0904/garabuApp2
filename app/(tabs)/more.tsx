@@ -139,12 +139,12 @@ export default function MoreScreen() {
           {/* 사용자 프로필 카드 */}
           <View style={[styles.profileCard, { backgroundColor: colors.surface }]}>
             <View style={styles.profileHeader}>
-              <View style={styles.profileIcon}>
+              <View style={[styles.profileIcon, { backgroundColor: colors.backgroundSecondary }]}>
                 <Ionicons name="person" size={32} color={colors.tint} />
               </View>
               <View style={styles.profileInfo}>
                 <ThemedText type="subtitle">{user?.username || '사용자'}</ThemedText>
-                <ThemedText style={styles.profileEmail}>{user?.email || 'user@example.com'}</ThemedText>
+                <ThemedText style={[styles.profileEmail, { color: colors.textSecondary }]}>{user?.email || 'user@example.com'}</ThemedText>
               </View>
               <TouchableOpacity onPress={() => router.push('/(modals)/profile')}>
                 <Ionicons name="chevron-forward" size={24} color={colors.icon} />
@@ -215,12 +215,12 @@ export default function MoreScreen() {
                 style={[styles.menuItem, { backgroundColor: colors.surface }]}
                 onPress={item.onPress}
               >
-                <View style={styles.menuIcon}>
+                <View style={[styles.menuIcon, { backgroundColor: colors.backgroundSecondary }]}>
                   <Ionicons name={item.icon as any} size={24} color={colors.tint} />
                 </View>
                 <View style={styles.menuContent}>
                   <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
-                  <ThemedText style={styles.menuSubtitle}>{item.subtitle}</ThemedText>
+                  <ThemedText style={[styles.menuSubtitle, { color: colors.textSecondary }]}>{item.subtitle}</ThemedText>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={colors.icon} />
               </TouchableOpacity>
@@ -235,7 +235,7 @@ export default function MoreScreen() {
 
           {/* 앱 버전 정보 */}
           <View style={styles.versionInfo}>
-            <ThemedText style={styles.versionText}>Garabu v1.0.0</ThemedText>
+            <ThemedText style={[styles.versionText, { color: colors.textSecondary }]}>Garabu v1.0.0</ThemedText>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -274,7 +274,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -284,7 +283,6 @@ const styles = StyleSheet.create({
   },
   profileEmail: {
     fontSize: 14,
-    color: '#8E8E93',
     marginTop: 2,
   },
   menuSection: {
@@ -309,7 +307,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -319,7 +316,6 @@ const styles = StyleSheet.create({
   },
   menuSubtitle: {
     fontSize: 14,
-    color: '#8E8E93',
     marginTop: 2,
   },
   logoutButton: {
@@ -343,7 +339,6 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 14,
-    color: '#8E8E93',
   },
   themeCard: {
     padding: 20,

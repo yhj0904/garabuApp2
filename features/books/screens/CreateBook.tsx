@@ -1,5 +1,4 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { ThemedText } from '@/components/ThemedText';
@@ -38,8 +37,7 @@ export default function BookCreationScreen() {
   const { token, user, loadInitialData } = useAuthStore();
   const { createBook } = useBookStore();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   const handleCreateBook = async () => {
     if (!bookTitle.trim()) {
@@ -106,7 +104,7 @@ export default function BookCreationScreen() {
   if (mode === 'onboarding') {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
         
         <View style={[styles.gradient, { backgroundColor: colors.background }]}>
           <KeyboardAvoidingView 
@@ -121,7 +119,7 @@ export default function BookCreationScreen() {
               <View style={styles.content}>
                 {/* 헤더 영역 */}
                 <View style={styles.header}>
-                  <View style={[styles.iconContainer, { backgroundColor: colors.tint }]}>
+                  <View style={[styles.iconContainer, { backgroundColor: colors.primary }]}>
                     <Ionicons name="book" size={48} color="white" />
                   </View>
                   
@@ -129,7 +127,7 @@ export default function BookCreationScreen() {
                     가계부 만들기
                   </ThemedText>
                   
-                  <ThemedText style={[styles.subtitle, { color: colors.tabIconDefault }]}>
+                  <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>
                     {user?.name}님의 첫 번째 가계부 이름을{'\n'}입력해주세요
                   </ThemedText>
                 </View>
@@ -137,7 +135,7 @@ export default function BookCreationScreen() {
                 {/* 입력 영역 */}
                 <View style={styles.inputSection}>
                   <View style={styles.inputLabel}>
-                    <Ionicons name="create" size={20} color={colors.tint} />
+                    <Ionicons name="create" size={20} color={colors.primary} />
                     <ThemedText type="defaultSemiBold" style={styles.inputLabelText}>
                       가계부 이름
                     </ThemedText>
@@ -146,7 +144,7 @@ export default function BookCreationScreen() {
                   <TextInput
                     style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
                     placeholder="예: 내 가계부"
-                    placeholderTextColor={colors.tabIconDefault}
+                    placeholderTextColor={colors.textTertiary}
                     value={bookTitle}
                     onChangeText={setBookTitle}
                     autoFocus
@@ -155,7 +153,7 @@ export default function BookCreationScreen() {
                     onSubmitEditing={handleCreateBook}
                   />
                   
-                  <ThemedText style={[styles.inputHint, { color: colors.tabIconDefault }]}>
+                  <ThemedText style={[styles.inputHint, { color: colors.textSecondary }]}>
                     최대 50자까지 입력할 수 있습니다
                   </ThemedText>
                 </View>
@@ -174,8 +172,8 @@ export default function BookCreationScreen() {
                           styles.suggestionButton,
                           { backgroundColor: colors.card },
                           bookTitle === name && { 
-                            backgroundColor: colors.tint,
-                            borderColor: colors.tint 
+                            backgroundColor: colors.primary,
+                            borderColor: colors.primary 
                           }
                         ]}
                         onPress={() => handleSuggestionPress(name)}
@@ -199,7 +197,7 @@ export default function BookCreationScreen() {
                     style={[
                       styles.createButton,
                       { 
-                        backgroundColor: bookTitle.trim() ? colors.tint : colors.card,
+                        backgroundColor: bookTitle.trim() ? colors.primary : colors.card,
                         opacity: isLoading ? 0.7 : 1
                       }
                     ]}
@@ -220,7 +218,7 @@ export default function BookCreationScreen() {
                     )}
                   </TouchableOpacity>
                   
-                  <ThemedText style={[styles.footerHint, { color: colors.tabIconDefault }]}>
+                  <ThemedText style={[styles.footerHint, { color: colors.textSecondary }]}>
                     나중에 설정에서 언제든지 변경할 수 있습니다
                   </ThemedText>
                 </View>
@@ -236,7 +234,7 @@ export default function BookCreationScreen() {
   return (
     <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
       {/* 헤더 */}
-      <View style={styles.modalHeader}>
+      <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
         <TouchableOpacity 
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -249,7 +247,7 @@ export default function BookCreationScreen() {
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="arrow-back" size={24} color={colors.tint} />
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
         <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>가계부 추가</Text>
         <View style={styles.placeholder} />
@@ -262,7 +260,7 @@ export default function BookCreationScreen() {
           <TextInput
             style={[styles.modalInput, { backgroundColor: colors.card, color: colors.text }]}
             placeholder="가계부명을 입력하세요"
-            placeholderTextColor={colors.icon}
+            placeholderTextColor={colors.textTertiary}
             value={bookTitle}
             onChangeText={setBookTitle}
             autoFocus
@@ -271,7 +269,7 @@ export default function BookCreationScreen() {
 
         {/* 추천 이름 (모달 모드) */}
         <View style={styles.modalSuggestions}>
-          <Text style={[styles.modalSuggestionsLabel, { color: colors.tabIconDefault }]}>
+          <Text style={[styles.modalSuggestionsLabel, { color: colors.textSecondary }]}>
             빠른 선택
           </Text>
           <ScrollView 
@@ -285,7 +283,7 @@ export default function BookCreationScreen() {
                 style={[
                   styles.modalSuggestionChip,
                   { backgroundColor: colors.card },
-                  bookTitle === name && { backgroundColor: colors.tint }
+                  bookTitle === name && { backgroundColor: colors.primary }
                 ]}
                 onPress={() => handleSuggestionPress(name)}
               >
@@ -303,7 +301,7 @@ export default function BookCreationScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.modalSubmitButton, { backgroundColor: colors.tint, opacity: isLoading ? 0.7 : 1 }]}
+          style={[styles.modalSubmitButton, { backgroundColor: colors.primary, opacity: isLoading ? 0.7 : 1 }]}
           onPress={handleCreateBook}
           disabled={isLoading}
         >

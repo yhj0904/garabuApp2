@@ -5,13 +5,11 @@ import { ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-na
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function NotificationsModal() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(false);
@@ -34,64 +32,64 @@ export default function NotificationsModal() {
         <View style={styles.section}>
           <View style={[styles.settingItem, { backgroundColor: colors.card }]}>
             <View style={styles.settingInfo}>
-              <Ionicons name="notifications" size={24} color={colors.tint} />
+              <Ionicons name="notifications" size={24} color={colors.primary} />
               <View style={styles.settingText}>
                 <ThemedText type="defaultSemiBold">푸시 알림</ThemedText>
-                <ThemedText style={styles.settingDescription}>앱 푸시 알림을 받습니다</ThemedText>
+                <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>앱 푸시 알림을 받습니다</ThemedText>
               </View>
             </View>
             <Switch
               value={pushNotifications}
               onValueChange={setPushNotifications}
-              trackColor={{ false: '#767577', true: colors.tint }}
+              trackColor={{ false: '#767577', true: colors.primary }}
               thumbColor={pushNotifications ? '#f4f3f4' : '#f4f3f4'}
             />
           </View>
 
           <View style={[styles.settingItem, { backgroundColor: colors.card }]}>
             <View style={styles.settingInfo}>
-              <Ionicons name="mail" size={24} color={colors.tint} />
+              <Ionicons name="mail" size={24} color={colors.primary} />
               <View style={styles.settingText}>
                 <ThemedText type="defaultSemiBold">이메일 알림</ThemedText>
-                <ThemedText style={styles.settingDescription}>이메일로 알림을 받습니다</ThemedText>
+                <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>이메일로 알림을 받습니다</ThemedText>
               </View>
             </View>
             <Switch
               value={emailNotifications}
               onValueChange={setEmailNotifications}
-              trackColor={{ false: '#767577', true: colors.tint }}
+              trackColor={{ false: '#767577', true: colors.primary }}
               thumbColor={emailNotifications ? '#f4f3f4' : '#f4f3f4'}
             />
           </View>
 
           <View style={[styles.settingItem, { backgroundColor: colors.card }]}>
             <View style={styles.settingInfo}>
-              <Ionicons name="card" size={24} color={colors.tint} />
+              <Ionicons name="card" size={24} color={colors.primary} />
               <View style={styles.settingText}>
                 <ThemedText type="defaultSemiBold">거래 알림</ThemedText>
-                <ThemedText style={styles.settingDescription}>새로운 거래 내역 알림</ThemedText>
+                <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>새로운 거래 내역 알림</ThemedText>
               </View>
             </View>
             <Switch
               value={transactionAlerts}
               onValueChange={setTransactionAlerts}
-              trackColor={{ false: '#767577', true: colors.tint }}
+              trackColor={{ false: '#767577', true: colors.primary }}
               thumbColor={transactionAlerts ? '#f4f3f4' : '#f4f3f4'}
             />
           </View>
 
           <View style={[styles.settingItem, { backgroundColor: colors.card }]}>
             <View style={styles.settingInfo}>
-              <Ionicons name="warning" size={24} color={colors.tint} />
+              <Ionicons name="warning" size={24} color={colors.primary} />
               <View style={styles.settingText}>
                 <ThemedText type="defaultSemiBold">예산 경고</ThemedText>
-                <ThemedText style={styles.settingDescription}>예산 초과 시 알림</ThemedText>
+                <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>예산 초과 시 알림</ThemedText>
               </View>
             </View>
             <Switch
               value={budgetAlerts}
               onValueChange={setBudgetAlerts}
-              trackColor={{ false: '#767577', true: colors.tint }}
+              trackColor={{ false: '#767577', true: colors.primary }}
               thumbColor={budgetAlerts ? '#f4f3f4' : '#f4f3f4'}
             />
           </View>
@@ -145,7 +143,6 @@ const styles = StyleSheet.create({
   },
   settingDescription: {
     fontSize: 14,
-    color: '#8E8E93',
     marginTop: 2,
   },
 }); 

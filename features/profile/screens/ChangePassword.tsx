@@ -5,15 +5,13 @@ import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View 
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function ChangePasswordModal() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors } = useTheme();
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -85,7 +83,7 @@ export default function ChangePasswordModal() {
               <TextInput
                 style={[styles.input, { color: colors.text }]}
                 placeholder="현재 비밀번호를 입력하세요"
-                placeholderTextColor={colors.icon}
+                placeholderTextColor={colors.textTertiary}
                 value={currentPassword}
                 onChangeText={setCurrentPassword}
                 secureTextEntry={!isCurrentPasswordVisible}
@@ -98,7 +96,7 @@ export default function ChangePasswordModal() {
                 <Ionicons
                   name={isCurrentPasswordVisible ? 'eye' : 'eye-off'}
                   size={20}
-                  color={colors.icon}
+                  color={colors.textTertiary}
                 />
               </TouchableOpacity>
             </View>
@@ -111,7 +109,7 @@ export default function ChangePasswordModal() {
               <TextInput
                 style={[styles.input, { color: colors.text }]}
                 placeholder="새 비밀번호를 입력하세요"
-                placeholderTextColor={colors.icon}
+                placeholderTextColor={colors.textTertiary}
                 value={newPassword}
                 onChangeText={setNewPassword}
                 secureTextEntry={!isNewPasswordVisible}
@@ -124,11 +122,11 @@ export default function ChangePasswordModal() {
                 <Ionicons
                   name={isNewPasswordVisible ? 'eye' : 'eye-off'}
                   size={20}
-                  color={colors.icon}
+                  color={colors.textTertiary}
                 />
               </TouchableOpacity>
             </View>
-            <Text style={[styles.helperText, { color: colors.icon }]}>
+            <Text style={[styles.helperText, { color: colors.textTertiary }]}>
               최소 6자 이상 입력하세요
             </Text>
           </View>
@@ -140,7 +138,7 @@ export default function ChangePasswordModal() {
               <TextInput
                 style={[styles.input, { color: colors.text }]}
                 placeholder="새 비밀번호를 다시 입력하세요"
-                placeholderTextColor={colors.icon}
+                placeholderTextColor={colors.textTertiary}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!isConfirmPasswordVisible}
@@ -153,7 +151,7 @@ export default function ChangePasswordModal() {
                 <Ionicons
                   name={isConfirmPasswordVisible ? 'eye' : 'eye-off'}
                   size={20}
-                  color={colors.icon}
+                  color={colors.textTertiary}
                 />
               </TouchableOpacity>
             </View>
@@ -164,7 +162,7 @@ export default function ChangePasswordModal() {
             style={[
               styles.changeButton,
               { 
-                backgroundColor: colors.tint,
+                backgroundColor: colors.primary,
                 opacity: isLoading ? 0.7 : 1
               }
             ]}

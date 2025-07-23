@@ -5,8 +5,7 @@ import { Alert, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, Activ
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import { getMyJoinRequests } from '@/services/inviteService';
 import type { JoinRequestResponse } from '@/services/inviteService';
@@ -14,8 +13,7 @@ import type { JoinRequestResponse } from '@/services/inviteService';
 export default function ProfileModal() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   const [username, setUsername] = useState(user?.username || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -54,10 +52,10 @@ export default function ProfileModal() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'PENDING': return '#FFB800';
-      case 'ACCEPTED': return '#34C759';
-      case 'REJECTED': return '#FF3B30';
-      default: return '#666';
+      case 'PENDING': return colors.warning || '#FFB800';
+      case 'ACCEPTED': return colors.success || '#34C759';
+      case 'REJECTED': return colors.error || '#FF3B30';
+      default: return colors.textSecondary || '#666';
     }
   };
 
@@ -71,14 +69,14 @@ export default function ProfileModal() {
           </TouchableOpacity>
           <ThemedText type="subtitle">프로필</ThemedText>
           <TouchableOpacity onPress={handleSave}>
-            <ThemedText style={[styles.saveButton, { color: colors.tint }]}>저장</ThemedText>
+            <ThemedText style={[styles.saveButton, { color: colors.primary }]}>저장</ThemedText>
           </TouchableOpacity>
         </View>
 
         {/* 프로필 정보 */}
         <View style={styles.profileSection}>
-          <View style={styles.profileImage}>
-            <Ionicons name="person" size={48} color={colors.tint} />
+          <View style={[styles.profileImage, { backgroundColor: colors.background }]}>
+            <Ionicons name="person" size={48} color={colors.primary} />
           </View>
           
           <View style={styles.inputContainer}>
@@ -87,15 +85,15 @@ export default function ProfileModal() {
               style={[
                 styles.input,
                 {
-                  backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
+                  backgroundColor: colors.card,
                   color: colors.text,
-                  borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
+                  borderColor: colors.border,
                 },
               ]}
               value={username}
               onChangeText={setUsername}
               placeholder="사용자명을 입력하세요"
-              placeholderTextColor={colors.icon}
+              placeholderTextColor={colors.textTertiary}
             />
           </View>
 
@@ -105,15 +103,15 @@ export default function ProfileModal() {
               style={[
                 styles.input,
                 {
-                  backgroundColor: colorScheme === 'dark' ? '#2A2A2A' : '#F5F5F5',
+                  backgroundColor: colors.card,
                   color: colors.text,
-                  borderColor: colorScheme === 'dark' ? '#404040' : '#E0E0E0',
+                  borderColor: colors.border,
                 },
               ]}
               value={email}
               onChangeText={setEmail}
               placeholder="이메일을 입력하세요"
-              placeholderTextColor={colors.icon}
+              placeholderTextColor={colors.textTertiary}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -127,9 +125,9 @@ export default function ProfileModal() {
             style={[styles.actionButton, { backgroundColor: colors.card }]}
             onPress={() => router.push('/user-id-code')}
           >
-            <Ionicons name="qr-code-outline" size={20} color={colors.tint} />
+            <Ionicons name="qr-code-outline" size={20} color={colors.primary} />
             <ThemedText style={styles.actionButtonText}>내 식별 코드 생성</ThemedText>
-            <Ionicons name="chevron-forward" size={20} color={colors.icon} />
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -138,24 +136,24 @@ export default function ProfileModal() {
           <View style={styles.sectionHeader}>
             <ThemedText style={styles.sectionTitle}>내 가계부 참가 요청</ThemedText>
             <TouchableOpacity onPress={loadMyRequests}>
-              <Ionicons name="refresh" size={20} color={colors.tint} />
+              <Ionicons name="refresh" size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
           
           {loading ? (
-            <ActivityIndicator size="small" color={colors.tint} style={{ marginTop: 20 }} />
+            <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 20 }} />
           ) : myRequests.length === 0 ? (
-            <ThemedText style={styles.emptyText}>참가 요청한 가계부가 없습니다.</ThemedText>
+            <ThemedText style={[styles.emptyText, { color: colors.textSecondary }]}>참가 요청한 가계부가 없습니다.</ThemedText>
           ) : (
             <View style={styles.requestList}>
               {myRequests.map((request) => (
                 <View key={request.requestId} style={[styles.requestItem, { backgroundColor: colors.card }]}>
                   <View style={styles.requestInfo}>
                     <ThemedText style={styles.bookTitle}>{request.bookTitle}</ThemedText>
-                    <ThemedText style={styles.requestDate}>
+                    <ThemedText style={[styles.requestDate, { color: colors.textSecondary }]}>
                       요청일: {new Date(request.requestDate).toLocaleDateString('ko-KR')}
                     </ThemedText>
-                    <ThemedText style={styles.requestRole}>
+                    <ThemedText style={[styles.requestRole, { color: colors.textSecondary }]}>
                       요청 권한: {request.requestedRole === 'VIEWER' ? '조회자' : '편집자'}
                     </ThemedText>
                   </View>
@@ -172,7 +170,7 @@ export default function ProfileModal() {
 
         {/* 다른 가계부 참가하기 버튼 */}
         <TouchableOpacity
-          style={[styles.joinButton, { backgroundColor: colors.tint }]}
+          style={[styles.joinButton, { backgroundColor: colors.primary }]}
           onPress={() => router.push('/join-book')}
         >
           <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
@@ -209,7 +207,6 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 32,
@@ -274,12 +271,10 @@ const styles = StyleSheet.create({
   },
   requestDate: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 2,
   },
   requestRole: {
     fontSize: 14,
-    color: '#666',
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -293,7 +288,6 @@ const styles = StyleSheet.create({
   emptyText: {
     textAlign: 'center',
     marginTop: 20,
-    color: '#666',
   },
   joinButton: {
     flexDirection: 'row',
@@ -306,7 +300,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   joinButtonText: {
-    color: '#FFFFFF',
+    color: 'white',
     fontSize: 16,
     fontWeight: '600',
   },

@@ -947,6 +947,7 @@ export default function ExploreScreen() {
                 <View style={styles.searchInputContainer}>
                   <ThemedInput
                     placeholder="거래 내역 검색..."
+                    placeholderTextColor={colors.textTertiary}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     leftIcon="search"
@@ -1044,7 +1045,7 @@ export default function ExploreScreen() {
         onRequestClose={() => setShowComments(false)}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <ThemedText type="subtitle">가계부 메모</ThemedText>
             <TouchableOpacity onPress={() => setShowComments(false)}>
               <Ionicons name="close" size={24} color={colors.text} />
@@ -1064,7 +1065,7 @@ export default function ExploreScreen() {
         onRequestClose={() => setSelectedLedgerId(null)}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <View style={styles.modalHeaderLeft}>
               <ThemedText type="subtitle">거래 상세</ThemedText>
               {getSelectedLedger() && (
@@ -1098,7 +1099,7 @@ export default function ExploreScreen() {
                   </ThemedText>
                 </View>
                 {getSelectedLedger()!.memo && (
-                  <View style={styles.ledgerDetailMemo}>
+                  <View style={[styles.ledgerDetailMemo, { borderTopColor: colors.border }]}>
                     <ThemedText type="body" variant="secondary">메모</ThemedText>
                     <ThemedText type="body" style={styles.memoText}>
                       {getSelectedLedger()!.memo}
@@ -1366,7 +1367,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   modalHeaderLeft: {
     flex: 1,
@@ -1388,7 +1388,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
   },
   memoText: {
     marginTop: 8,

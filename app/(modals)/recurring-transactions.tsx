@@ -20,6 +20,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuthStore } from '../../stores/authStore';
 import { useBookStore } from '../../stores/bookStore';
 import apiService from '../../services/api';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface RecurringTransaction {
   id: number;
@@ -40,6 +41,7 @@ interface RecurringTransaction {
 export default function RecurringTransactionsScreen() {
   const authStore = useAuthStore();
   const bookStore = useBookStore();
+  const { colors, isDarkMode } = useTheme();
   
   const [transactions, setTransactions] = useState<RecurringTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -222,10 +224,10 @@ export default function RecurringTransactionsScreen() {
   };
 
   const renderTransaction = ({ item }: { item: RecurringTransaction }) => (
-    <View style={[styles.transactionCard, !item.isActive && styles.inactiveCard]}>
+    <View style={[styles.transactionCard, { backgroundColor: colors.card }, !item.isActive && styles.inactiveCard]}>
       <View style={styles.transactionHeader}>
         <View style={styles.transactionInfo}>
-          <Text style={[styles.transactionName, !item.isActive && styles.inactiveText]}>
+          <Text style={[styles.transactionName, { color: colors.text }, !item.isActive && styles.inactiveText]}>
             {item.name}
           </Text>
           <Text style={[
@@ -244,16 +246,16 @@ export default function RecurringTransactionsScreen() {
       </View>
       
       <View style={styles.transactionDetails}>
-        <Text style={[styles.detailText, !item.isActive && styles.inactiveText]}>
+        <Text style={[styles.detailText, { color: colors.textSecondary }, !item.isActive && styles.inactiveText]}>
           {getRecurrenceTypeText(item.recurrenceType)} • 시작일: {item.startDate}
         </Text>
         {item.endDate && (
-          <Text style={[styles.detailText, !item.isActive && styles.inactiveText]}>
+          <Text style={[styles.detailText, { color: colors.textSecondary }, !item.isActive && styles.inactiveText]}>
             종료일: {item.endDate}
           </Text>
         )}
         {item.nextExecutionDate && item.isActive && (
-          <Text style={styles.nextExecutionText}>
+          <Text style={[styles.nextExecutionText, { color: colors.primary }]}>
             다음 실행: {item.nextExecutionDate}
           </Text>
         )}
@@ -264,13 +266,13 @@ export default function RecurringTransactionsScreen() {
           style={styles.actionButton}
           onPress={() => handleEdit(item)}
         >
-          <Ionicons name="pencil" size={20} color="#007AFF" />
+          <Ionicons name="pencil" size={20} color={colors.primary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => handleDelete(item.id)}
         >
-          <Ionicons name="trash" size={20} color="#FF3B30" />
+          <Ionicons name="trash" size={20} color={colors.error} />
         </TouchableOpacity>
       </View>
     </View>
@@ -278,20 +280,20 @@ export default function RecurringTransactionsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 헤더 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBackButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>반복 거래</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>반복 거래</Text>
         <TouchableOpacity 
           onPress={async () => {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -299,15 +301,15 @@ export default function RecurringTransactionsScreen() {
           }}
           style={styles.headerAddButton}
         >
-          <Ionicons name="add" size={24} color="#007AFF" />
+          <Ionicons name="add" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
       
       <View style={styles.innerContainer}>
         {transactions.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="repeat" size={64} color="#CCC" />
-            <Text style={styles.emptyText}>등록된 반복 거래가 없습니다</Text>
+            <Ionicons name="repeat" size={64} color={colors.textTertiary} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>등록된 반복 거래가 없습니다</Text>
           </View>
         ) : (
           <FlatList
@@ -328,33 +330,36 @@ export default function RecurringTransactionsScreen() {
           }}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
               <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.modalTitle}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>
                   {editingTransaction ? '반복 거래 수정' : '반복 거래 등록'}
                 </Text>
 
-                <Text style={styles.label}>이름</Text>
+                <Text style={[styles.label, { color: colors.text }]}>이름</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
                   value={name}
                   onChangeText={setName}
                   placeholder="예: 월급, 월세, 보험료"
+                  placeholderTextColor={colors.textTertiary}
                 />
 
-                <Text style={styles.label}>거래 유형</Text>
+                <Text style={[styles.label, { color: colors.text }]}>거래 유형</Text>
                 <View style={styles.typeButtons}>
                   <TouchableOpacity
                     style={[
                       styles.typeButton,
-                      amountType === 'INCOME' && styles.activeTypeButton,
+                      { borderColor: colors.border },
+                      amountType === 'INCOME' && [styles.activeTypeButton, { backgroundColor: colors.primary, borderColor: colors.primary }],
                     ]}
                     onPress={() => setAmountType('INCOME')}
                   >
                     <Text
                       style={[
                         styles.typeButtonText,
-                        amountType === 'INCOME' && styles.activeTypeButtonText,
+                        { color: colors.text },
+                        amountType === 'INCOME' && [styles.activeTypeButtonText, { color: colors.textInverse }],
                       ]}
                     >
                       수입
@@ -363,14 +368,16 @@ export default function RecurringTransactionsScreen() {
                   <TouchableOpacity
                     style={[
                       styles.typeButton,
-                      amountType === 'EXPENSE' && styles.activeTypeButton,
+                      { borderColor: colors.border },
+                      amountType === 'EXPENSE' && [styles.activeTypeButton, { backgroundColor: colors.primary, borderColor: colors.primary }],
                     ]}
                     onPress={() => setAmountType('EXPENSE')}
                   >
                     <Text
                       style={[
                         styles.typeButtonText,
-                        amountType === 'EXPENSE' && styles.activeTypeButtonText,
+                        { color: colors.text },
+                        amountType === 'EXPENSE' && [styles.activeTypeButtonText, { color: colors.textInverse }],
                       ]}
                     >
                       지출
@@ -378,30 +385,33 @@ export default function RecurringTransactionsScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.label}>금액</Text>
+                <Text style={[styles.label, { color: colors.text }]}>금액</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
                   value={amount}
                   onChangeText={setAmount}
                   placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="numeric"
                 />
 
-                <Text style={styles.label}>반복 주기</Text>
+                <Text style={[styles.label, { color: colors.text }]}>반복 주기</Text>
                 <View style={styles.recurrenceButtons}>
                   {(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'] as const).map((type) => (
                     <TouchableOpacity
                       key={type}
                       style={[
                         styles.recurrenceButton,
-                        recurrenceType === type && styles.activeRecurrenceButton,
+                        { borderColor: colors.border },
+                        recurrenceType === type && [styles.activeRecurrenceButton, { backgroundColor: colors.primary, borderColor: colors.primary }],
                       ]}
                       onPress={() => setRecurrenceType(type)}
                     >
                       <Text
                         style={[
                           styles.recurrenceButtonText,
-                          recurrenceType === type && styles.activeRecurrenceButtonText,
+                          { color: colors.text },
+                          recurrenceType === type && [styles.activeRecurrenceButtonText, { color: colors.textInverse }],
                         ]}
                       >
                         {getRecurrenceTypeText(type)}
@@ -410,13 +420,13 @@ export default function RecurringTransactionsScreen() {
                   ))}
                 </View>
 
-                <Text style={styles.label}>시작일</Text>
+                <Text style={[styles.label, { color: colors.text }]}>시작일</Text>
                 <TouchableOpacity
-                  style={styles.dateButton}
+                  style={[styles.dateButton, { borderColor: colors.border }]}
                   onPress={() => setShowStartDatePicker(true)}
                 >
-                  <Text>{startDate.toLocaleDateString()}</Text>
-                  <Ionicons name="calendar" size={20} color="#666" />
+                  <Text style={{ color: colors.text }}>{startDate.toLocaleDateString()}</Text>
+                  <Ionicons name="calendar" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
 
                 {showStartDatePicker && (
@@ -434,18 +444,18 @@ export default function RecurringTransactionsScreen() {
                 )}
 
                 <View style={styles.endDateContainer}>
-                  <Text style={styles.label}>종료일 설정</Text>
+                  <Text style={[styles.label, { color: colors.text }]}>종료일 설정</Text>
                   <Switch value={hasEndDate} onValueChange={setHasEndDate} />
                 </View>
 
                 {hasEndDate && (
                   <>
                     <TouchableOpacity
-                      style={styles.dateButton}
+                      style={[styles.dateButton, { borderColor: colors.border }]}
                       onPress={() => setShowEndDatePicker(true)}
                     >
-                      <Text>{endDate?.toLocaleDateString() || '종료일 선택'}</Text>
-                      <Ionicons name="calendar" size={20} color="#666" />
+                      <Text style={{ color: colors.text }}>{endDate?.toLocaleDateString() || '종료일 선택'}</Text>
+                      <Ionicons name="calendar" size={20} color={colors.textSecondary} />
                     </TouchableOpacity>
 
                     {showEndDatePicker && (
@@ -465,31 +475,32 @@ export default function RecurringTransactionsScreen() {
                   </>
                 )}
 
-                <Text style={styles.label}>설명 (선택)</Text>
+                <Text style={[styles.label, { color: colors.text }]}>설명 (선택)</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[styles.input, styles.textArea, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
                   value={description}
                   onChangeText={setDescription}
                   placeholder="메모를 입력하세요"
+                  placeholderTextColor={colors.textTertiary}
                   multiline
                   numberOfLines={3}
                 />
 
                 <View style={styles.modalButtons}>
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.cancelButton]}
+                    style={[styles.modalButton, styles.cancelButton, { backgroundColor: colors.backgroundSecondary }]}
                     onPress={() => {
                       resetForm();
                       setModalVisible(false);
                     }}
                   >
-                    <Text style={styles.cancelButtonText}>취소</Text>
+                    <Text style={[styles.cancelButtonText, { color: colors.text }]}>취소</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.saveButton]}
+                    style={[styles.modalButton, styles.saveButton, { backgroundColor: colors.primary }]}
                     onPress={handleSave}
                   >
-                    <Text style={styles.saveButtonText}>저장</Text>
+                    <Text style={[styles.saveButtonText, { color: colors.textInverse }]}>저장</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -504,7 +515,6 @@ export default function RecurringTransactionsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
   },
   header: {
     flexDirection: 'row',

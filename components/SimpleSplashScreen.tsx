@@ -8,10 +8,10 @@ interface SimpleSplashScreenProps {
 // 기본 색상 정의 (Theme Context가 준비되기 전에 사용)
 const defaultColors = {
   background: '#FFFFFF',
-  text: '#000000',
-  textSecondary: '#666666',
-  textTertiary: '#999999',
-  primary: '#007AFF',
+  text: '#0F172A',
+  textSecondary: '#475569',
+  textTertiary: '#94A3B8',
+  primary: '#3B82F6',
 };
 
 export default function SimpleSplashScreen({ onLoadingComplete }: SimpleSplashScreenProps) {

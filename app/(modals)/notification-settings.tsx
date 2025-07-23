@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuthStore } from '../../stores/authStore';
 import apiService from '../../services/api';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface NotificationPreference {
   id: number;
@@ -34,6 +35,7 @@ interface NotificationPreference {
 
 export default function NotificationSettingsScreen() {
   const authStore = useAuthStore();
+  const { colors, isDarkMode } = useTheme();
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -126,16 +128,16 @@ export default function NotificationSettingsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   if (!preferences) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>알림 설정을 불러올 수 없습니다.</Text>
+      <View style={[styles.errorContainer, { backgroundColor: colors.background }]}>
+        <Text style={[styles.errorText, { color: colors.text }]}>알림 설정을 불러올 수 없습니다.</Text>
       </View>
     );
   }
@@ -148,23 +150,23 @@ export default function NotificationSettingsScreen() {
           headerRight: () => (
             <TouchableOpacity onPress={savePreferences} disabled={saving}>
               {saving ? (
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <Text style={styles.saveButton}>저장</Text>
+                <Text style={[styles.saveButton, { color: colors.primary }]}>저장</Text>
               )}
             </TouchableOpacity>
           ),
         }}
       />
       
-      <ScrollView style={styles.container}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>알림 방법</Text>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>알림 방법</Text>
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>푸시 알림</Text>
-              <Text style={styles.settingDescription}>앱 푸시 알림을 받습니다</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>푸시 알림</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>앱 푸시 알림을 받습니다</Text>
             </View>
             <Switch
               value={preferences.pushEnabled}
@@ -174,8 +176,8 @@ export default function NotificationSettingsScreen() {
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>이메일 알림</Text>
-              <Text style={styles.settingDescription}>이메일로 알림을 받습니다</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>이메일 알림</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>이메일로 알림을 받습니다</Text>
             </View>
             <Switch
               value={preferences.emailEnabled}
@@ -184,13 +186,13 @@ export default function NotificationSettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>알림 유형</Text>
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>알림 유형</Text>
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>거래 알림</Text>
-              <Text style={styles.settingDescription}>새로운 거래가 추가될 때</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>거래 알림</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>새로운 거래가 추가될 때</Text>
             </View>
             <Switch
               value={preferences.transactionAlert}
@@ -201,8 +203,8 @@ export default function NotificationSettingsScreen() {
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>예산 알림</Text>
-              <Text style={styles.settingDescription}>예산 초과 시 알림</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>예산 알림</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>예산 초과 시 알림</Text>
             </View>
             <Switch
               value={preferences.budgetAlert}
@@ -213,8 +215,8 @@ export default function NotificationSettingsScreen() {
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>목표 알림</Text>
-              <Text style={styles.settingDescription}>목표 달성 및 리마인더</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>목표 알림</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>목표 달성 및 리마인더</Text>
             </View>
             <Switch
               value={preferences.goalAlert}
@@ -225,8 +227,8 @@ export default function NotificationSettingsScreen() {
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>반복 거래 알림</Text>
-              <Text style={styles.settingDescription}>반복 거래 실행 알림</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>반복 거래 알림</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>반복 거래 실행 알림</Text>
             </View>
             <Switch
               value={preferences.recurringAlert}
@@ -237,8 +239,8 @@ export default function NotificationSettingsScreen() {
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>가계부 초대</Text>
-              <Text style={styles.settingDescription}>가계부 초대를 받았을 때</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>가계부 초대</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>가계부 초대를 받았을 때</Text>
             </View>
             <Switch
               value={preferences.bookInviteAlert}
@@ -249,8 +251,8 @@ export default function NotificationSettingsScreen() {
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>친구 요청</Text>
-              <Text style={styles.settingDescription}>친구 요청을 받았을 때</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>친구 요청</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>친구 요청을 받았을 때</Text>
             </View>
             <Switch
               value={preferences.friendRequestAlert}
@@ -261,8 +263,8 @@ export default function NotificationSettingsScreen() {
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>댓글 알림</Text>
-              <Text style={styles.settingDescription}>내 거래에 댓글이 달렸을 때</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>댓글 알림</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>내 거래에 댓글이 달렸을 때</Text>
             </View>
             <Switch
               value={preferences.commentAlert}
@@ -272,13 +274,13 @@ export default function NotificationSettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>알림 시간 설정</Text>
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>알림 시간 설정</Text>
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>방해 금지 시간</Text>
-              <Text style={styles.settingDescription}>알림을 받지 않을 시간대</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>방해 금지 시간</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>알림을 받지 않을 시간대</Text>
             </View>
             <Switch
               value={quietHoursEnabled}
@@ -295,21 +297,21 @@ export default function NotificationSettingsScreen() {
           {quietHoursEnabled && (
             <View style={styles.timeContainer}>
               <TouchableOpacity
-                style={styles.timeButton}
+                style={[styles.timeButton, { backgroundColor: colors.backgroundSecondary }]}
                 onPress={() => setShowStartTimePicker(true)}
               >
-                <Text style={styles.timeLabel}>시작 시간</Text>
-                <Text style={styles.timeValue}>
+                <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>시작 시간</Text>
+                <Text style={[styles.timeValue, { color: colors.primary }]}>
                   {preferences.quietHoursStart || '22:00'}
                 </Text>
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={styles.timeButton}
+                style={[styles.timeButton, { backgroundColor: colors.backgroundSecondary }]}
                 onPress={() => setShowEndTimePicker(true)}
               >
-                <Text style={styles.timeLabel}>종료 시간</Text>
-                <Text style={styles.timeValue}>
+                <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>종료 시간</Text>
+                <Text style={[styles.timeValue, { color: colors.primary }]}>
                   {preferences.quietHoursEnd || '07:00'}
                 </Text>
               </TouchableOpacity>
@@ -318,8 +320,8 @@ export default function NotificationSettingsScreen() {
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>주말 알림</Text>
-              <Text style={styles.settingDescription}>주말에도 알림을 받습니다</Text>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>주말 알림</Text>
+              <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>주말에도 알림을 받습니다</Text>
             </View>
             <Switch
               value={preferences.weekendAlert}
@@ -355,7 +357,6 @@ export default function NotificationSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
   },
   loadingContainer: {
     flex: 1,
@@ -369,22 +370,18 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#666',
   },
   saveButton: {
     fontSize: 16,
-    color: '#007AFF',
     fontWeight: '600',
   },
   section: {
-    backgroundColor: 'white',
     marginVertical: 8,
     paddingVertical: 8,
   },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8E8E93',
     textTransform: 'uppercase',
     marginHorizontal: 20,
     marginTop: 8,
@@ -408,7 +405,6 @@ const styles = StyleSheet.create({
   },
   settingDescription: {
     fontSize: 14,
-    color: '#666',
   },
   timeContainer: {
     flexDirection: 'row',
@@ -419,18 +415,15 @@ const styles = StyleSheet.create({
   timeButton: {
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#F2F2F7',
     borderRadius: 8,
     minWidth: 120,
   },
   timeLabel: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 4,
   },
   timeValue: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#007AFF',
   },
 }); 

@@ -17,6 +17,7 @@ import {
 import apiService from '@/core/api/client';
 import type { GroupResponse, JoinRequestResponse } from '@/services/inviteService';
 import { acceptJoinRequest, createGroup, getBookGroups, getBookJoinRequests, rejectJoinRequest } from '@/services/inviteService';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface BookMember {
   memberId: number;
@@ -27,6 +28,7 @@ interface BookMember {
 
 export default function BookSettingsModal() {
   const router = useRouter();
+  const { colors, isDarkMode } = useTheme();
   const { bookId, bookTitle, userRole } = useLocalSearchParams<{ 
     bookId: string; 
     bookTitle: string;
@@ -212,20 +214,20 @@ export default function BookSettingsModal() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 헤더 추가 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={24} color="#333" />
+          <Ionicons name="close" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>가계부 설정</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>가계부 설정</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -238,22 +240,22 @@ export default function BookSettingsModal() {
           }} />
         }
       >
-        <Text style={styles.bookTitle}>{bookTitle}</Text>
+        <Text style={[styles.bookTitle, { color: colors.text }]}>{bookTitle}</Text>
 
         {/* 초대 섹션 - OWNER만 표시 */}
         {isOwner && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>초대하기</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>초대하기</Text>
             <TouchableOpacity
-              style={styles.inviteButton}
+              style={[styles.inviteButton, { backgroundColor: colors.cardBackground }]}
               onPress={() => router.push({
                 pathname: '/(modals)/invite-code',
                 params: { bookId, bookTitle }
               })}
             >
-              <Ionicons name="person-add-outline" size={20} color="#007AFF" />
-              <Text style={styles.inviteButtonText}>초대 코드 생성</Text>
-              <Ionicons name="chevron-forward" size={20} color="#007AFF" />
+              <Ionicons name="person-add-outline" size={20} color={colors.primary} />
+              <Text style={[styles.inviteButtonText, { color: colors.primary }]}>초대 코드 생성</Text>
+              <Ionicons name="chevron-forward" size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
         )}
@@ -261,12 +263,12 @@ export default function BookSettingsModal() {
         {/* 참가 요청 섹션 - OWNER만 표시 */}
         {isOwner && joinRequests.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>참가 요청 ({joinRequests.length})</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>참가 요청 ({joinRequests.length})</Text>
             {joinRequests.map((request) => (
-              <View key={request.requestId} style={styles.requestItem}>
+              <View key={request.requestId} style={[styles.requestItem, { backgroundColor: colors.cardBackground }]}>
                 <View style={styles.requestInfo}>
-                  <Text style={styles.requestName}>{request.memberName}</Text>
-                  <Text style={styles.requestEmail}>{request.memberEmail}</Text>
+                  <Text style={[styles.requestName, { color: colors.text }]}>{request.memberName}</Text>
+                  <Text style={[styles.requestEmail, { color: colors.textSecondary }]}>{request.memberEmail}</Text>
                   <View style={styles.roleTag}>
                     <Text style={[styles.roleText, { color: getRoleColor(request.requestedRole) }]}>
                       {getRoleDisplay(request.requestedRole)}
@@ -294,12 +296,12 @@ export default function BookSettingsModal() {
 
         {/* 멤버 목록 섹션 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>멤버 ({members.length})</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>멤버 ({members.length})</Text>
           {members.map((member) => (
-            <View key={member.memberId} style={styles.memberItem}>
+            <View key={member.memberId} style={[styles.memberItem, { borderBottomColor: colors.border }]}>
               <View style={styles.memberInfo}>
-                <Text style={styles.memberName}>{member.username}</Text>
-                <Text style={styles.memberEmail}>{member.email}</Text>
+                <Text style={[styles.memberName, { color: colors.text }]}>{member.username}</Text>
+                <Text style={[styles.memberEmail, { color: colors.textSecondary }]}>{member.email}</Text>
               </View>
               <View style={styles.memberRightSection}>
                 <View style={[styles.roleTag, { backgroundColor: getRoleColor(member.role) + '20' }]}>
@@ -313,13 +315,13 @@ export default function BookSettingsModal() {
                       style={styles.actionIcon}
                       onPress={() => handleChangeRole(member.memberId, member.role)}
                     >
-                      <Ionicons name="settings-outline" size={20} color="#007AFF" />
+                      <Ionicons name="settings-outline" size={20} color={colors.primary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.actionIcon}
                       onPress={() => handleRemoveMember(member.memberId)}
                     >
-                      <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                      <Ionicons name="trash-outline" size={20} color={colors.destructive} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -332,31 +334,31 @@ export default function BookSettingsModal() {
         {isOwner && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>그룹 ({groups.length})</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>그룹 ({groups.length})</Text>
               <TouchableOpacity onPress={() => setShowCreateGroupModal(true)}>
-                <Ionicons name="add-circle-outline" size={24} color="#007AFF" />
+                <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
               </TouchableOpacity>
             </View>
             {groups.length === 0 ? (
-              <Text style={styles.emptyText}>아직 생성된 그룹이 없습니다.</Text>
+              <Text style={[styles.emptyText, { color: colors.textTertiary }]}>아직 생성된 그룹이 없습니다.</Text>
             ) : (
               groups.map((group) => (
                 <TouchableOpacity
                   key={group.groupId}
-                  style={styles.groupItem}
+                  style={[styles.groupItem, { backgroundColor: colors.cardBackground }]}
                   onPress={() => router.push({
                     pathname: '/group-detail',
                     params: { groupId: group.groupId.toString(), groupName: group.groupName }
                   })}
                 >
                   <View style={styles.groupInfo}>
-                    <Text style={styles.groupName}>{group.groupName}</Text>
+                    <Text style={[styles.groupName, { color: colors.text }]}>{group.groupName}</Text>
                     {group.description && (
-                      <Text style={styles.groupDescription}>{group.description}</Text>
+                      <Text style={[styles.groupDescription, { color: colors.textSecondary }]}>{group.description}</Text>
                     )}
-                    <Text style={styles.groupMemberCount}>멤버 {group.memberCount}명</Text>
+                    <Text style={[styles.groupMemberCount, { color: colors.textTertiary }]}>멤버 {group.memberCount}명</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#666" />
+                  <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
                 </TouchableOpacity>
               ))
             )}
@@ -366,11 +368,11 @@ export default function BookSettingsModal() {
         {/* 가계부 참가하기 버튼 - 모든 사용자에게 표시 */}
         <View style={styles.section}>
           <TouchableOpacity
-            style={styles.joinBookButton}
+            style={[styles.joinBookButton, { backgroundColor: colors.cardBackground }]}
             onPress={() => router.push('/(modals)/join-book')}
           >
-            <Ionicons name="enter-outline" size={20} color="#007AFF" />
-            <Text style={styles.joinBookButtonText}>다른 가계부 참가하기</Text>
+            <Ionicons name="enter-outline" size={20} color={colors.primary} />
+            <Text style={[styles.joinBookButtonText, { color: colors.primary }]}>다른 가계부 참가하기</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -383,12 +385,13 @@ export default function BookSettingsModal() {
         onRequestClose={() => setShowCreateGroupModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>새 그룹 만들기</Text>
+          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>새 그룹 만들기</Text>
             
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { borderColor: colors.border, color: colors.text }]}
               placeholder="그룹 이름"
+              placeholderTextColor={colors.textTertiary}
               value={newGroupName}
               onChangeText={setNewGroupName}
             />
@@ -431,7 +434,6 @@ export default function BookSettingsModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
@@ -440,7 +442,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
   closeButton: {
     padding: 5,
@@ -448,7 +449,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
     flex: 1,
     textAlign: 'center',
   },
@@ -459,7 +459,6 @@ const styles = StyleSheet.create({
   bookTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
     textAlign: 'center',
     marginVertical: 20,
   },
@@ -470,7 +469,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
     marginBottom: 12,
   },
   sectionHeader: {
@@ -482,7 +480,6 @@ const styles = StyleSheet.create({
   inviteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
     padding: 16,
     borderRadius: 8,
     gap: 8,
@@ -490,14 +487,12 @@ const styles = StyleSheet.create({
   inviteButtonText: {
     flex: 1,
     fontSize: 16,
-    color: '#007AFF',
     fontWeight: '500',
   },
   requestItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f9f9f9',
     padding: 16,
     borderRadius: 8,
     marginBottom: 8,
@@ -508,12 +503,10 @@ const styles = StyleSheet.create({
   requestName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 4,
   },
   requestEmail: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 8,
   },
   requestActions: {
@@ -545,7 +538,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
   memberInfo: {
     flex: 1,
@@ -553,12 +545,10 @@ const styles = StyleSheet.create({
   memberName: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
     marginBottom: 4,
   },
   memberEmail: {
     fontSize: 14,
-    color: '#666',
   },
   memberRightSection: {
     flexDirection: 'row',
@@ -585,7 +575,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f9f9f9',
     padding: 16,
     borderRadius: 8,
     marginBottom: 8,
@@ -596,21 +585,17 @@ const styles = StyleSheet.create({
   groupName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 4,
   },
   groupDescription: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 4,
   },
   groupMemberCount: {
     fontSize: 12,
-    color: '#999',
   },
   emptyText: {
     fontSize: 14,
-    color: '#999',
     textAlign: 'center',
     marginTop: 20,
   },
@@ -619,13 +604,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#f5f5f5',
     padding: 16,
     borderRadius: 8,
   },
   joinBookButtonText: {
     fontSize: 16,
-    color: '#007AFF',
     fontWeight: '500',
   },
   modalOverlay: {
@@ -635,7 +618,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
     width: '90%',
@@ -644,13 +626,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 20,
     textAlign: 'center',
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
@@ -671,15 +651,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalCancelButton: {
-    backgroundColor: '#f0f0f0',
+    // backgroundColor now handled inline
   },
   modalCancelButtonText: {
-    color: '#666',
     fontSize: 16,
     fontWeight: '500',
   },
   modalCreateButton: {
-    backgroundColor: '#007AFF',
+    // backgroundColor now handled inline
   },
   modalCreateButtonText: {
     color: '#fff',

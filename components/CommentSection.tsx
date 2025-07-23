@@ -139,7 +139,7 @@ export default function CommentSection({ type, targetId }: CommentSectionProps) 
   };
 
   const renderComment = ({ item }: { item: LocalComment }) => (
-    <View style={[styles.commentItem, { backgroundColor: colors.card }]}>
+    <View style={[styles.commentItem, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
       <View style={styles.commentHeader}>
         <ThemedText type="body" weight="semibold" style={styles.authorName}>{item.authorName}</ThemedText>
         <ThemedText type="caption" variant="secondary" style={styles.commentDate}>
@@ -194,14 +194,17 @@ export default function CommentSection({ type, targetId }: CommentSectionProps) 
             maxLength={500}
             textAlignVertical="top"
           />
-          <View style={styles.inputFooter}>
+          <View style={[styles.inputFooter, { borderTopColor: colors.border }]}>
             <ThemedText type="caption" variant="tertiary" style={styles.charCount}>
               {newComment.length}/500
             </ThemedText>
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                { backgroundColor: newComment.trim() ? colors.primary : colors.borderLight },
+                { 
+                  backgroundColor: newComment.trim() ? colors.primary : colors.borderLight,
+                  shadowColor: colors.shadow
+                },
                 !newComment.trim() && styles.sendButtonDisabled
               ]}
               onPress={createComment}
@@ -247,7 +250,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: 'transparent', // Will be overridden by inline style
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -261,15 +264,12 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#212529',
   },
   commentDate: {
     fontSize: 12,
-    color: '#6C757D',
   },
   commentContent: {
     fontSize: 14,
-    color: '#495057',
     lineHeight: 20,
   },
   deleteButton: {
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
+    borderTopColor: 'transparent', // Will be overridden by inline style
   },
   charCount: {
     fontSize: 12,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: 'transparent', // Will be overridden by inline style
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -329,7 +329,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    color: '#6C757D',
     fontSize: 14,
     marginTop: 32,
   },

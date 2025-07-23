@@ -34,8 +34,8 @@ export default function AssetCard({ asset, assetType, onPress, formatAmount }: A
       onPress={onPress}
     >
       <View style={styles.assetCardContent}>
-        <View style={[styles.assetIcon, { backgroundColor: assetType?.color || '#007AFF' }]}>
-          <Ionicons name={assetType?.icon as any || 'card'} size={24} color="white" />
+        <View style={[styles.assetIcon, { backgroundColor: assetType?.color || colors.primary }]}>
+          <Ionicons name={assetType?.icon as any || 'card'} size={24} color={colors.textInverse} />
         </View>
         
         <View style={styles.assetInfo}>

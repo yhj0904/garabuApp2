@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFriendStore } from '@/stores/friendStore';
 import { router } from 'expo-router';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function FriendRequestsScreen() {
   const {
@@ -26,6 +27,7 @@ export default function FriendRequestsScreen() {
   } = useFriendStore();
 
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
+  const { colors, isDarkMode } = useTheme();
 
   useEffect(() => {
     loadInitialData();
@@ -84,29 +86,29 @@ export default function FriendRequestsScreen() {
   };
 
   const renderReceivedRequestItem = ({ item }: { item: any }) => (
-    <View style={styles.requestItem}>
-      <View style={styles.requestAvatar}>
-        <Ionicons name="person" size={24} color="#666" />
+    <View style={[styles.requestItem, { backgroundColor: colors.card, shadowColor: isDarkMode ? colors.text : '#000' }]}>
+      <View style={[styles.requestAvatar, { backgroundColor: colors.backgroundSecondary }]}>
+        <Ionicons name="person" size={24} color={colors.textSecondary} />
       </View>
       <View style={styles.requestInfo}>
-        <Text style={styles.requestName}>{item.requesterName}</Text>
-        <Text style={styles.requestUsername}>@{item.requesterUsername}</Text>
+        <Text style={[styles.requestName, { color: colors.text }]}>{item.requesterName}</Text>
+        <Text style={[styles.requestUsername, { color: colors.textSecondary }]}>@{item.requesterUsername}</Text>
         {item.requesterAlias && (
-          <Text style={styles.requestAlias}>별칭: {item.requesterAlias}</Text>
+          <Text style={[styles.requestAlias, { color: colors.primary }]}>별칭: {item.requesterAlias}</Text>
         )}
-        <Text style={styles.requestDate}>
+        <Text style={[styles.requestDate, { color: colors.textTertiary }]}>
           {new Date(item.requestedAt).toLocaleDateString()}
         </Text>
       </View>
       <View style={styles.requestActions}>
         <TouchableOpacity
-          style={[styles.actionButton, styles.acceptButton]}
+          style={[styles.actionButton, styles.acceptButton, { backgroundColor: colors.success }]}
           onPress={() => handleAcceptRequest(item.friendshipId, item.requesterName)}
         >
           <Text style={styles.acceptButtonText}>수락</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionButton, styles.rejectButton]}
+          style={[styles.actionButton, styles.rejectButton, { backgroundColor: colors.error }]}
           onPress={() => handleRejectRequest(item.friendshipId, item.requesterName)}
         >
           <Text style={styles.rejectButtonText}>거절</Text>
@@ -116,23 +118,23 @@ export default function FriendRequestsScreen() {
   );
 
   const renderSentRequestItem = ({ item }: { item: any }) => (
-    <View style={styles.requestItem}>
-      <View style={styles.requestAvatar}>
-        <Ionicons name="person" size={24} color="#666" />
+    <View style={[styles.requestItem, { backgroundColor: colors.card, shadowColor: isDarkMode ? colors.text : '#000' }]}>
+      <View style={[styles.requestAvatar, { backgroundColor: colors.backgroundSecondary }]}>
+        <Ionicons name="person" size={24} color={colors.textSecondary} />
       </View>
       <View style={styles.requestInfo}>
-        <Text style={styles.requestName}>{item.addresseeName}</Text>
-        <Text style={styles.requestUsername}>@{item.addresseeUsername}</Text>
+        <Text style={[styles.requestName, { color: colors.text }]}>{item.addresseeName}</Text>
+        <Text style={[styles.requestUsername, { color: colors.textSecondary }]}>@{item.addresseeUsername}</Text>
         {item.requesterAlias && (
-          <Text style={styles.requestAlias}>설정한 별칭: {item.requesterAlias}</Text>
+          <Text style={[styles.requestAlias, { color: colors.primary }]}>설정한 별칭: {item.requesterAlias}</Text>
         )}
-        <Text style={styles.requestDate}>
+        <Text style={[styles.requestDate, { color: colors.textTertiary }]}>
           {new Date(item.requestedAt).toLocaleDateString()}
         </Text>
       </View>
       <View style={styles.requestActions}>
-        <View style={styles.statusBadge}>
-          <Text style={styles.statusText}>대기 중</Text>
+        <View style={[styles.statusBadge, { backgroundColor: colors.backgroundSecondary }]}>
+          <Text style={[styles.statusText, { color: colors.textSecondary }]}>대기 중</Text>
         </View>
       </View>
     </View>
@@ -141,18 +143,19 @@ export default function FriendRequestsScreen() {
   const currentData = activeTab === 'received' ? friendRequests : sentRequests;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.tabContainer}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.tabContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={[
             styles.tab,
-            activeTab === 'received' && styles.activeTab
+            activeTab === 'received' && [styles.activeTab, { borderBottomColor: colors.primary }]
           ]}
           onPress={() => setActiveTab('received')}
         >
           <Text style={[
             styles.tabText,
-            activeTab === 'received' && styles.activeTabText
+            { color: colors.textSecondary },
+            activeTab === 'received' && [styles.activeTabText, { color: colors.primary }]
           ]}>
             받은 요청 ({friendRequests.length})
           </Text>
@@ -160,13 +163,14 @@ export default function FriendRequestsScreen() {
         <TouchableOpacity
           style={[
             styles.tab,
-            activeTab === 'sent' && styles.activeTab
+            activeTab === 'sent' && [styles.activeTab, { borderBottomColor: colors.primary }]
           ]}
           onPress={() => setActiveTab('sent')}
         >
           <Text style={[
             styles.tabText,
-            activeTab === 'sent' && styles.activeTabText
+            { color: colors.textSecondary },
+            activeTab === 'sent' && [styles.activeTabText, { color: colors.primary }]
           ]}>
             보낸 요청 ({sentRequests.length})
           </Text>
@@ -182,16 +186,17 @@ export default function FriendRequestsScreen() {
           <RefreshControl
             refreshing={isLoading}
             onRefresh={loadInitialData}
-            tintColor="#007AFF"
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="mail-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>
+            <Ionicons name="mail-outline" size={64} color={colors.textTertiary} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               {activeTab === 'received' ? '받은 친구 요청이 없습니다' : '보낸 친구 요청이 없습니다'}
             </Text>
-            <Text style={styles.emptySubText}>
+            <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>
               {activeTab === 'received' ? '새로운 친구 요청을 기다려보세요' : '새로운 친구를 추가해보세요'}
             </Text>
           </View>
@@ -204,13 +209,10 @@ export default function FriendRequestsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   tab: {
     flex: 1,
@@ -220,14 +222,11 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: '#007AFF',
   },
   tabText: {
     fontSize: 16,
-    color: '#666',
   },
   activeTabText: {
-    color: '#007AFF',
     fontWeight: '600',
   },
   requestsList: {
@@ -238,11 +237,9 @@ const styles = StyleSheet.create({
   requestItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
     borderRadius: 10,
     padding: 15,
     marginVertical: 5,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -252,7 +249,6 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -263,21 +259,17 @@ const styles = StyleSheet.create({
   requestName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
   },
   requestUsername: {
     fontSize: 14,
-    color: '#666',
     marginTop: 2,
   },
   requestAlias: {
     fontSize: 12,
-    color: '#007AFF',
     marginTop: 2,
   },
   requestDate: {
     fontSize: 12,
-    color: '#999',
     marginTop: 2,
   },
   requestActions: {
@@ -292,10 +284,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   acceptButton: {
-    backgroundColor: '#007AFF',
   },
   rejectButton: {
-    backgroundColor: '#FF3B30',
   },
   acceptButtonText: {
     color: 'white',
@@ -308,14 +298,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   statusBadge: {
-    backgroundColor: '#f0f0f0',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
   },
   statusText: {
     fontSize: 12,
-    color: '#666',
   },
   emptyContainer: {
     flex: 1,
@@ -325,12 +313,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#666',
     marginTop: 15,
   },
   emptySubText: {
     fontSize: 14,
-    color: '#999',
     marginTop: 5,
   },
 });

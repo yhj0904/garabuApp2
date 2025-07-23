@@ -253,7 +253,7 @@ export default function BudgetSettingsModal() {
             <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
               {budgetSummary.incomeBudget && (
                 <View style={styles.summaryItem}>
-                  <ThemedText style={styles.summaryLabel}>수입</ThemedText>
+                  <ThemedText style={[styles.summaryLabel, { color: colors.textTertiary }]}>수입</ThemedText>
                   <ThemedText type="defaultSemiBold">
                     ₩{budgetSummary.actualIncome?.toLocaleString() || 0} / ₩{budgetSummary.incomeBudget.toLocaleString()}
                   </ThemedText>
@@ -267,7 +267,7 @@ export default function BudgetSettingsModal() {
               )}
               {budgetSummary.expenseBudget && (
                 <View style={styles.summaryItem}>
-                  <ThemedText style={styles.summaryLabel}>지출</ThemedText>
+                  <ThemedText style={[styles.summaryLabel, { color: colors.textTertiary }]}>지출</ThemedText>
                   <ThemedText type="defaultSemiBold">
                     ₩{budgetSummary.actualExpense?.toLocaleString() || 0} / ₩{budgetSummary.expenseBudget.toLocaleString()}
                   </ThemedText>
@@ -437,7 +437,6 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
-    color: colors.textTertiary,
     minWidth: 40,
   },
   summaryRate: {

@@ -1,10 +1,13 @@
 import React from 'react';
 import { View, Button, Alert, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export const TestAuthButton = () => {
   // 개발 환경에서만 표시
   if (!__DEV__) return null;
+
+  const { colors } = useTheme();
 
   const testScenarios = [
     {
@@ -47,13 +50,13 @@ export const TestAuthButton = () => {
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       {testScenarios.map((scenario, index) => (
         <View key={index} style={styles.buttonWrapper}>
           <Button
             title={`테스트: ${scenario.title}`}
             onPress={scenario.action}
-            color="#ff6b6b"
+            color={colors.error}
           />
         </View>
       ))}
@@ -64,7 +67,6 @@ export const TestAuthButton = () => {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    backgroundColor: '#f0f0f0',
     borderRadius: 10,
     margin: 10,
   },

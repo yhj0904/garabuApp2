@@ -12,9 +12,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { createBookInviteCode } from '@/services/inviteService';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function InviteCodeModal() {
   const router = useRouter();
+  const { colors, isDarkMode } = useTheme();
   const { bookId, bookTitle } = useLocalSearchParams<{ bookId: string; bookTitle: string }>();
   const [inviteCode, setInviteCode] = useState<string>('');
   const [ttlSeconds, setTtlSeconds] = useState<number>(0);
@@ -102,64 +104,64 @@ export default function InviteCodeModal() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={24} color="#333" />
+          <Ionicons name="close" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>가계부 초대</Text>
+        <Text style={[styles.title, { color: colors.text }]}>가계부 초대</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.bookTitle}>{bookTitle}</Text>
+        <Text style={[styles.bookTitle, { color: colors.text }]}>{bookTitle}</Text>
         
         <View style={styles.roleSelector}>
-          <Text style={styles.roleSelectorTitle}>초대할 권한 선택</Text>
+          <Text style={[styles.roleSelectorTitle, { color: colors.textSecondary }]}>초대할 권한 선택</Text>
           <View style={styles.roleButtons}>
             <TouchableOpacity
-              style={[styles.roleButton, selectedRole === 'VIEWER' && styles.roleButtonActive]}
+              style={[styles.roleButton, { borderColor: colors.border }, selectedRole === 'VIEWER' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
               onPress={() => setSelectedRole('VIEWER')}
             >
-              <Text style={[styles.roleButtonText, selectedRole === 'VIEWER' && styles.roleButtonTextActive]}>
+              <Text style={[styles.roleButtonText, { color: colors.textSecondary }, selectedRole === 'VIEWER' && { color: 'white', fontWeight: '600' }]}>
                 조회자
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.roleButton, selectedRole === 'EDITOR' && styles.roleButtonActive]}
+              style={[styles.roleButton, { borderColor: colors.border }, selectedRole === 'EDITOR' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
               onPress={() => setSelectedRole('EDITOR')}
             >
-              <Text style={[styles.roleButtonText, selectedRole === 'EDITOR' && styles.roleButtonTextActive]}>
+              <Text style={[styles.roleButtonText, { color: colors.textSecondary }, selectedRole === 'EDITOR' && { color: 'white', fontWeight: '600' }]}>
                 편집자
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.codeContainer}>
-          <Text style={styles.codeLabel}>초대 코드</Text>
-          <Text style={styles.codeText}>{inviteCode}</Text>
-          <Text style={styles.ttlText}>
+        <View style={[styles.codeContainer, { backgroundColor: colors.cardBackground }]}>
+          <Text style={[styles.codeLabel, { color: colors.textSecondary }]}>초대 코드</Text>
+          <Text style={[styles.codeText, { color: colors.primary }]}>{inviteCode}</Text>
+          <Text style={[styles.ttlText, { color: colors.destructive }]}>
             남은 시간: {formatTime(ttlSeconds)}
           </Text>
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionButton} onPress={copyToClipboard}>
-            <Ionicons name="copy-outline" size={20} color="#007AFF" />
-            <Text style={styles.actionButtonText}>복사하기</Text>
+          <TouchableOpacity style={[styles.actionButton, { borderColor: colors.primary }]} onPress={copyToClipboard}>
+            <Ionicons name="copy-outline" size={20} color={colors.primary} />
+            <Text style={[styles.actionButtonText, { color: colors.primary }]}>복사하기</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionButton} onPress={shareCode}>
-            <Ionicons name="share-outline" size={20} color="#007AFF" />
-            <Text style={styles.actionButtonText}>공유하기</Text>
+          <TouchableOpacity style={[styles.actionButton, { borderColor: colors.primary }]} onPress={shareCode}>
+            <Ionicons name="share-outline" size={20} color={colors.primary} />
+            <Text style={[styles.actionButtonText, { color: colors.primary }]}>공유하기</Text>
           </TouchableOpacity>
         </View>
 
@@ -168,18 +170,18 @@ export default function InviteCodeModal() {
           setCodeCache(prev => ({ ...prev, [selectedRole]: undefined }));
           generateCode();
         }}>
-          <Ionicons name="refresh-outline" size={20} color="#666" />
-          <Text style={styles.refreshButtonText}>새 코드 생성</Text>
+          <Ionicons name="refresh-outline" size={20} color={colors.textSecondary} />
+          <Text style={[styles.refreshButtonText, { color: colors.textSecondary }]}>새 코드 생성</Text>
         </TouchableOpacity>
 
-        <View style={styles.infoContainer}>
-          <Text style={styles.infoText}>
+        <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             • 초대 코드는 30분간 유효합니다.
           </Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             • 초대받은 사용자는 이 코드로 가계부 참가를 요청할 수 있습니다.
           </Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             • 참가 요청은 가계부 설정에서 수락/거절할 수 있습니다.
           </Text>
         </View>
@@ -191,7 +193,6 @@ export default function InviteCodeModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
@@ -201,7 +202,6 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   closeButton: {
     padding: 4,
@@ -209,7 +209,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
   },
   content: {
     flex: 1,
@@ -218,7 +217,6 @@ const styles = StyleSheet.create({
   bookTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
     textAlign: 'center',
     marginBottom: 30,
   },
@@ -228,7 +226,6 @@ const styles = StyleSheet.create({
   roleSelectorTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
     marginBottom: 12,
   },
   roleButtons: {
@@ -241,23 +238,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ddd',
     alignItems: 'center',
   },
-  roleButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
+  // roleButtonActive now handled inline
   roleButtonText: {
     fontSize: 16,
-    color: '#666',
   },
-  roleButtonTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
+  // roleButtonTextActive now handled inline
   codeContainer: {
-    backgroundColor: '#f5f5f5',
     borderRadius: 12,
     padding: 24,
     alignItems: 'center',
@@ -265,19 +253,16 @@ const styles = StyleSheet.create({
   },
   codeLabel: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 8,
   },
   codeText: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#007AFF',
     letterSpacing: 4,
     marginBottom: 8,
   },
   ttlText: {
     fontSize: 14,
-    color: '#FF3B30',
     fontWeight: '500',
   },
   actions: {
@@ -294,11 +279,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#007AFF',
   },
   actionButtonText: {
     fontSize: 16,
-    color: '#007AFF',
     fontWeight: '500',
   },
   refreshButton: {
@@ -311,16 +294,13 @@ const styles = StyleSheet.create({
   },
   refreshButtonText: {
     fontSize: 16,
-    color: '#666',
   },
   infoContainer: {
-    backgroundColor: '#f9f9f9',
     borderRadius: 8,
     padding: 16,
   },
   infoText: {
     fontSize: 14,
-    color: '#666',
     lineHeight: 20,
     marginBottom: 4,
   },

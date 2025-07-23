@@ -13,10 +13,12 @@ import { createUserIdCode } from '@/services/inviteService';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useAuthStore } from '@/stores/authStore';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function UserIdCodeModal() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { colors } = useTheme();
   const [idCode, setIdCode] = useState<string>('');
   const [ttlSeconds, setTtlSeconds] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -74,63 +76,63 @@ export default function UserIdCodeModal() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={24} color="#333" />
+          <Ionicons name="close" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>내 식별 코드</Text>
+        <Text style={[styles.title, { color: colors.text }]}>내 식별 코드</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="person" size={64} color="#007AFF" />
+        <View style={[styles.iconContainer, { backgroundColor: colors.card }]}>
+          <Ionicons name="person" size={64} color={colors.primary} />
         </View>
 
-        <Text style={styles.userName}>{user?.name || user?.username}</Text>
-        <Text style={styles.userEmail}>{user?.email}</Text>
+        <Text style={[styles.userName, { color: colors.text }]}>{user?.name || user?.username}</Text>
+        <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email}</Text>
 
-        <View style={styles.codeContainer}>
-          <Text style={styles.codeLabel}>사용자 식별 코드</Text>
-          <Text style={styles.codeText}>{idCode}</Text>
-          <Text style={styles.ttlText}>
+        <View style={[styles.codeContainer, { backgroundColor: colors.card }]}>
+          <Text style={[styles.codeLabel, { color: colors.textSecondary }]}>사용자 식별 코드</Text>
+          <Text style={[styles.codeText, { color: colors.primary }]}>{idCode}</Text>
+          <Text style={[styles.ttlText, { color: colors.error }]}>
             남은 시간: {formatTime(ttlSeconds)}
           </Text>
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionButton} onPress={copyToClipboard}>
-            <Ionicons name="copy-outline" size={20} color="#007AFF" />
-            <Text style={styles.actionButtonText}>복사하기</Text>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.card }]} onPress={copyToClipboard}>
+            <Ionicons name="copy-outline" size={20} color={colors.primary} />
+            <Text style={[styles.actionButtonText, { color: colors.primary }]}>복사하기</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionButton} onPress={shareCode}>
-            <Ionicons name="share-outline" size={20} color="#007AFF" />
-            <Text style={styles.actionButtonText}>공유하기</Text>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.card }]} onPress={shareCode}>
+            <Ionicons name="share-outline" size={20} color={colors.primary} />
+            <Text style={[styles.actionButtonText, { color: colors.primary }]}>공유하기</Text>
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity style={styles.refreshButton} onPress={generateCode}>
-          <Ionicons name="refresh-outline" size={20} color="#666" />
-          <Text style={styles.refreshButtonText}>새 코드 생성</Text>
+          <Ionicons name="refresh-outline" size={20} color={colors.textSecondary} />
+          <Text style={[styles.refreshButtonText, { color: colors.textSecondary }]}>새 코드 생성</Text>
         </TouchableOpacity>
 
         <View style={styles.infoContainer}>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             • 이 코드는 30분간 유효합니다.
           </Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             • 다른 사용자가 이 코드로 당신을 가계부에 초대할 수 있습니다.
           </Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             • 코드를 안전하게 보관하세요.
           </Text>
         </View>
@@ -142,7 +144,6 @@ export default function UserIdCodeModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
@@ -152,7 +153,7 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomWidth: 1,
   },
   closeButton: {
     padding: 4,
@@ -160,7 +161,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
   },
   content: {
     flex: 1,
@@ -172,7 +172,6 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#f0f0f0',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
@@ -180,16 +179,13 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 16,
-    color: '#666',
     marginBottom: 30,
   },
   codeContainer: {
-    backgroundColor: '#f8f8f8',
     paddingVertical: 30,
     paddingHorizontal: 40,
     borderRadius: 12,
@@ -198,19 +194,16 @@ const styles = StyleSheet.create({
   },
   codeLabel: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 8,
   },
   codeText: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#007AFF',
     letterSpacing: 2,
     marginBottom: 8,
   },
   ttlText: {
     fontSize: 14,
-    color: '#FF3B30',
   },
   actions: {
     flexDirection: 'row',
@@ -223,12 +216,10 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    backgroundColor: '#f0f0f0',
     borderRadius: 8,
   },
   actionButtonText: {
     fontSize: 16,
-    color: '#007AFF',
     fontWeight: '500',
   },
   refreshButton: {
@@ -241,14 +232,12 @@ const styles = StyleSheet.create({
   },
   refreshButtonText: {
     fontSize: 14,
-    color: '#666',
   },
   infoContainer: {
     paddingHorizontal: 20,
   },
   infoText: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 8,
     lineHeight: 20,
   },

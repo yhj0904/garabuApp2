@@ -241,7 +241,7 @@ export default function MemoSection({ bookId }: MemoSectionProps) {
               maxLength={5000}
             />
 
-            <View style={styles.optionsContainer}>
+            <View style={[styles.optionsContainer, { borderTopColor: colors.border }]}>
               <TouchableOpacity
                 style={styles.importantToggle}
                 onPress={() => setIsImportant(!isImportant)}
@@ -265,7 +265,7 @@ export default function MemoSection({ bookId }: MemoSectionProps) {
                     style={[
                       styles.colorOption,
                       { backgroundColor: colors.card, borderColor: colors.border },
-                      !selectedColor && styles.selectedColor
+                      !selectedColor && { ...styles.selectedColor, borderColor: colors.primary }
                     ]}
                     onPress={() => setSelectedColor(undefined)}
                   >
@@ -277,7 +277,7 @@ export default function MemoSection({ bookId }: MemoSectionProps) {
                       style={[
                         styles.colorOption,
                         { backgroundColor: color },
-                        selectedColor === color && styles.selectedColor
+                        selectedColor === color && { ...styles.selectedColor, borderColor: colors.primary }
                       ]}
                       onPress={() => setSelectedColor(color)}
                     />
@@ -324,7 +324,7 @@ export default function MemoSection({ bookId }: MemoSectionProps) {
         {memo?.content}
       </ThemedText>
 
-      <View style={styles.memoFooter}>
+      <View style={[styles.memoFooter, { borderTopColor: colors.border }]}>
         <ThemedText type="caption" variant="tertiary">
           작성: {memo?.authorName} • {new Date(memo?.createdAt || '').toLocaleDateString('ko-KR')}
         </ThemedText>
@@ -388,7 +388,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
   },
   importantToggle: {
     flexDirection: 'row',
@@ -416,7 +415,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   selectedColor: {
-    borderColor: '#007AFF',
+    borderWidth: 2,
   },
   memoHeader: {
     flexDirection: 'row',
@@ -446,6 +445,5 @@ const styles = StyleSheet.create({
   memoFooter: {
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
   },
 });

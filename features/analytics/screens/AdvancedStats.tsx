@@ -1,5 +1,4 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
@@ -61,8 +60,7 @@ export default function AdvancedStatsScreen() {
   const { ledgers, currentBook } = useBookStore();
   const { categories } = useCategoryStore();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const { colors, isDarkMode } = useTheme();
 
   useEffect(() => {
     generateStats();
@@ -272,11 +270,11 @@ export default function AdvancedStatsScreen() {
   };
 
   const getTrendColor = (direction: 'up' | 'down' | 'stable', isIncome: boolean = false): string => {
-    if (direction === 'stable') return '#8E8E93';
+    if (direction === 'stable') return colors.textSecondary;
     if (isIncome) {
-      return direction === 'up' ? '#4CAF50' : '#FF9500';
+      return direction === 'up' ? colors.success : colors.warning;
     } else {
-      return direction === 'up' ? '#FF3B30' : '#4CAF50';
+      return direction === 'up' ? colors.error : colors.success;
     }
   };
 
@@ -299,7 +297,7 @@ export default function AdvancedStatsScreen() {
                     { 
                       height: (item.income / maxValue) * chartHeight,
                       width: barWidth / 2 - 2,
-                      backgroundColor: '#4CAF50'
+                      backgroundColor: colors.success
                     }
                   ]} 
                 />
@@ -309,7 +307,7 @@ export default function AdvancedStatsScreen() {
                     { 
                       height: (item.expense / maxValue) * chartHeight,
                       width: barWidth / 2 - 2,
-                      backgroundColor: '#FF3B30'
+                      backgroundColor: colors.error
                     }
                   ]} 
                 />
@@ -322,11 +320,11 @@ export default function AdvancedStatsScreen() {
         </View>
         <View style={styles.chartLegend}>
           <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#4CAF50' }]} />
+            <View style={[styles.legendColor, { backgroundColor: colors.success }]} />
             <Text style={[styles.legendText, { color: colors.text }]}>수입</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#FF3B30' }]} />
+            <View style={[styles.legendColor, { backgroundColor: colors.error }]} />
             <Text style={[styles.legendText, { color: colors.text }]}>지출</Text>
           </View>
         </View>
@@ -361,7 +359,7 @@ export default function AdvancedStatsScreen() {
                 ]}
               />
             </View>
-            <Text style={[styles.categoryPercentage, { color: colors.icon }]}>
+            <Text style={[styles.categoryPercentage, { color: colors.textTertiary }]}>
               {category.percentage.toFixed(1)}%
             </Text>
           </View>
@@ -375,11 +373,11 @@ export default function AdvancedStatsScreen() {
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.tint} />
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>고급 통계</Text>
         <TouchableOpacity style={styles.shareButton}>
-          <Ionicons name="share" size={24} color={colors.tint} />
+          <Ionicons name="share" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -391,7 +389,7 @@ export default function AdvancedStatsScreen() {
               key={period}
               style={[
                 styles.periodButton,
-                { backgroundColor: selectedPeriod === period ? colors.tint : colors.card }
+                { backgroundColor: selectedPeriod === period ? colors.primary : colors.card }
               ]}
               onPress={() => setSelectedPeriod(period)}
             >
@@ -423,7 +421,7 @@ export default function AdvancedStatsScreen() {
                 <Text style={[styles.trendValue, { color: getTrendColor(trends.income.direction, true) }]}>
                   {trends.income.percentage.toFixed(1)}%
                 </Text>
-                <Text style={[styles.trendDescription, { color: colors.icon }]}>
+                <Text style={[styles.trendDescription, { color: colors.textTertiary }]}>
                   {trends.income.description}
                 </Text>
               </View>
@@ -440,7 +438,7 @@ export default function AdvancedStatsScreen() {
                 <Text style={[styles.trendValue, { color: getTrendColor(trends.expense.direction, false) }]}>
                   {trends.expense.percentage.toFixed(1)}%
                 </Text>
-                <Text style={[styles.trendDescription, { color: colors.icon }]}>
+                <Text style={[styles.trendDescription, { color: colors.textTertiary }]}>
                   {trends.expense.description}
                 </Text>
               </View>
@@ -457,7 +455,7 @@ export default function AdvancedStatsScreen() {
                 <Text style={[styles.trendValue, { color: getTrendColor(trends.balance.direction, false) }]}>
                   {trends.balance.percentage.toFixed(1)}%
                 </Text>
-                <Text style={[styles.trendDescription, { color: colors.icon }]}>
+                <Text style={[styles.trendDescription, { color: colors.textTertiary }]}>
                   {trends.balance.description}
                 </Text>
               </View>

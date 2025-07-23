@@ -394,6 +394,7 @@ export default function HomeScreen() {
           
           {expandCalendar && (
             <Calendar
+              key={`calendar-${isDarkMode ? 'dark' : 'light'}`}
               current={selectedDate}
               onDayPress={(day: any) => {
                 setSelectedDate(day.dateString);
@@ -750,7 +751,7 @@ export default function HomeScreen() {
         onRequestClose={() => setSelectedLedgerId(null)}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <View style={styles.modalHeaderLeft}>
               <ThemedText type="subtitle">거래 상세</ThemedText>
               {getSelectedLedger() && (
@@ -784,7 +785,7 @@ export default function HomeScreen() {
                   </ThemedText>
                 </View>
                 {getSelectedLedger()!.memo && (
-                  <View style={styles.ledgerDetailMemo}>
+                  <View style={[styles.ledgerDetailMemo, { borderTopColor: colors.border }]}>
                     <ThemedText type="body" variant="secondary">메모</ThemedText>
                     <ThemedText type="body" style={styles.memoText}>
                       {getSelectedLedger()!.memo}
@@ -997,7 +998,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   modalHeaderLeft: {
     flex: 1,
@@ -1019,7 +1019,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
   },
   memoText: {
     marginTop: 8,
