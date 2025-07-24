@@ -51,10 +51,6 @@
         "android.permission.INTERNET",
         "android.permission.VIBRATE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.WAKE_LOCK",
-        "android.permission.INTERNET",
-        "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.WAKE_LOCK"
       ],
       "runtimeVersion": "1.0.0",
@@ -88,6 +84,7 @@
         }
       ],
       "@react-native-firebase/app",
+      "@react-native-firebase/crashlytics",
       "@react-native-firebase/messaging",
       "@react-native-google-signin/google-signin",
         [
@@ -111,6 +108,9 @@
             "extraMavenRepos": [
               "https://devrepo.kakao.com/nexus/content/groups/public/"
             ]
+          },
+          "ios": {
+            "useFrameworks": "static"
           }
         }
       ]

@@ -15,6 +15,13 @@ import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { useModuleLoader } from '@/hooks/useModuleLoader';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { useSessionTracking } from '@/hooks/useSessionTracking';
+import { useUserProperties } from '@/hooks/useUserProperties';
+import { useRetentionTracking } from '@/hooks/useRetentionTracking';
+import { useConversionTracking } from '@/hooks/useConversionTracking';
+import { useCrashlytics } from '@/hooks/useCrashlytics';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 function RootLayoutContent() {
   
@@ -24,6 +31,9 @@ function RootLayoutContent() {
   // Auth state
   const { isAuthenticated, user, isCheckingAuth } = useAuthStore();
   const { books } = useBookStore();
+  
+  // Analytics
+  const { setUserId, logEvent } = useAnalytics();
   
   const [fontsLoaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -61,6 +71,13 @@ function RootLayoutContent() {
     console.log('에러:', error);
     console.log('플랫폼:', Platform.OS);
     console.log('=====================');
+    
+    // 개발 모드에서만 모듈 테스트 실행
+    if (__DEV__ && isReady && !modules.googleSignIn) {
+      import('@/utils/moduleTest').then(({ runAllModuleTests }) => {
+        runAllModuleTests();
+      }).catch(err => console.log('Module test import failed:', err));
+    }
   }, [fontsLoaded, modules, isLoading, isReady, error]);
 
   // 라우팅은 app/index.tsx에서 처리하므로 여기서는 제거
@@ -72,8 +89,40 @@ function RootLayoutContent() {
       console.log('👤 사용자 정보:', user ? `${user.username} (ID: ${user.userId})` : 'null');
       console.log('📚 가계부 수:', books.length);
       console.log('=== 앱 준비 완료 ===\n');
+      
+      // Analytics: 앱 시작 이벤트
+      logEvent('app_start', {
+        authenticated: isAuthenticated,
+        books_count: books.length,
+        platform: Platform.OS
+      });
     }
-  }, [isReady, isAuthenticated, isCheckingAuth, user, books.length]);
+  }, [isReady, isAuthenticated, isCheckingAuth, user, books.length, logEvent]);
+  
+  // Analytics: 사용자 ID 설정
+  useEffect(() => {
+    if (user && user.userId) {
+      setUserId(user.userId.toString());
+    } else {
+      setUserId(null);
+    }
+  }, [user, setUserId]);
+  
+  // Analytics Hooks - 조건부로 실행되지 않도록 항상 호출
+  useSessionTracking();
+  useUserProperties();
+  useRetentionTracking();
+  useConversionTracking();
+
+  // Crashlytics
+  const { setUserId: setCrashlyticsUserId } = useCrashlytics();
+  
+  // Crashlytics 사용자 ID 설정
+  useEffect(() => {
+    if (user && user.userId) {
+      setCrashlyticsUserId(user.userId.toString());
+    }
+  }, [user, setCrashlyticsUserId]);
 
 
   // 로딩 중이거나 라우팅 준비 중일 때 스플래시 화면 표시
@@ -106,8 +155,10 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <RootLayoutContent />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <RootLayoutContent />
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

@@ -20,6 +20,8 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedInput } from '@/components/ThemedInput';
 import { ThemedButton } from '@/components/ThemedButton';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { AnalyticsEvents } from '@/utils/analytics';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -28,6 +30,7 @@ export default function LoginScreen() {
   
   const { login, loginWithKakao, loginWithGoogle, loginWithApple, isLoading, isAuthenticated } = useAuthStore();
   const { colors, isDarkMode } = useTheme();
+  const { logEvent } = useAnalytics();
 
   // 로그인 상태 확인
   useEffect(() => {
@@ -66,6 +69,10 @@ export default function LoginScreen() {
       
       if (success) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Analytics: 로그인 성공
+        logEvent(AnalyticsEvents.LOGIN, {
+          method: 'email'
+        });
       }
     } catch (error: any) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -80,25 +87,37 @@ export default function LoginScreen() {
   const handleKakaoLogin = async () => {
     const success = await loginWithKakao();
     
-    if (!success) {
-      Alert.alert('카카오 로그인 실패', '다시 시도해주세요.');
+    if (success) {
+      // Analytics: 카카오 로그인 성공
+      logEvent(AnalyticsEvents.LOGIN, {
+        method: 'kakao'
+      });
     }
+    // 사용자가 취소한 경우는 아무 메시지도 표시하지 않음
   };
 
   const handleGoogleLogin = async () => {
     const success = await loginWithGoogle();
     
-    if (!success) {
-      Alert.alert('구글 로그인 실패', '다시 시도해주세요.');
+    if (success) {
+      // Analytics: 구글 로그인 성공
+      logEvent(AnalyticsEvents.LOGIN, {
+        method: 'google'
+      });
     }
+    // 사용자가 취소한 경우는 아무 메시지도 표시하지 않음
   };
 
   const handleAppleLogin = async () => {
     const success = await loginWithApple();
     
-    if (!success) {
-      Alert.alert('애플 로그인 실패', '다시 시도해주세요.');
+    if (success) {
+      // Analytics: 애플 로그인 성공
+      logEvent(AnalyticsEvents.LOGIN, {
+        method: 'apple'
+      });
     }
+    // 사용자가 취소한 경우는 아무 메시지도 표시하지 않음
   };
 
   const togglePasswordVisibility = () => {

@@ -1,20 +1,12 @@
 import { Platform } from 'react-native';
 import oauthKeyService from '@/services/oauthKeyService';
-
-// 조건부 import - Expo Go에서는 사용 불가능한 모듈
-let GoogleSignin: any = null;
-let statusCodes: any = null;
-let GoogleOneTapSignIn: any = null;
-
-try {
-  const googleSignInModule = require('@react-native-google-signin/google-signin');
-  GoogleSignin = googleSignInModule.GoogleSignin;
-  statusCodes = googleSignInModule.statusCodes;
-  GoogleOneTapSignIn = googleSignInModule.GoogleOneTapSignIn;
-  console.log('Google Sign-In module loaded successfully');
-} catch (error) {
-  console.log('Google Sign-In module not available:', error);
-}
+import { 
+  GoogleSignin, 
+  statusCodes,
+  GoogleOneTapSignIn,
+  isSuccessResponse,
+  isNoSavedCredentialFoundResponse
+} from '@react-native-google-signin/google-signin';
 
 interface GoogleLoginResponse {
   idToken: string | null;
@@ -36,31 +28,25 @@ class GoogleService {
    * Google Sign-In 설정
    */
   async configure() {
-    if (!GoogleSignin || !GoogleOneTapSignIn) {
-      console.log('Google Sign-In module not available. Use development build for Google login.');
-      return;
-    }
-
     try {
-      const webClientId = oauthKeyService.getGoogleWebClientId(); // Web Client ID for both platforms
+      const webClientId = oauthKeyService.getGoogleWebClientId();
       
       // Traditional Google Sign-In configuration
       GoogleSignin.configure({
-        webClientId: 'autoDetect',
+        webClientId: webClientId,
         offlineAccess: true,
         forceCodeForRefreshToken: true,
       });
 
-      // Google One Tap configuration (Android only)
-      if (Platform.OS === 'android') {
+      // Google One Tap configuration (if available)
+      if (GoogleOneTapSignIn) {
         GoogleOneTapSignIn.configure({
-          webClientId: 'autoDetect', // Use the same web client ID
-          autoSignIn: true, // Automatically prompt user
+          webClientId: webClientId,
         });
       }
       
       this.isConfigured = true;
-      console.log('Google Sign-In configured successfully with webClientId:', webClientId);
+      console.log('Google Sign-In configured successfully');
     } catch (error) {
       console.error('Google Sign-In configuration failed:', error);
       this.isConfigured = false;
@@ -78,172 +64,145 @@ class GoogleService {
   }
 
   /**
-   * Google One Tap 로그인 수행 (Android only)
+   * Google One Tap 로그인 수행
+   * @returns GoogleLoginResponse | null (null은 사용자가 취소한 경우)
    */
-  async loginWithOneTap(): Promise<GoogleLoginResponse> {
-    // Google Sign-In 모듈 확인
-    if (!GoogleSignin) {
-      throw new Error('Google 로그인을 사용하려면 개발 빌드가 필요합니다. Expo Go에서는 Google 로그인이 지원되지 않습니다.');
-    }
-    
-    // 설정 확인
+  async loginWithOneTap(): Promise<GoogleLoginResponse | null> {
     await this.ensureConfigured();
-    
-    // iOS에서는 바로 traditional login 사용
-    if (Platform.OS === 'ios') {
-      return this.login();
-    }
 
+    // GoogleOneTapSignIn이 없으면 바로 traditional 로그인 사용
     if (!GoogleOneTapSignIn) {
-      console.warn('Google One Tap Sign-In not available, falling back to traditional sign-in');
-      return this.login();
+      console.log('One Tap not available, using traditional sign-in');
+      return await this.fallbackToTraditionalSignIn();
     }
 
     try {
-      // Play Services 확인
-      const hasPlayServices = await GoogleSignin.hasPlayServices();
-      if (!hasPlayServices) {
-        throw new Error('Play Services not available');
+      // Play Services 확인 (Android만)
+      if (Platform.OS === 'android') {
+        await GoogleOneTapSignIn.checkPlayServices();
       }
 
-      // One Tap Sign-In 시도
-      const response = await GoogleOneTapSignIn.signIn();
+      // 1. 먼저 자동 로그인 시도
+      console.log('Attempting automatic Google sign-in...');
+      const signInResponse = await GoogleOneTapSignIn.signIn();
       
-      if (response.type === 'success') {
-        const userInfo = response.data;
-        console.log('Google One Tap sign-in success:', userInfo);
-        return {
-          idToken: userInfo.idToken,
-          serverAuthCode: userInfo.serverAuthCode || null,
-          user: {
-            email: userInfo.user.email,
-            id: userInfo.user.id,
-            givenName: userInfo.user.givenName,
-            familyName: userInfo.user.familyName,
-            photo: userInfo.user.photo,
-            name: userInfo.user.name,
-          }
-        };
-      } else if (response.type === 'noSavedCredentialFound') {
-        // 저장된 계정이 없으면 계정 생성 흐름으로
+      if (isSuccessResponse(signInResponse)) {
+        console.log('Automatic sign-in successful');
+        return this.processSignInResponse(signInResponse);
+      }
+      
+      // 2. 저장된 계정이 없으면 계정 생성/선택 플로우
+      if (isNoSavedCredentialFoundResponse(signInResponse)) {
+        console.log('No saved credentials, starting account selection...');
         const createResponse = await GoogleOneTapSignIn.createAccount();
-        if (createResponse.type === 'success') {
-          const userInfo = createResponse.data;
-          console.log('Google One Tap account creation success:', userInfo);
-          return {
-            idToken: userInfo.idToken,
-            serverAuthCode: userInfo.serverAuthCode || null,
-            user: {
-              email: userInfo.user.email,
-              id: userInfo.user.id,
-              givenName: userInfo.user.givenName,
-              familyName: userInfo.user.familyName,
-              photo: userInfo.user.photo,
-              name: userInfo.user.name,
-            }
-          };
+        
+        if (isSuccessResponse(createResponse)) {
+          console.log('Account selection successful');
+          return this.processSignInResponse(createResponse);
         }
       }
       
-      // One Tap이 실패하면 traditional login으로 fallback
-      console.log('One Tap failed, falling back to traditional login');
-      return this.login();
-    } catch (error) {
+      // 3. 그래도 실패하면 명시적 로그인 (폴백)
+      console.log('Falling back to explicit sign-in...');
+      return await this.fallbackToTraditionalSignIn();
+      
+    } catch (error: any) {
       console.error('Google One Tap login error:', error);
-      // Fallback to traditional login
-      return this.login();
+      
+      // 사용자가 취소한 경우 - 에러로 처리하지 않고 정상적인 흐름으로 처리
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        console.log('User cancelled Google sign-in');
+        return null; // null을 반환하여 취소를 나타냄
+      }
+      
+      // Play Services 문제
+      if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        throw new Error('Google Play 서비스를 사용할 수 없습니다.');
+      }
+      
+      // 기타 에러는 traditional login으로 폴백
+      console.log('Error occurred, falling back to traditional sign-in');
+      return await this.fallbackToTraditionalSignIn();
     }
   }
 
   /**
-   * Traditional Google 로그인 수행
+   * Traditional Google Sign-In으로 폴백
+   * @returns GoogleLoginResponse | null (null은 사용자가 취소한 경우)
    */
-  async login(): Promise<GoogleLoginResponse> {
-    // Google Sign-In 모듈 확인
-    if (!GoogleSignin) {
-      console.error('GoogleSignin module is null. Module loaded:', {
-        GoogleSignin: !!GoogleSignin,
-        statusCodes: !!statusCodes,
-        GoogleOneTapSignIn: !!GoogleOneTapSignIn
-      });
-      throw new Error('Google 로그인을 사용하려면 개발 빌드가 필요합니다. Expo Go에서는 Google 로그인이 지원되지 않습니다.');
-    }
-    
-    // 설정 확인
-    await this.ensureConfigured();
-
+  private async fallbackToTraditionalSignIn(): Promise<GoogleLoginResponse | null> {
     try {
-      // Configure가 제대로 되었는지 다시 확인
-      const isSignedIn = await GoogleSignin.isSignedIn();
-      console.log('Is already signed in:', isSignedIn);
-      
-      // Play Services 확인
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      
-      // Sign In
+      // Play Services 확인 (Android에서만)
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      }
+
       const userInfo = await GoogleSignin.signIn();
       
-      if (!userInfo.data.idToken) {
+      // Response structure handling - some versions return data in different formats
+      const idToken = userInfo.data?.idToken || userInfo.idToken;
+      const serverAuthCode = userInfo.data?.serverAuthCode || userInfo.serverAuthCode;
+      const user = userInfo.data?.user || userInfo.user;
+      
+      if (!idToken) {
         throw new Error('No ID token received from Google');
       }
       
-      console.log('Google traditional login success:', userInfo);
       return {
-        idToken: userInfo.data.idToken,
-        serverAuthCode: userInfo.data.serverAuthCode || null,
+        idToken: idToken,
+        serverAuthCode: serverAuthCode || null,
         user: {
-          email: userInfo.data.user.email,
-          id: userInfo.data.user.id,
-          givenName: userInfo.data.user.givenName || null,
-          familyName: userInfo.data.user.familyName || null,
-          photo: userInfo.data.user.photo || null,
-          name: userInfo.data.user.name || null,
+          email: user.email,
+          id: user.id,
+          givenName: user.givenName || null,
+          familyName: user.familyName || null,
+          photo: user.photo || null,
+          name: user.name || null,
         }
       };
     } catch (error: any) {
-      if (error.code === statusCodes?.SIGN_IN_CANCELLED) {
-        throw new Error('User cancelled the login flow');
-      } else if (error.code === statusCodes?.IN_PROGRESS) {
-        throw new Error('Sign in is in progress already');
-      } else if (error.code === statusCodes?.PLAY_SERVICES_NOT_AVAILABLE) {
-        throw new Error('Play services not available or outdated');
-      } else {
-        console.error('Google login failed:', error);
-        throw error;
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        console.log('User cancelled Google sign-in');
+        return null; // 취소 시 null 반환
       }
+      throw error;
     }
+  }
+
+  /**
+   * 로그인 응답 처리
+   */
+  private processSignInResponse(response: any): GoogleLoginResponse {
+    const userInfo = response.data;
+    
+    return {
+      idToken: userInfo.idToken,
+      serverAuthCode: userInfo.serverAuthCode || null,
+      user: {
+        email: userInfo.user.email,
+        id: userInfo.user.id,
+        givenName: userInfo.user.givenName,
+        familyName: userInfo.user.familyName,
+        photo: userInfo.user.photo,
+        name: userInfo.user.name,
+      }
+    };
   }
 
   /**
    * Google 로그아웃
    */
   async logout(): Promise<void> {
-    if (!GoogleSignin) {
-      throw new Error('Google Sign-In not available. Please use a development build.');
-    }
-
     try {
-      await GoogleSignin.signOut();
+      if (GoogleOneTapSignIn?.signOut) {
+        await GoogleOneTapSignIn.signOut();
+      } else if (GoogleSignin?.signOut) {
+        await GoogleSignin.signOut();
+      }
       console.log('Google logout success');
     } catch (error) {
       console.error('Google logout failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 현재 로그인 상태 확인
-   */
-  async isSignedIn(): Promise<boolean> {
-    if (!GoogleSignin) {
-      return false;
-    }
-
-    try {
-      return await GoogleSignin.isSignedIn();
-    } catch (error) {
-      console.error('Failed to check Google sign in status:', error);
-      return false;
+      // 로그아웃 실패는 무시하고 계속 진행
     }
   }
 
@@ -254,10 +213,9 @@ class GoogleService {
     console.log('=== Backend Google Login Process Started ===');
     
     try {
-      const config = require('../config/config').default;
+      const config = require('../../../config/config').default;
       const url = `${config.API_BASE_URL}/api/${config.API_VERSION}/mobile-oauth/login`;
       console.log('Backend API URL:', url);
-      console.log('Sending Google ID token to backend...');
       
       const response = await fetch(url, {
         method: 'POST',
@@ -292,11 +250,7 @@ class GoogleService {
       
       return data;
     } catch (error: any) {
-      console.error('Backend Google login failed:', {
-        message: error.message,
-        url: error.config?.url,
-        status: error.response?.status
-      });
+      console.error('Backend Google login failed:', error);
       throw error;
     }
   }

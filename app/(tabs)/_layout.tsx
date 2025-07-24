@@ -3,9 +3,11 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useScreenTracking } from '@/hooks/useScreenTracking';
 
 export default function TabLayout() {
   const { colors, isDarkMode } = useTheme();
+  useScreenTracking();
 
   return (
     <Tabs

@@ -628,7 +628,7 @@ class ApiService {
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     console.log('=== Login API 호출 ===');
     const response = await this.authAxiosInstance.post('/login', {
-      username: credentials.email, // Spring Security는 username 필드 사용
+      email: credentials.email,
       password: credentials.password,
     });
 

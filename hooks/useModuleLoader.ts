@@ -24,7 +24,13 @@ interface LoadingResult {
   error: string | null;
 }
 
-const isExpoGo = Constants.appOwnership === 'expo';
+// Expo Go 환경 체크 - executionEnvironment가 'standalone'이 아닌 경우만 Expo Go로 판단
+const isExpoGo = Constants.appOwnership === 'expo' && Constants.executionEnvironment !== 'standalone';
+console.log('useModuleLoader Environment:', {
+  appOwnership: Constants.appOwnership,
+  executionEnvironment: Constants.executionEnvironment,
+  isExpoGo: isExpoGo
+});
 
 export function useModuleLoader(fontsLoaded: boolean): LoadingResult {
   const [modules, setModules] = useState<ModuleStatus>({
@@ -126,12 +132,19 @@ export function useModuleLoader(fontsLoaded: boolean): LoadingResult {
 
   // Google Sign-In 초기화
   const initializeGoogleSignIn = useCallback(async () => {
+    if (isExpoGo) {
+      console.log('Expo Go 환경에서는 Google Sign-In을 사용할 수 없습니다');
+      updateModule('googleSignIn', true); // Skip but mark as "loaded"
+      return;
+    }
+
     try {
+      console.log('Google Sign-In 초기화 시작...');
       await googleService.configure();
       console.log('Google Sign-In 초기화 성공');
       updateModule('googleSignIn', true);
     } catch (error) {
-      console.warn('Google Sign-In 초기화 실패:', error);
+      console.error('Google Sign-In 초기화 실패:', error);
       updateModule('googleSignIn', false);
     }
   }, [updateModule]);

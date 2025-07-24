@@ -1,8 +1,9 @@
 import config from '@/config/config';
 import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import googleService from '@/features/auth/services/googleService';
 
 // 백엔드 서버 OAuth 설정
 const BACKEND_BASE_URL = config.API_BASE_URL;
@@ -23,22 +24,7 @@ interface OAuthResult {
 
 class OAuthService {
   constructor() {
-    this.initializeGoogleSignIn();
-  }
-
-  // Google Sign-In 초기화
-  private async initializeGoogleSignIn() {
-    try {
-      await GoogleSignin.configure({
-        webClientId: config.GOOGLE_WEB_CLIENT_ID, // 백엔드 서버용 클라이언트 ID
-        iosClientId: config.GOOGLE_IOS_CLIENT_ID, // iOS용 클라이언트 ID
-        offlineAccess: true,
-        hostedDomain: '',
-        forceCodeForRefreshToken: true,
-      });
-    } catch (error) {
-      console.error('Google Sign-In 초기화 실패:', error);
-    }
+    // Google Sign-In 초기화는 googleService에서 처리
   }
 
   // Apple OAuth 로그인 (iOS 전용)
@@ -104,56 +90,49 @@ class OAuthService {
   // Google OAuth 로그인 (네이티브)
   async googleLogin(): Promise<OAuthResult> {
     try {
-      // 기존 로그인 체크
-      await GoogleSignin.hasPlayServices();
+      // Expo Go 환경 체크 (더 정확한 감지)
+      const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
+      console.log('Environment check:', {
+        appOwnership: Constants.appOwnership,
+        executionEnvironment: Constants.executionEnvironment,
+        isExpoGo: isExpoGo
+      });
       
-      // 로그인 시도
-      const userInfo = await GoogleSignin.signIn();
-      const tokens = await GoogleSignin.getTokens();
-
-      // 토큰 유효성 확인
-      if (!tokens.accessToken) {
+      if (isExpoGo) {
         return {
           success: false,
-          error: 'Google 액세스 토큰을 받지 못했습니다.',
+          error: 'Expo Go에서는 Google 로그인을 사용할 수 없습니다. 개발 빌드를 사용해주세요.',
+        };
+      }
+      
+      // googleService를 통해 로그인
+      const result = await googleService.loginWithOneTap();
+      
+      if (!result.idToken) {
+        return {
+          success: false,
+          error: 'Google ID 토큰을 받지 못했습니다.',
         };
       }
 
       return {
         success: true,
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
+        accessToken: result.idToken,
+        refreshToken: result.serverAuthCode || undefined,
         provider: 'google',
         userInfo: {
-          id: userInfo.user.id,
-          email: userInfo.user.email,
-          name: userInfo.user.name || undefined,
-          profileImage: userInfo.user.photo || undefined,
+          id: result.user.id,
+          email: result.user.email,
+          name: result.user.name || undefined,
+          profileImage: result.user.photo || undefined,
         },
       };
     } catch (error: any) {
       console.error('Google OAuth 오류:', error);
       
-      if (error.code === 'SIGN_IN_CANCELLED') {
-        return {
-          success: false,
-          error: 'Google 로그인이 취소되었습니다.',
-        };
-      } else if (error.code === 'IN_PROGRESS') {
-        return {
-          success: false,
-          error: '로그인이 진행 중입니다.',
-        };
-      } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
-        return {
-          success: false,
-          error: 'Google Play Services를 사용할 수 없습니다.',
-        };
-      }
-      
       return {
         success: false,
-        error: 'Google 로그인 중 오류가 발생했습니다.',
+        error: error.message || 'Google 로그인 중 오류가 발생했습니다.',
       };
     }
   }
@@ -259,7 +238,7 @@ class OAuthService {
   // 현재 로그인된 Google 계정 로그아웃
   async googleSignOut(): Promise<void> {
     try {
-      await GoogleSignin.signOut();
+      await googleService.logout();
     } catch (error) {
       console.error('Google 로그아웃 실패:', error);
     }
@@ -268,8 +247,8 @@ class OAuthService {
   // 현재 로그인된 Google 계정 정보 가져오기
   async getCurrentGoogleUser() {
     try {
-      const userInfo = await GoogleSignin.signInSilently();
-      return userInfo;
+      // googleService에는 signInSilently가 없으므로 null 반환
+      return null;
     } catch (error) {
       console.error('현재 Google 사용자 정보 가져오기 실패:', error);
       return null;

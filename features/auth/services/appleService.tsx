@@ -44,8 +44,9 @@ class AppleService {
 
   /**
    * Apple 로그인 수행
+   * @returns AppleAuthResult | null (null은 사용자가 취소한 경우)
    */
-  async login(): Promise<AppleAuthResult> {
+  async login(): Promise<AppleAuthResult | null> {
     if (!appleAuth) {
       throw new Error('Apple Authentication not available');
     }
@@ -67,7 +68,8 @@ class AppleService {
       };
     } catch (error: any) {
       if (error.code === 'ERR_CANCELED') {
-        throw new Error('Apple Sign-In was canceled');
+        console.log('User canceled Apple Sign-In');
+        return null; // 취소 시 null 반환
       }
       console.error('Apple login failed:', error);
       throw error;

@@ -139,6 +139,11 @@ class FCMNotificationService {
   // FCM 토큰 생성
   private async generateFCMToken(): Promise<string | null> {
     try {
+      // iOS에서는 먼저 registerDeviceForRemoteMessages 호출 필요
+      if (Platform.OS === 'ios') {
+        await messaging().registerDeviceForRemoteMessages();
+      }
+      
       const fcmToken = await messaging().getToken();
       console.log('FCM 토큰 생성 성공:', fcmToken);
       return fcmToken;

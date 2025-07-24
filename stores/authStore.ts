@@ -126,7 +126,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 1. Kakao 로그인 수행
       console.log('Step 1: Calling kakaoService.login()...');
       const kakaoResult = await kakaoService.login();
-      console.log('Step 1 Complete: Got Kakao access token');
+      console.log('Step 1 Complete: Got Kakao result');
+      
+      // 사용자가 취소한 경우
+      if (!kakaoResult) {
+        console.log('Kakao login cancelled by user');
+        set({ isLoading: false });
+        return false;
+      }
       
       if (!kakaoResult.accessToken) {
         throw new Error('No access token received from Kakao');
@@ -203,6 +210,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const googleResult = await googleService.loginWithOneTap();
       console.log('Google login result:', googleResult);
       
+      // 사용자가 취소한 경우
+      if (!googleResult) {
+        console.log('Google login cancelled by user');
+        set({ isLoading: false });
+        return false;
+      }
+      
       if (!googleResult.idToken) {
         throw new Error('No ID token received from Google');
       }
@@ -270,6 +284,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 1. Apple 로그인 수행
       console.log('Step 1: Calling appleService.login()...');
       const appleResult = await appleService.login();
+      
+      // 사용자가 취소한 경우
+      if (!appleResult) {
+        console.log('Apple login cancelled by user');
+        set({ isLoading: false });
+        return false;
+      }
+      
       console.log('Step 1 Complete: Got Apple tokens', {
         hasIdentityToken: !!appleResult.identityToken,
         hasAuthorizationCode: !!appleResult.authorizationCode,

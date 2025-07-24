@@ -19,6 +19,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { AnalyticsEvents } from '@/utils/analytics';
 
 export default function ManageCategoriesScreen() {
   const [refreshing, setRefreshing] = useState(false);
@@ -41,6 +43,12 @@ export default function ManageCategoriesScreen() {
   } = useCategoryStore();
   const router = useRouter();
   const { colors, isDarkMode } = useTheme();
+  const { logEvent, logScreenView } = useAnalytics();
+
+  useEffect(() => {
+    logScreenView('manage_categories_modal', 'ManageCategoriesScreen');
+    logEvent(AnalyticsEvents.MODAL_OPEN, { modal_name: 'manage_categories' });
+  }, []);
 
   useEffect(() => {
     if (token) {
@@ -90,6 +98,11 @@ export default function ManageCategoriesScreen() {
               const result = await deleteCategoryForBook(currentBook.id, category.id, token);
               if (result.success) {
                 setAllCategories(prev => prev.filter(c => c.id !== category.id));
+                logEvent(AnalyticsEvents.CATEGORY_DELETE, {
+                  category_id: category.id,
+                  category_name: category.category,
+                  source: 'manage_categories_modal'
+                });
                 console.log('카테고리 삭제 완료:', category.category);
               }
             } catch (error) {
@@ -124,6 +137,13 @@ export default function ManageCategoriesScreen() {
         setShowAddModal(false);
         setCategoryName('');
         setSelectedEmoji('📝');
+        
+        logEvent(AnalyticsEvents.CATEGORY_CREATE, {
+          category_name: categoryName.trim(),
+          emoji: selectedEmoji,
+          book_id: currentBook.id,
+          source: 'manage_categories_modal'
+        });
         
         Alert.alert('성공', '카테고리가 추가되었습니다.');
       } else if (result.error === 'duplicate') {

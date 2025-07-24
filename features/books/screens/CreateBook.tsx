@@ -20,6 +20,8 @@ import {
   ScrollView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { firebaseService } from '@/services/firebaseService';
+import { AnalyticsEvents } from '@/utils/analytics';
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,6 +40,15 @@ export default function BookCreationScreen() {
   const { createBook } = useBookStore();
   const router = useRouter();
   const { colors, isDarkMode } = useTheme();
+  
+  React.useEffect(() => {
+    // Modal open 이벤트 로깅
+    firebaseService.logEvent(AnalyticsEvents.MODAL_OPEN, {
+      modal_name: 'book_creation',
+      mode: mode,
+      user_id: user?.id
+    });
+  }, [mode, user?.id]);
 
   const handleCreateBook = async () => {
     if (!bookTitle.trim()) {
@@ -60,6 +71,13 @@ export default function BookCreationScreen() {
       
       if (success) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        // Analytics 이벤트 로깅
+        await firebaseService.logEvent(AnalyticsEvents.BOOK_CREATE, {
+          book_title: bookTitle.trim(),
+          mode: mode,
+          user_id: user?.id
+        });
         
         if (mode === 'onboarding') {
           // 가계부 생성 후 초기 데이터 로드

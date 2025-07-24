@@ -14,6 +14,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { firebaseService } from '@/services/firebaseService';
+import { AnalyticsEvents } from '@/utils/analytics';
 
 export default function SelectBookScreen() {
   const { token, user } = useAuthStore();
@@ -21,6 +23,17 @@ export default function SelectBookScreen() {
   const router = useRouter();
   const { colors, isDarkMode } = useTheme();
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Modal open 이벤트 로깅
+    firebaseService.logEvent(AnalyticsEvents.MODAL_OPEN, {
+      modal_name: 'select_book',
+      current_book_id: currentBook?.id,
+      current_book_title: currentBook?.title,
+      books_count: books.length,
+      user_id: user?.id
+    });
+  }, []);
 
   useEffect(() => {
     loadBooks();
@@ -43,8 +56,18 @@ export default function SelectBookScreen() {
     }
   };
 
-  const handleSelectBook = (book: any) => {
+  const handleSelectBook = async (book: any) => {
     setCurrentBook(book);
+    
+    // Analytics 이벤트 로깅
+    await firebaseService.logEvent(AnalyticsEvents.BOOK_SELECT, {
+      book_id: book.id,
+      book_title: book.title,
+      previous_book_id: currentBook?.id,
+      previous_book_title: currentBook?.title,
+      user_id: user?.id
+    });
+    
     router.back();
   };
 
@@ -88,6 +111,14 @@ export default function SelectBookScreen() {
               
               if (success) {
                 console.log('가계부 삭제 완료:', book.title);
+                
+                // Analytics 이벤트 로깅
+                await firebaseService.logEvent(AnalyticsEvents.BOOK_DELETE, {
+                  book_id: book.id,
+                  book_title: book.title,
+                  was_current_book: isCurrentBook,
+                  user_id: user?.id
+                });
                 
                 // 삭제된 가계부가 현재 선택된 가계부였다면 알림 표시
                 if (isCurrentBook) {

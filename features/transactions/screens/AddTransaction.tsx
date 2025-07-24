@@ -27,6 +27,8 @@ import axios from 'axios';
 import config from '@/config/config';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { firebaseService } from '@/services/firebaseService';
+import { AnalyticsEvents } from '@/utils/analytics';
 
 // 한국어 달력 설정
 LocaleConfig.locales['kr'] = {
@@ -91,6 +93,16 @@ export default function AddTransactionScreen() {
       fetchCurrencies();
     }
   }, [token, currentBook, fetchCategoriesByBook, fetchPaymentsByBook, fetchAssetsByBook]);
+
+  // Analytics: Track modal open
+  useEffect(() => {
+    firebaseService.logEvent(AnalyticsEvents.MODAL_OPEN, {
+      modal_type: 'add_transaction',
+      book_id: currentBook?.id
+    });
+    
+    firebaseService.logScreenView('AddTransactionModal', 'Modal');
+  }, []);
 
   const fetchTags = async () => {
     if (!token || !currentBook?.id) return;
@@ -307,6 +319,21 @@ export default function AddTransactionScreen() {
     }
     
     if (result.success) {
+      // Analytics: Track successful transaction creation
+      await firebaseService.logEvent(AnalyticsEvents.TRANSACTION_ADD, {
+        amount_type: amountType,
+        amount: Math.floor(numericAmount),
+        category: selectedCategory || null,
+        payment_method: selectedPayment || null,
+        has_tags: selectedTags.length > 0,
+        tags_count: selectedTags.length,
+        currency: selectedCurrency,
+        book_id: currentBook?.id,
+        is_transfer: amountType === 'TRANSFER',
+        transfer_type: amountType === 'TRANSFER' ? 
+          (selectedFromAssetId && selectedToAssetId ? 'bidirectional' : 'unidirectional') : null
+      });
+
       // 자산 잔액 업데이트 (자산이 선택된 경우, 이체는 제외)
       if (amountType !== 'TRANSFER' && selectedAssetId && token) {
         try {
@@ -345,6 +372,14 @@ export default function AddTransactionScreen() {
         { text: '확인', onPress: () => router.back() }
       ]);
     } else {
+      // Analytics: Track transaction creation failure
+      await firebaseService.logEvent('transaction_add_failed', {
+        error_type: result.error || 'unknown',
+        error_message: result.message || 'unknown error',
+        amount_type: amountType,
+        book_id: currentBook?.id
+      });
+
       // Show specific error messages based on error type
       if (result.error === 'validation') {
         Alert.alert('입력 오류', `입력 데이터를 확인해주세요:\n${result.message}`);
@@ -365,6 +400,13 @@ export default function AddTransactionScreen() {
     const result = await createCategoryForBook(currentBook!.id, { category: newCategory.trim() }, token!);
     
     if (result.success) {
+      // Analytics: Track category creation
+      await firebaseService.logEvent(AnalyticsEvents.CATEGORY_CREATE, {
+        category_name: newCategory.trim(),
+        book_id: currentBook?.id,
+        created_from: 'transaction_modal'
+      });
+      
       setNewCategory('');
       setShowCategoryModal(false);
       setSelectedCategory(newCategory.trim());
@@ -389,6 +431,13 @@ export default function AddTransactionScreen() {
     const result = await createPaymentForBook(currentBook!.id, { payment: newPayment.trim() }, token!);
     
     if (result.success) {
+      // Analytics: Track payment method creation
+      await firebaseService.logEvent('payment_method_create', {
+        payment_name: newPayment.trim(),
+        book_id: currentBook?.id,
+        created_from: 'transaction_modal'
+      });
+      
       setNewPayment('');
       setShowPaymentModal(false);
       setSelectedPayment(newPayment.trim());
@@ -435,7 +484,14 @@ export default function AddTransactionScreen() {
                 amountType === 'EXPENSE' && styles.activeTypeButton,
                 { backgroundColor: amountType === 'EXPENSE' ? colors.expense : colors.card }
               ]}
-              onPress={() => setAmountType('EXPENSE')}
+              onPress={() => {
+                setAmountType('EXPENSE');
+                // Analytics: Track transaction type selection
+                firebaseService.logEvent('transaction_type_selected', {
+                  type: 'EXPENSE',
+                  book_id: currentBook?.id
+                });
+              }}
             >
               <Ionicons 
                 name="remove-circle" 
@@ -454,7 +510,14 @@ export default function AddTransactionScreen() {
                 amountType === 'INCOME' && styles.activeTypeButton,
                 { backgroundColor: amountType === 'INCOME' ? colors.income : colors.card }
               ]}
-              onPress={() => setAmountType('INCOME')}
+              onPress={() => {
+                setAmountType('INCOME');
+                // Analytics: Track transaction type selection
+                firebaseService.logEvent('transaction_type_selected', {
+                  type: 'INCOME',
+                  book_id: currentBook?.id
+                });
+              }}
             >
               <Ionicons 
                 name="add-circle" 
@@ -473,7 +536,14 @@ export default function AddTransactionScreen() {
                 amountType === 'TRANSFER' && styles.activeTypeButton,
                 { backgroundColor: amountType === 'TRANSFER' ? colors.transfer : colors.card }
               ]}
-              onPress={() => setAmountType('TRANSFER')}
+              onPress={() => {
+                setAmountType('TRANSFER');
+                // Analytics: Track transaction type selection
+                firebaseService.logEvent('transaction_type_selected', {
+                  type: 'TRANSFER',
+                  book_id: currentBook?.id
+                });
+              }}
             >
               <Ionicons 
                 name="swap-horizontal" 
@@ -495,7 +565,16 @@ export default function AddTransactionScreen() {
               <View style={styles.amountContainer}>
                 <TouchableOpacity
                   style={[styles.currencyButton, { backgroundColor: colors.card }]}
-                  onPress={() => currencies.length > 1 && setShowCurrencyModal(true)}
+                  onPress={() => {
+                    if (currencies.length > 1) {
+                      setShowCurrencyModal(true);
+                      // Analytics: Track currency modal open
+                      firebaseService.logEvent('modal_opened', {
+                        modal_type: 'currency_selection',
+                        context: 'add_transaction'
+                      });
+                    }
+                  }}
                   disabled={currencies.length <= 1}
                 >
                   <Text style={[styles.currencyButtonText, { color: colors.text }]}>
@@ -542,7 +621,14 @@ export default function AddTransactionScreen() {
                 <Text style={[styles.label, { color: colors.text }]}>카테고리 *</Text>
                 <TouchableOpacity
                   style={[styles.selectButton, { backgroundColor: colors.card }]}
-                  onPress={() => setShowCategoryModal(true)}
+                  onPress={() => {
+                    setShowCategoryModal(true);
+                    // Analytics: Track category modal open
+                    firebaseService.logEvent('modal_opened', {
+                      modal_type: 'category_selection',
+                      context: 'add_transaction'
+                    });
+                  }}
                 >
                   <View style={styles.selectButtonContent}>
                     {selectedCategoryEmoji && (
@@ -563,7 +649,14 @@ export default function AddTransactionScreen() {
                 <Text style={[styles.label, { color: colors.text }]}>자산 *</Text>
                 <TouchableOpacity
                   style={[styles.selectButton, { backgroundColor: colors.card }]}
-                  onPress={() => setShowPaymentModal(true)}
+                  onPress={() => {
+                    setShowPaymentModal(true);
+                    // Analytics: Track payment modal open
+                    firebaseService.logEvent('modal_opened', {
+                      modal_type: 'asset_selection',
+                      context: 'add_transaction'
+                    });
+                  }}
                 >
                   <View style={styles.selectButtonContent}>
                     {selectedAssetId && (
@@ -608,7 +701,14 @@ export default function AddTransactionScreen() {
                 <Text style={[styles.label, { color: colors.text }]}>태그 (선택)</Text>
                 <TouchableOpacity
                   style={[styles.selectButton, { backgroundColor: colors.card }]}
-                  onPress={() => setShowTagModal(true)}
+                  onPress={() => {
+                    setShowTagModal(true);
+                    // Analytics: Track tag modal open
+                    firebaseService.logEvent('modal_opened', {
+                      modal_type: 'tag_selection',
+                      context: 'add_transaction'
+                    });
+                  }}
                 >
                   <View style={styles.selectButtonContent}>
                     {selectedTags.length > 0 ? (
@@ -642,7 +742,14 @@ export default function AddTransactionScreen() {
                 <Text style={[styles.helperText, { color: colors.textTertiary }]}>출금 또는 입금 자산 중 하나는 반드시 선택해야 합니다</Text>
                 <TouchableOpacity
                   style={[styles.selectButton, { backgroundColor: colors.card }]}
-                  onPress={() => setShowFromAssetModal(true)}
+                  onPress={() => {
+                    setShowFromAssetModal(true);
+                    // Analytics: Track from asset modal open
+                    firebaseService.logEvent('modal_opened', {
+                      modal_type: 'from_asset_selection',
+                      context: 'add_transaction_transfer'
+                    });
+                  }}
                 >
                   <View style={styles.selectButtonContent}>
                     {selectedFromAssetId && (
@@ -687,7 +794,14 @@ export default function AddTransactionScreen() {
                 <Text style={[styles.label, { color: colors.text }]}>입금 자산</Text>
                 <TouchableOpacity
                   style={[styles.selectButton, { backgroundColor: colors.card }]}
-                  onPress={() => setShowToAssetModal(true)}
+                  onPress={() => {
+                    setShowToAssetModal(true);
+                    // Analytics: Track to asset modal open
+                    firebaseService.logEvent('modal_opened', {
+                      modal_type: 'to_asset_selection',
+                      context: 'add_transaction_transfer'
+                    });
+                  }}
                 >
                   <View style={styles.selectButtonContent}>
                     {selectedToAssetId && (
@@ -740,6 +854,11 @@ export default function AddTransactionScreen() {
                     onPress={() => {
                       setDatePickerMode('input');
                       setShowDatePicker(false);
+                      // Analytics: Track date input mode selection
+                      firebaseService.logEvent('date_picker_mode_changed', {
+                        mode: 'input',
+                        context: 'add_transaction'
+                      });
                     }}
                   >
                     <Ionicons 
@@ -757,6 +876,11 @@ export default function AddTransactionScreen() {
                     onPress={() => {
                       setDatePickerMode('calendar');
                       setShowDatePicker(true);
+                      // Analytics: Track date calendar mode selection
+                      firebaseService.logEvent('date_picker_mode_changed', {
+                        mode: 'calendar',
+                        context: 'add_transaction'
+                      });
                     }}
                   >
                     <Ionicons 
@@ -887,6 +1011,13 @@ export default function AddTransactionScreen() {
                       setSelectedCategory(category.category);
                       setSelectedCategoryEmoji(category.emoji || '📝');
                       setShowCategoryModal(false);
+                      
+                      // Analytics: Track category selection
+                      firebaseService.logEvent('category_selected', {
+                        category_name: category.category,
+                        book_id: currentBook?.id,
+                        selected_from: 'transaction_modal'
+                      });
                     }}
                   >
                     <View style={styles.modalItemContent}>
@@ -977,6 +1108,16 @@ export default function AddTransactionScreen() {
                         setSelectedAssetId(asset.id);
                         setSelectedPayment(asset.name);
                         setShowPaymentModal(false);
+                        
+                        // Analytics: Track asset selection
+                        firebaseService.logEvent('asset_selected', {
+                          asset_id: asset.id,
+                          asset_name: asset.name,
+                          asset_type: asset.assetType,
+                          asset_balance: asset.balance,
+                          book_id: currentBook?.id,
+                          selected_from: 'transaction_modal'
+                        });
                       }}
                     >
                       <View style={styles.modalAssetItem}>
@@ -1016,6 +1157,11 @@ export default function AddTransactionScreen() {
               style={[styles.modalAddButton, { backgroundColor: colors.primary, marginVertical: 10 }]}
               onPress={() => {
                 setShowPaymentModal(false);
+                // Analytics: Track navigation to add asset from transaction modal
+                firebaseService.logEvent('navigate_to_add_asset', {
+                  from_modal: 'transaction_payment_selection',
+                  context: 'add_transaction'
+                });
                 router.push('/(modals)/add-asset');
               }}
             >
@@ -1072,6 +1218,15 @@ export default function AddTransactionScreen() {
                       onPress={() => {
                         setSelectedFromAssetId(asset.id);
                         setShowFromAssetModal(false);
+                        
+                        // Analytics: Track from asset selection for transfer
+                        firebaseService.logEvent('transfer_from_asset_selected', {
+                          asset_id: asset.id,
+                          asset_name: asset.name,
+                          asset_type: asset.assetType,
+                          asset_balance: asset.balance,
+                          book_id: currentBook?.id
+                        });
                       }}
                     >
                       <View style={styles.modalAssetItem}>
@@ -1111,6 +1266,11 @@ export default function AddTransactionScreen() {
               style={[styles.modalAddButton, { backgroundColor: colors.primary, marginVertical: 10 }]}
               onPress={() => {
                 setShowFromAssetModal(false);
+                // Analytics: Track navigation to add asset from transfer modal
+                firebaseService.logEvent('navigate_to_add_asset', {
+                  from_modal: 'transfer_from_asset_selection',
+                  context: 'add_transaction'
+                });
                 router.push('/(modals)/add-asset');
               }}
             >
@@ -1167,6 +1327,15 @@ export default function AddTransactionScreen() {
                       onPress={() => {
                         setSelectedToAssetId(asset.id);
                         setShowToAssetModal(false);
+                        
+                        // Analytics: Track to asset selection for transfer
+                        firebaseService.logEvent('transfer_to_asset_selected', {
+                          asset_id: asset.id,
+                          asset_name: asset.name,
+                          asset_type: asset.assetType,
+                          asset_balance: asset.balance,
+                          book_id: currentBook?.id
+                        });
                       }}
                     >
                       <View style={styles.modalAssetItem}>
@@ -1206,6 +1375,11 @@ export default function AddTransactionScreen() {
               style={[styles.modalAddButton, { backgroundColor: colors.primary, marginVertical: 10 }]}
               onPress={() => {
                 setShowToAssetModal(false);
+                // Analytics: Track navigation to add asset from transfer modal
+                firebaseService.logEvent('navigate_to_add_asset', {
+                  from_modal: 'transfer_to_asset_selection',
+                  context: 'add_transaction'
+                });
                 router.push('/(modals)/add-asset');
               }}
             >
@@ -1269,8 +1443,20 @@ export default function AddTransactionScreen() {
                       onPress={() => {
                         if (isSelected) {
                           setSelectedTags(selectedTags.filter(id => id !== tag.id));
+                          // Analytics: Track tag deselection
+                          firebaseService.logEvent('tag_deselected', {
+                            tag_id: tag.id,
+                            tag_name: tag.name,
+                            book_id: currentBook?.id
+                          });
                         } else {
                           setSelectedTags([...selectedTags, tag.id]);
+                          // Analytics: Track tag selection
+                          firebaseService.logEvent('tag_selected', {
+                            tag_id: tag.id,
+                            tag_name: tag.name,
+                            book_id: currentBook?.id
+                          });
                         }
                       }}
                     >
@@ -1345,8 +1531,16 @@ export default function AddTransactionScreen() {
                     }
                   ]}
                   onPress={() => {
+                    const previousCurrency = selectedCurrency;
                     setSelectedCurrency(currency.code);
                     setShowCurrencyModal(false);
+                    
+                    // Analytics: Track currency selection
+                    firebaseService.logEvent('currency_selected', {
+                      from_currency: previousCurrency,
+                      to_currency: currency.code,
+                      book_id: currentBook?.id
+                    });
                   }}
                 >
                   <View style={styles.modalItemContent}>

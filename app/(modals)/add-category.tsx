@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCategoryStore } from '@/stores/categoryStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Alert,
     StyleSheet,
@@ -12,6 +12,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { AnalyticsEvents } from '@/utils/analytics';
 
 export default function AddCategoryScreen() {
   const [categoryName, setCategoryName] = useState('');
@@ -22,6 +24,12 @@ export default function AddCategoryScreen() {
   const { createCategory } = useCategoryStore();
   const router = useRouter();
   const { colors, isDarkMode } = useTheme();
+  const { logEvent, logScreenView } = useAnalytics();
+
+  useEffect(() => {
+    logScreenView('add_category_modal', 'AddCategoryScreen');
+    logEvent(AnalyticsEvents.MODAL_OPEN, { modal_name: 'add_category' });
+  }, []);
 
   const handleSubmit = async () => {
     if (!categoryName.trim()) {
@@ -37,10 +45,19 @@ export default function AddCategoryScreen() {
     setIsLoading(false);
     
     if (success) {
+      logEvent(AnalyticsEvents.CATEGORY_CREATE, {
+        category_name: categoryName.trim(),
+        emoji: selectedEmoji,
+        source: 'add_category_modal'
+      });
       Alert.alert('성공', '카테고리가 추가되었습니다.', [
         { text: '확인', onPress: () => router.back() }
       ]);
     } else {
+      logEvent(AnalyticsEvents.API_ERROR, {
+        error_type: 'category_create_failed',
+        source: 'add_category_modal'
+      });
       Alert.alert('오류', '카테고리 추가에 실패했습니다.');
     }
   };

@@ -15,6 +15,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
 import { useCategoryStore } from '@/stores/categoryStore';
 import { useBudgetStore } from '@/stores/budgetStore';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { AnalyticsEvents } from '@/utils/analytics';
 import PieChart from '@/features/analytics/components/Charts/PieChart';
 import BarChart from '@/features/analytics/components/Charts/BarChart';
 import LineChart from '@/features/analytics/components/Charts/LineChart';
@@ -79,6 +81,7 @@ export default function ExploreScreen() {
   const { categories, fetchCategories } = useCategoryStore();
   const { budgetSummary, getBudgetSummary } = useBudgetStore();
   const { colors, isDarkMode } = useTheme();
+  const { logEvent } = useAnalytics();
   
   const [selectedTab, setSelectedTab] = useState(0);
   const [selectedType, setSelectedType] = useState(1); // 기본값: 지출
@@ -278,7 +281,13 @@ export default function ExploreScreen() {
   const handleSearchToggle = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsSearchVisible(!isSearchVisible);
-    if (isSearchVisible) {
+    if (!isSearchVisible) {
+      // Analytics: 검색 시작
+      logEvent(AnalyticsEvents.SEARCH, {
+        search_location: 'transaction_history',
+        book_id: currentBook?.id
+      });
+    } else {
       setSearchQuery('');
       setSearchFilters({});
     }
@@ -287,6 +296,17 @@ export default function ExploreScreen() {
   const handleFilterApply = (filters: SearchFilters) => {
     setSearchFilters(filters);
     setSearchQuery(''); // 고급 필터 사용 시 기본 검색 비우기
+    
+    // Analytics: 필터 적용
+    logEvent(AnalyticsEvents.FILTER_APPLY, {
+      filter_location: 'transaction_history',
+      has_date_filter: !!filters.startDate || !!filters.endDate,
+      has_amount_filter: !!filters.minAmount || !!filters.maxAmount,
+      has_category_filter: !!filters.categoryId,
+      has_payment_filter: !!filters.paymentMethodId,
+      has_type_filter: !!filters.amountType,
+      book_id: currentBook?.id
+    });
   };
 
   const handleShowAdvancedSearch = async () => {
@@ -409,6 +429,12 @@ export default function ExploreScreen() {
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setSelectedTab(index);
+        // Analytics: 탭 전환
+        logEvent(AnalyticsEvents.TAB_SWITCH, {
+          tab_name: tabs[index],
+          tab_index: index,
+          screen: 'explore'
+        });
       }}
     >
       <ThemedText
@@ -527,7 +553,14 @@ export default function ExploreScreen() {
                     borderColor: chartType === 'pie' ? colors.primary : colors.border,
                   },
                 ]}
-                onPress={() => setChartType('pie')}
+                onPress={() => {
+                  setChartType('pie');
+                  // Analytics: 차트 타입 변경
+                  logEvent('chart_type_changed', {
+                    chart_type: 'pie',
+                    screen: 'statistics'
+                  });
+                }}
               >
                 <Ionicons 
                   name="pie-chart" 
@@ -551,7 +584,14 @@ export default function ExploreScreen() {
                     borderColor: chartType === 'bar' ? colors.primary : colors.border,
                   },
                 ]}
-                onPress={() => setChartType('bar')}
+                onPress={() => {
+                  setChartType('bar');
+                  // Analytics: 차트 타입 변경
+                  logEvent('chart_type_changed', {
+                    chart_type: 'bar',
+                    screen: 'statistics'
+                  });
+                }}
               >
                 <Ionicons 
                   name="bar-chart" 
@@ -575,7 +615,14 @@ export default function ExploreScreen() {
                     borderColor: chartType === 'donut' ? colors.primary : colors.border,
                   },
                 ]}
-                onPress={() => setChartType('donut')}
+                onPress={() => {
+                  setChartType('donut');
+                  // Analytics: 차트 타입 변경
+                  logEvent('chart_type_changed', {
+                    chart_type: 'donut',
+                    screen: 'statistics'
+                  });
+                }}
               >
                 <Ionicons 
                   name="pie-chart" 
@@ -599,7 +646,14 @@ export default function ExploreScreen() {
                     borderColor: chartType === 'line' ? colors.primary : colors.border,
                   },
                 ]}
-                onPress={() => setChartType('line')}
+                onPress={() => {
+                  setChartType('line');
+                  // Analytics: 차트 타입 변경
+                  logEvent('chart_type_changed', {
+                    chart_type: 'line',
+                    screen: 'statistics'
+                  });
+                }}
               >
                 <Ionicons 
                   name="trending-up" 

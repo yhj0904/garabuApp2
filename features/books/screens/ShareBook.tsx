@@ -16,6 +16,8 @@ import {
 } from 'react-native';
 
 import { Member } from '@/core/api/client';
+import { firebaseService } from '@/services/firebaseService';
+import { AnalyticsEvents } from '@/utils/analytics';
 
 interface BookMemberWithJoinDate {
   member: Member;
@@ -44,6 +46,16 @@ export default function BookSharingScreen() {
   } = useBookStore();
   const router = useRouter();
   const { colors } = useTheme();
+  
+  React.useEffect(() => {
+    // Modal open 이벤트 로깅
+    firebaseService.logEvent(AnalyticsEvents.MODAL_OPEN, {
+      modal_name: 'book_sharing',
+      book_id: currentBook?.id,
+      book_title: currentBook?.title,
+      user_id: user?.id
+    });
+  }, [currentBook?.id, currentBook?.title, user?.id]);
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -156,6 +168,15 @@ export default function BookSharingScreen() {
                 await loadBookMembers();
                 setAvailableMembers([...availableMembers, member.member]);
                 
+                // Analytics 이벤트 로깅
+                await firebaseService.logEvent(AnalyticsEvents.BOOK_SHARE, {
+                  action: 'member_removed',
+                  book_id: currentBook?.id,
+                  book_title: currentBook?.title,
+                  removed_member_id: memberId,
+                  user_id: user?.id
+                });
+                
                 Alert.alert('성공', '멤버가 제거되었습니다.');
               } else {
                 Alert.alert('오류', '멤버 제거에 실패했습니다.');
@@ -202,6 +223,17 @@ export default function BookSharingScreen() {
               if (success) {
                 // 성공 시 멤버 목록 새로고침
                 await loadBookMembers();
+                
+                // Analytics 이벤트 로깅
+                await firebaseService.logEvent(AnalyticsEvents.BOOK_SHARE, {
+                  action: 'role_changed',
+                  book_id: currentBook?.id,
+                  book_title: currentBook?.title,
+                  member_id: memberId,
+                  new_role: option.value,
+                  user_id: user?.id
+                });
+                
                 Alert.alert('성공', '역할이 변경되었습니다.');
               } else {
                 Alert.alert('오류', '역할 변경에 실패했습니다.');

@@ -14,13 +14,25 @@ import { useRouter } from 'expo-router';
 import { requestJoinBook } from '@/services/inviteService';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { firebaseService } from '@/services/firebaseService';
+import { AnalyticsEvents } from '@/utils/analytics';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function JoinBookModal() {
   const router = useRouter();
   const { colors, isDarkMode } = useTheme();
+  const { user } = useAuthStore();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  
+  React.useEffect(() => {
+    // Modal open 이벤트 로깅
+    firebaseService.logEvent(AnalyticsEvents.MODAL_OPEN, {
+      modal_name: 'join_book',
+      user_id: user?.id
+    });
+  }, [user?.id]);
 
   const handleCodeChange = (text: string, index: number) => {
     // 숫자만 입력 가능
@@ -73,6 +85,13 @@ export default function JoinBookModal() {
     try {
       setLoading(true);
       const response = await requestJoinBook(code);
+      
+      // Analytics 이벤트 로깅
+      await firebaseService.logEvent(AnalyticsEvents.BOOK_JOIN, {
+        book_title: response.bookTitle,
+        invite_code: code,
+        user_id: user?.id
+      });
       
       Alert.alert(
         '참가 요청 완료',

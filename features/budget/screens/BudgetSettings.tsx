@@ -20,6 +20,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useBudgetStore } from '@/stores/budgetStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useBookStore } from '@/stores/bookStore';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { AnalyticsEvents } from '@/utils/analytics';
 
 export default function BudgetSettingsModal() {
   const { colors } = useTheme();
@@ -38,6 +40,7 @@ export default function BudgetSettingsModal() {
   } = useBudgetStore();
   const { token } = useAuthStore();
   const { currentBook } = useBookStore();
+  const { logEvent, logScreenView } = useAnalytics();
 
   // 상태 관리
   const [budgetMonth, setBudgetMonth] = useState(new Date());
@@ -52,6 +55,11 @@ export default function BudgetSettingsModal() {
   const selectedMonth = budgetMonth.toISOString().slice(0, 7);
 
   // 컴포넌트 마운트 시 기존 예산 데이터 로드
+  useEffect(() => {
+    logScreenView('budget_settings_modal', 'BudgetSettingsModal');
+    logEvent(AnalyticsEvents.MODAL_OPEN, { modal_name: 'budget_settings' });
+  }, []);
+
   useEffect(() => {
     if (currentBook && token) {
       loadExistingBudget();
@@ -136,12 +144,27 @@ export default function BudgetSettingsModal() {
       }
 
       if (result.success) {
+        logEvent(isEditing ? AnalyticsEvents.BUDGET_EDIT : AnalyticsEvents.BUDGET_SET, {
+          budget_month: selectedMonth,
+          has_income_budget: !!incomeBudget,
+          has_expense_budget: !!expenseBudget,
+          income_budget: incomeBudget ? parseInt(removeCommas(incomeBudget)) : 0,
+          expense_budget: expenseBudget ? parseInt(removeCommas(expenseBudget)) : 0,
+          has_memo: !!memo.trim(),
+          book_id: currentBook.id,
+          source: 'budget_settings_modal'
+        });
+        
         Alert.alert(
           '성공', 
           isEditing ? '예산이 수정되었습니다.' : '예산이 생성되었습니다.',
           [{ text: '확인', onPress: () => router.back() }]
         );
       } else {
+        logEvent(AnalyticsEvents.API_ERROR, {
+          error_type: isEditing ? 'budget_edit_failed' : 'budget_create_failed',
+          source: 'budget_settings_modal'
+        });
         Alert.alert('오류', result.message || '예산 저장에 실패했습니다.');
       }
     } catch (error) {
@@ -169,12 +192,23 @@ export default function BudgetSettingsModal() {
             try {
               const result = await deleteBudget(currentBook.id, selectedMonth, token);
               if (result.success) {
+                logEvent(AnalyticsEvents.BUDGET_EDIT, {
+                  action: 'delete',
+                  budget_month: selectedMonth,
+                  book_id: currentBook.id,
+                  source: 'budget_settings_modal'
+                });
+                
                 Alert.alert(
                   '성공', 
                   '예산이 삭제되었습니다.',
                   [{ text: '확인', onPress: () => router.back() }]
                 );
               } else {
+                logEvent(AnalyticsEvents.API_ERROR, {
+                  error_type: 'budget_delete_failed',
+                  source: 'budget_settings_modal'
+                });
                 Alert.alert('오류', result.message || '예산 삭제에 실패했습니다.');
               }
             } catch (error) {

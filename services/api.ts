@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, isAxiosError } from 'axios';
 import config from '../config/config';
+import { firebaseService } from './firebaseService';
+import { AnalyticsEvents } from '@/utils/analytics';
 
 // API 기본 설정
 // const API_BASE_URL = 'http://localhost:8080'; // 실제 API 서버 URL
@@ -593,6 +595,21 @@ class ApiService {
       },
       async (error: AxiosError) => {
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+
+        // API 에러 추적
+        const statusCode = error.response?.status;
+        const endpoint = originalRequest?.url || 'unknown';
+        const method = originalRequest?.method || 'unknown';
+        
+        // Analytics: API 에러 로깅
+        firebaseService.logEvent(AnalyticsEvents.API_ERROR, {
+          status_code: statusCode,
+          endpoint: endpoint,
+          method: method,
+          error_message: error.message,
+          error_code: error.code,
+          response_data: error.response?.data
+        });
 
         // 401 에러 또는 AUTH_FAILED 에러인 경우 토큰 갱신 시도
         if ((error.response?.status === 401 || error.message === 'AUTH_FAILED') && !originalRequest._retry) {

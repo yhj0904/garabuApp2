@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import messaging from '@react-native-firebase/messaging';
+import messaging, { getApp } from '@react-native-firebase/messaging';
+import { onMessage, onNotificationOpenedApp, getInitialNotification } from '@react-native-firebase/messaging';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleDeepLink, navigateFromNotification } from '@/config/deepLinks';
@@ -23,14 +24,14 @@ export function useFCMNotificationObserver() {
     }
 
     // 포그라운드에서 알림 수신 시 처리
-    const unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
+    const unsubscribeOnMessage = onMessage(messaging(), async remoteMessage => {
       console.log('FCM notification received in foreground:', remoteMessage);
       // 포그라운드에서는 자동으로 리다이렉션하지 않음
       // 사용자가 알림을 탭했을 때만 처리
     });
 
     // 백그라운드 상태에서 알림 클릭 시 처리
-    messaging().onNotificationOpenedApp(remoteMessage => {
+    const unsubscribeOnNotificationOpenedApp = onNotificationOpenedApp(messaging(), remoteMessage => {
       console.log('Notification opened from background state:', remoteMessage);
       if (isMounted) {
         redirect(remoteMessage);
@@ -38,8 +39,7 @@ export function useFCMNotificationObserver() {
     });
 
     // 앱이 종료된 상태에서 알림을 통해 앱을 시작한 경우
-    messaging()
-      .getInitialNotification()
+    getInitialNotification(messaging())
       .then(remoteMessage => {
         if (remoteMessage && isMounted) {
           console.log('App opened from notification:', remoteMessage);
@@ -53,6 +53,7 @@ export function useFCMNotificationObserver() {
     return () => {
       isMounted = false;
       unsubscribeOnMessage();
+      unsubscribeOnNotificationOpenedApp();
     };
   }, []);
 }

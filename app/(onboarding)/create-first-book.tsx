@@ -19,6 +19,8 @@ import {
   Dimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { firebaseService } from '@/services/firebaseService';
+import { AnalyticsEvents } from '@/utils/analytics';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,6 +31,11 @@ export default function CreateFirstBookScreen() {
   const { token, user, loadInitialData } = useAuthStore();
   const { createBook } = useBookStore();
   const { colors, isDarkMode } = useTheme();
+  
+  React.useEffect(() => {
+    // Screen view 이벤트 로깅 (온보딩 화면)
+    firebaseService.logScreenView('create_first_book', 'CreateFirstBookScreen');
+  }, []);
 
   const handleCreateBook = async () => {
     if (!bookTitle.trim()) {
@@ -51,6 +58,14 @@ export default function CreateFirstBookScreen() {
       
       if (success) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        // Analytics 이벤트 로깅
+        await firebaseService.logEvent(AnalyticsEvents.BOOK_CREATE, {
+          book_title: bookTitle.trim(),
+          mode: 'onboarding',
+          is_first_book: true,
+          user_id: user?.id
+        });
         
         // 가계부 생성 후 초기 데이터 로드
         if (user && token) {
