@@ -99,7 +99,6 @@
 
 - **OAuth2 Integration**
   - Google Sign-In
-  - Naver Login
   - Apple Sign-In
   - Kakao Login
 - **JWT Token Management**
@@ -117,7 +116,6 @@
 ### 1. 🔄 실시간 동기화 충돌 관리
 **문제점**: 여러 사용자가 동시에 같은 거래를 수정할 때 데이터 충돌 발생
 **해결방안**:
-- Operational Transformation(OT) 알고리즘 적용
 - 각 작업에 타임스탬프와 사용자 ID 부여
 - 충돌 시 자동 병합 및 사용자 알림
 - WebSocket으로 실시간 변경사항 브로드캐스팅
@@ -339,7 +337,6 @@ garabuapp2/
 
 ### 실시간 공유 & 협업
 - **초대 코드 시스템**: 8자리 코드로 간편 초대
-- **이메일 초대**: 이메일 주소로 직접 초대
 - **권한 관리**: OWNER, EDITOR, VIEWER 3단계 권한
 - **실시간 동기화**: WebSocket으로 즉시 반영
 
