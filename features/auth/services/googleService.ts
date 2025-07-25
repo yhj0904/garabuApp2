@@ -209,7 +209,7 @@ class GoogleService {
   /**
    * Google OAuth 토큰으로 백엔드 로그인
    */
-  async loginWithBackend(idToken: string): Promise<any> {
+  async loginWithBackend(idToken: string, userInfo?: any): Promise<any> {
     console.log('=== Backend Google Login Process Started ===');
     
     try {
@@ -217,15 +217,30 @@ class GoogleService {
       const url = `${config.API_BASE_URL}/api/${config.API_VERSION}/mobile-oauth/login`;
       console.log('Backend API URL:', url);
       
+      const requestBody: any = {
+        provider: 'google',
+        accessToken: idToken,
+        idToken: idToken,
+      };
+      
+      // 사용자 정보가 있으면 profile에 추가
+      if (userInfo) {
+        requestBody.profile = {
+          id: userInfo.id,
+          email: userInfo.email,
+          name: userInfo.name,
+          nickname: userInfo.givenName || userInfo.name,
+          profileImageUrl: userInfo.photo
+        };
+        console.log('Sending user profile:', requestBody.profile);
+      }
+      
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          provider: 'google',
-          accessToken: idToken,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       console.log('Backend response status:', response.status);

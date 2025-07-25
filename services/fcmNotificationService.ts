@@ -33,7 +33,7 @@ class FCMNotificationService {
   private isRegistering: boolean = false; // 토큰 등록 중복 방지 플래그
 
   constructor() {
-    this.initialize();
+    // 즉시 초기화하지 않고 명시적으로 호출하도록 변경
   }
 
   // 서비스 초기화
@@ -115,23 +115,28 @@ class FCMNotificationService {
   // FCM 토큰 등록
   async registerForPushNotifications(): Promise<string | null> {
     try {
+      console.log('📱 FCM 토큰 등록 시작...');
+      
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
+        console.log('❌ 알림 권한이 없습니다');
         return null;
       }
 
       // FCM 토큰 생성
       const fcmToken = await this.generateFCMToken();
       if (fcmToken) {
+        console.log('✅ FCM 토큰 생성됨:', fcmToken);
         this.pushToken = fcmToken;
         const deviceId = Device.deviceName || Device.modelId || 'unknown';
         await this.registerTokenWithServer(deviceId, fcmToken);
         return fcmToken;
       }
 
+      console.log('❌ FCM 토큰 생성 실패');
       return null;
     } catch (error) {
-      console.error('푸시 알림 등록 오류:', error);
+      console.error('❌ 푸시 알림 등록 오류:', error);
       return null;
     }
   }
@@ -175,13 +180,16 @@ class FCMNotificationService {
         osVersion: Platform.Version.toString(),
       };
 
+      console.log('FCM 토큰 서버 등록 요청:', JSON.stringify(request, null, 2));
       await apiService.registerFCMToken(request);
       await AsyncStorage.setItem('fcmToken', token);
-      console.log('FCM 토큰 서버 등록 성공');
-    } catch (error) {
-      console.error('토큰 서버 등록 실패:', error);
+      console.log('✅ FCM 토큰 서버 등록 성공');
+    } catch (error: any) {
+      console.error('❌ 토큰 서버 등록 실패:', error);
+      console.error('에러 상세:', error.response?.data || error.message);
       // 실패 시 저장된 토큰 삭제
       await AsyncStorage.removeItem('fcmToken');
+      throw error; // 에러를 다시 던져서 호출자가 처리할 수 있도록 함
     } finally {
       this.isRegistering = false;
     }
@@ -202,6 +210,12 @@ class FCMNotificationService {
     }
     this.lastNotificationId = remoteMessage.messageId;
 
+    console.log('포그라운드 알림 수신:', {
+      notification: remoteMessage.notification,
+      data: remoteMessage.data,
+      messageId: remoteMessage.messageId
+    });
+
     const { data } = remoteMessage;
     if (data) {
       this.processNotificationData(data as NotificationData);
@@ -210,6 +224,30 @@ class FCMNotificationService {
 
   // 알림 데이터 처리
   private processNotificationData(data: NotificationData) {
+    console.log('알림 데이터 처리:', data);
+    
+    // action 필드로 타입 판단 (서버에서 보내는 형식에 맞춤)
+    if (data.action) {
+      const [type, ...params] = data.action.split(':');
+      
+      switch (type) {
+        case 'transaction':
+          const [bookId, ledgerId] = params;
+          console.log('새로운 거래 알림:', { bookId, ledgerId });
+          data.type = 'transaction';
+          data.bookId = bookId;
+          data.ledgerId = ledgerId;
+          break;
+        case 'open_book_detail':
+          console.log('가계부 상세 열기');
+          data.type = 'book_share';
+          break;
+        default:
+          console.log('알 수 없는 액션:', data.action);
+      }
+    }
+    
+    // 기존 type 필드 처리 (하위 호환성)
     switch (data.type) {
       case 'transaction':
         console.log('새로운 거래:', data.ledgerId);

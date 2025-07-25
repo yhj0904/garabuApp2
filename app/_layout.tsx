@@ -44,6 +44,16 @@ function RootLayoutContent() {
 
   // threads-clone 스타일 알림 observer 사용
   useNotificationObserver();
+  
+  // FCM 서비스 초기화
+  useEffect(() => {
+    if (modules.notification && isAuthenticated) {
+      console.log('Initializing FCM notification service...');
+      modules.notification.initialize().catch((error: any) => {
+        console.error('Failed to initialize FCM service:', error);
+      });
+    }
+  }, [modules.notification, isAuthenticated]);
 
   // 테마 값을 메모이제이션하여 불필요한 리렌더링 방지
   const navigationTheme = useMemo(() => 

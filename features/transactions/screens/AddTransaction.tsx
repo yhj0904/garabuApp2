@@ -146,7 +146,13 @@ export default function AddTransactionScreen() {
     }
   };
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSubmit = async () => {
+    // 이미 저장 중이면 중복 실행 방지
+    if (isSaving) return;
+    
+    setIsSaving(true);
     // Validate all required fields
     const validationErrors = [];
     let firstErrorRef: any = null;
@@ -170,6 +176,7 @@ export default function AddTransactionScreen() {
       if (selectedFromAssetId && selectedToAssetId && selectedFromAssetId === selectedToAssetId) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert('입력 오류', '출금 자산과 입금 자산은 다른 자산이어야 합니다.');
+        setIsSaving(false);
         return;
       }
     } else {
@@ -200,12 +207,14 @@ export default function AddTransactionScreen() {
       }
       
       Alert.alert('입력 오류', `다음 필수 필드를 입력해주세요:\n• ${validationErrors.join('\n• ')}`);
+      setIsSaving(false);
       return;
     }
 
     if (!currentBook?.id) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('오류', '가계부를 선택해주세요.');
+      setIsSaving(false);
       return;
     }
 
@@ -213,6 +222,7 @@ export default function AddTransactionScreen() {
     if (numericAmount <= 0) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('오류', '올바른 금액을 입력해주세요. (0보다 큰 숫자)');
+      setIsSaving(false);
       return;
     }
 
@@ -224,6 +234,7 @@ export default function AddTransactionScreen() {
     if (selectedDate > today) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('오류', '기록 날짜는 오늘 이전 날짜여야 합니다.');
+      setIsSaving(false);
       return;
     }
 
@@ -368,9 +379,23 @@ export default function AddTransactionScreen() {
         (selectedFromAssetId && selectedToAssetId ? '이체가 완료되었습니다.' : '거래가 추가되었습니다.') : 
         '거래가 추가되었습니다.';
       
-      Alert.alert('성공', successMessage, [
-        { text: '확인', onPress: () => router.back() }
-      ]);
+      // 성공 피드백
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // 홈 화면의 데이터 새로고침
+      if (token && currentBook) {
+        // 캘린더 데이터 강제 새로고침을 위해 ledgers 다시 불러오기
+        const { fetchLedgers } = useBookStore.getState();
+        await fetchLedgers({
+          bookId: currentBook.id,
+          page: 0,
+          size: 1000
+        }, token);
+      }
+      
+      // 모달 닫기
+      setIsSaving(false);
+      router.back();
     } else {
       // Analytics: Track transaction creation failure
       await firebaseService.logEvent('transaction_add_failed', {
@@ -382,12 +407,15 @@ export default function AddTransactionScreen() {
 
       // Show specific error messages based on error type
       if (result.error === 'validation') {
-        Alert.alert('입력 오류', `입력 데이터를 확인해주세요:\n${result.message}`);
+        Alert.alert('입력 오류', result.message || '입력 데이터를 확인해주세요.');
+      } else if (result.error === 'server') {
+        Alert.alert('서버 오류', result.message || '서버 오류가 발생했습니다.');
       } else if (result.message) {
         Alert.alert('오류', result.message);
       } else {
         Alert.alert('오류', '거래 추가에 실패했습니다.');
       }
+      setIsSaving(false);
     }
   };
 
@@ -960,13 +988,13 @@ export default function AddTransactionScreen() {
 
             {/* 저장 버튼 */}
             <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: colors.primary, opacity: isLoading ? 0.7 : 1 }]}
+              style={[styles.submitButton, { backgroundColor: colors.primary, opacity: isSaving ? 0.7 : 1 }]}
               onPress={handleSubmit}
-              disabled={isLoading}
+              disabled={isSaving}
             >
               <Ionicons name="save" size={20} color="white" />
               <Text style={styles.submitButtonText}>
-                {isLoading ? '저장 중...' : '거래 저장'}
+                {isSaving ? '저장 중...' : '거래 저장'}
               </Text>
             </TouchableOpacity>
           </View>

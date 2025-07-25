@@ -2,13 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View, Switch } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
+import apiService from '@/services/api';
 
 export default function MoreScreen() {
   const router = useRouter();
@@ -18,6 +19,66 @@ export default function MoreScreen() {
 
   const handleLogout = async () => {
     await logout();
+  };
+
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      '회원 탈퇴',
+      '정말로 계정을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 모든 데이터가 영구적으로 삭제됩니다.',
+      [
+        {
+          text: '취소',
+          style: 'cancel',
+        },
+        {
+          text: '탈퇴하기',
+          style: 'destructive',
+          onPress: async () => {
+            Alert.alert(
+              '최종 확인',
+              '마지막으로 한 번 더 확인합니다. 정말로 탈퇴하시겠습니까?',
+              [
+                {
+                  text: '취소',
+                  style: 'cancel',
+                },
+                {
+                  text: '확인',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                      
+                      // API 호출하여 계정 삭제
+                      const token = await useAuthStore.getState().getToken();
+                      if (token) {
+                        await apiService.deleteAccount(token);
+                      }
+                      
+                      // 로그아웃 처리
+                      await logout();
+                      
+                      Alert.alert(
+                        '탈퇴 완료',
+                        '회원 탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.',
+                        [{ text: '확인' }]
+                      );
+                    } catch (error) {
+                      console.error('Account deletion failed:', error);
+                      Alert.alert(
+                        '오류',
+                        '회원 탈퇴 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+                        [{ text: '확인' }]
+                      );
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   };
 
   // 새로고침 핸들러
@@ -233,6 +294,12 @@ export default function MoreScreen() {
             <ThemedText style={styles.logoutButtonText}>로그아웃</ThemedText>
           </TouchableOpacity>
 
+          {/* 회원 탈퇴 버튼 */}
+          <TouchableOpacity style={styles.deleteAccountButton} onPress={handleDeleteAccount}>
+            <Ionicons name="trash" size={20} color="#FF3B30" />
+            <ThemedText style={styles.deleteAccountText}>회원 탈퇴</ThemedText>
+          </TouchableOpacity>
+
           {/* 앱 버전 정보 */}
           <View style={styles.versionInfo}>
             <ThemedText style={[styles.versionText, { color: colors.textSecondary }]}>Garabu v1.0.0</ThemedText>
@@ -380,5 +447,21 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 14,
     fontWeight: '500',
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#FF3B30',
+  },
+  deleteAccountText: {
+    color: '#FF3B30',
+    fontWeight: '600',
+    fontSize: 16,
   },
 }); 

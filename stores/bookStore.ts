@@ -319,6 +319,9 @@ export const useBookStore = create<BookState>((set, get) => ({
           return { success: false, error: 'validation', message: errorMessage };
         }
         return { success: false, error: 'server', message: errorMessage };
+      } else if (error?.response?.status === 500) {
+        // 500 에러의 경우 서버 오류 메시지가 없어도 일반적인 서버 오류 메시지 반환
+        return { success: false, error: 'server', message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' };
       }
       
       return { success: false, error: 'network', message: '네트워크 오류가 발생했습니다.' };

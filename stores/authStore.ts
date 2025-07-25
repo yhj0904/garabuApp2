@@ -39,6 +39,7 @@ interface AuthState {
   signup: (email: string, username: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
   checkAuthStatus: () => Promise<void>;
   setUser: (user: User) => void;
+  updateTokens: (accessToken: string, refreshToken: string | null) => Promise<void>;
   loadInitialData: (user: User, token: string) => Promise<boolean>;
   performCompleteReset: () => Promise<void>;
 }
@@ -221,8 +222,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('No ID token received from Google');
       }
       
-      // 2. 백엔드 로그인
-      const response = await googleService.loginWithBackend(googleResult.idToken);
+      // 2. 백엔드 로그인 (사용자 정보도 함께 전달)
+      const response = await googleService.loginWithBackend(googleResult.idToken, googleResult.user);
       console.log('Google backend login response received');
       
       const access = response.accessToken || response.token;
@@ -657,6 +658,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user });
   },
 
+  updateTokens: async (accessToken: string, refreshToken: string | null) => {
+    console.log('🔑 토큰 업데이트 - 사용자 정보 유지');
+    const currentState = get();
+    
+    // SecureStore에 토큰 저장
+    try {
+      await SecureStore.setItemAsync('accessToken', accessToken);
+      if (refreshToken) {
+        await SecureStore.setItemAsync('refreshToken', refreshToken);
+      }
+      console.log('✅ 토큰이 SecureStore에 저장됨');
+    } catch (error) {
+      console.error('❌ 토큰 저장 실패:', error);
+    }
+    
+    // 상태 업데이트 - 사용자 정보와 인증 상태는 유지
+    set({ 
+      token: accessToken, 
+      refreshToken: refreshToken,
+      user: currentState.user,
+      isAuthenticated: currentState.isAuthenticated
+    });
+  },
+
   loadInitialData: async (user: User, token: string) => {
     return await loadInitialData(user, token);
   },
@@ -807,33 +832,32 @@ const loadInitialData = async (user: User, token: string): Promise<boolean> => {
         // FCM 토큰 생성 및 등록 함수 (내부 함수로 정의)
         const generateAndRegisterNewToken = async () => {
           try {
-            // Firebase FCM 토큰 먼저 시도
-            const fcmToken = await firebaseService.getCurrentToken();
+            // FCM 알림 서비스 초기화 및 토큰 등록
+            console.log('FCM 알림 서비스 초기화 중...');
             
-            let pushToken = fcmToken;
-            
-            // FCM 토큰이 없으면 기본 알림 서비스 사용
-            if (!pushToken) {
-              console.log('FCM 토큰 없음, 기본 알림 서비스 사용');
-              pushToken = await notification.registerForPushNotifications();
+            // 알림 서비스 초기화가 안 되어 있으면 초기화
+            if (!notification.pushToken) {
+              await notification.initialize();
             }
             
+            // 권한 요청 및 토큰 등록
+            const pushToken = await notification.registerForPushNotifications();
+            
             if (pushToken && user.id) {
-              console.log('FCM 토큰 서버 등록 중...');
+              console.log('✅ FCM 토큰 생성 성공:', pushToken);
+              
+              // Firebase 주제 구독 (선택사항)
               try {
-                await notification.updateFCMToken(pushToken);
-                console.log('✅ FCM 토큰 등록 완료');
-                
-                // Firebase 주제 구독 (선택사항)
-                if (fcmToken) {
-                  await firebaseService.subscribeToTopic(`user_${user.id}`);
+                await firebaseService.subscribeToTopic(`user_${user.id}`);
+                if (currentBook?.id) {
                   await firebaseService.subscribeToTopic(`book_${currentBook.id}`);
-                  console.log('✅ Firebase 주제 구독 완료');
                 }
-              } catch (tokenError) {
-                console.error('❌ FCM 토큰 서버 등록 실패:', tokenError);
-                // 토큰 등록 실패해도 앱은 계속 진행
+                console.log('✅ Firebase 주제 구독 완료');
+              } catch (topicError) {
+                console.error('주제 구독 실패:', topicError);
               }
+            } else {
+              console.warn('⚠️ FCM 토큰 등록 실패');
             }
           } catch (error) {
             console.error('❌ FCM 토큰 생성 실패:', error);

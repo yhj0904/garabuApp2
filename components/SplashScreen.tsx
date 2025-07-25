@@ -186,26 +186,9 @@ export default function SplashScreen({ onLoadingComplete }: SplashScreenProps) {
               }
             }
 
-            // 10. 알림 서비스 초기화 (타임아웃 단축)
-            setStatusMessage('알림 서비스 초기화 중...');
+            // 10. 알림 서비스 초기화는 authStore에서 처리하므로 여기서는 제거
+            setStatusMessage('서비스 초기화 완료');
             setProgress(90);
-            try {
-              const pushToken = await Promise.race([
-                notification.registerForPushNotifications(),
-                new Promise<string | null>((_, reject) => setTimeout(() => reject(new Error('알림 등록 타임아웃')), 3000))
-              ]);
-              if (pushToken && currentUser.id) {
-                try {
-                  await notification.registerTokenWithServer(currentUser.id.toString(), pushToken);
-                  notification.registerNotificationListeners();
-                } catch (tokenError) {
-                  console.error('토큰 서버 등록 실패 (계속 진행):', tokenError);
-                }
-              }
-            } catch (error) {
-              console.log('알림 서비스 초기화 실패 (계속 진행):', error);
-              // 알림 초기화 실패해도 앱은 계속 진행
-            }
           }
         } catch (error) {
           console.error('데이터 로드 중 오류:', error);

@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/authStore';
 import apiService from '@/core/api/client';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@/contexts/ThemeContext';
+import { createUserIdCode } from '@/services/inviteService';
 
 export default function AddFriendScreen() {
   const [userCode, setUserCode] = useState('');
@@ -47,12 +48,12 @@ export default function AddFriendScreen() {
   const generateMyCode = async () => {
     try {
       setLoading(true);
-      const response = await apiService.createFriendInviteCode();
+      const response = await createUserIdCode();
       setMyUserCode(response.code);
       setTtlSeconds(response.ttlSeconds);
     } catch (error: any) {
-      console.error('친구 초대 코드 생성 실패:', error);
-      Alert.alert('오류', '친구 초대 코드 생성에 실패했습니다.');
+      console.error('사용자 식별 코드 생성 실패:', error);
+      Alert.alert('오류', '사용자 식별 코드 생성에 실패했습니다.');
     } finally {
       setLoading(false);
     }
@@ -60,17 +61,19 @@ export default function AddFriendScreen() {
 
   const handleSendRequest = async () => {
     if (!userCode.trim()) {
-      Alert.alert('오류', '친구 초대 코드를 입력해주세요.');
+      Alert.alert('오류', '사용자 식별 코드를 입력해주세요.');
       return;
     }
 
     try {
       // 8자리 숫자 코드 검증
       if (!/^\d{8}$/.test(userCode.trim())) {
-        Alert.alert('오류', '올바른 8자리 친구 초대 코드를 입력해주세요.');
+        Alert.alert('오류', '올바른 8자리 사용자 식별 코드를 입력해주세요.');
         return;
       }
 
+      // 사용자 식별 코드로 친구 요청 보내기
+      // sendFriendRequestByCode API는 사용자 식별 코드도 받을 수 있도록 설계되어 있음
       const response = await apiService.sendFriendRequestByCode(userCode.trim());
       Alert.alert('성공', '친구 요청을 보냈습니다.', [
         { text: '확인', onPress: () => router.back() }
@@ -97,7 +100,7 @@ export default function AddFriendScreen() {
   const shareCode = async () => {
     try {
       await Share.share({
-        message: `가라부 친구 초대 코드\n\n사용자: ${user?.name || user?.username}\n코드: ${myUserCode}\n\n이 코드로 저를 친구로 추가할 수 있습니다.\n\n※ 코드는 30분간 유효합니다.`,
+        message: `가라부 사용자 식별 코드\n\n사용자: ${user?.name || user?.username}\n코드: ${myUserCode}\n\n이 코드로 저를 가계부에 초대하거나 친구로 추가할 수 있습니다.\n\n※ 코드는 30분간 유효합니다.`,
       });
     } catch (error) {
       console.error('공유 실패:', error);
@@ -114,13 +117,13 @@ export default function AddFriendScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>친구 초대 코드로 추가</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>사용자 식별 코드로 추가</Text>
           <Text style={[styles.sectionDescription, { color: colors.textSecondary }]}>
-            친구의 8자리 초대 코드를 입력하여 친구 요청을 보낼 수 있습니다.
+            친구의 8자리 식별 코드를 입력하여 친구 요청을 보낼 수 있습니다.
           </Text>
           <TextInput
             style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-            placeholder="8자리 친구 초대 코드 입력"
+            placeholder="8자리 사용자 식별 코드 입력"
             placeholderTextColor={colors.textTertiary}
             value={userCode}
             onChangeText={setUserCode}
@@ -138,7 +141,7 @@ export default function AddFriendScreen() {
         <View style={styles.divider} />
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>내 친구 초대 코드</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>내 사용자 식별 코드</Text>
           <Text style={[styles.sectionDescription, { color: colors.textSecondary }]}>
             친구에게 이 코드를 공유하여 친구 요청을 받을 수 있습니다.
           </Text>
@@ -187,7 +190,7 @@ export default function AddFriendScreen() {
                   • 이 코드는 30분간 유효합니다.
                 </Text>
                 <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                  • 가계부 초대 코드와는 다른 별도의 친구 전용 코드입니다.
+                  • 다른 사용자가 이 코드로 당신을 가계부에 초대하거나 친구로 추가할 수 있습니다.
                 </Text>
                 <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                   • 코드를 안전하게 보관하세요.

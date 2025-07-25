@@ -826,6 +826,18 @@ class ApiService {
     await AsyncStorage.removeItem('refreshToken');
   }
 
+  async deleteAccount(token: string): Promise<void> {
+    try {
+      await this.axiosInstance.delete('/user/me');
+      // 계정 삭제 성공 시 로컬 토큰도 삭제
+      await AsyncStorage.removeItem('auth-token');
+      await AsyncStorage.removeItem('refreshToken');
+    } catch (error) {
+      console.error('Account deletion failed:', error);
+      throw error;
+    }
+  }
+
   // Member endpoints
   async getMembers(token: string): Promise<Member[]> {
     const response = await this.axiosInstance.get<{ data: Member[] }>('/members');
@@ -1601,15 +1613,6 @@ class ApiService {
     }
   }
 
-  async sendTestNotification(data?: { message?: string; token?: string }): Promise<FCMTokenResponse> {
-    try {
-      const response = await this.axiosInstance.post('/notifications/send/test', data || {});
-      return response.data;
-    } catch (error) {
-      console.error('테스트 알림 전송 실패:', error);
-      throw error;
-    }
-  }
 
   async getRecentBudgets(bookId: number, limit: number, token: string): Promise<Budget[]> {
     try {

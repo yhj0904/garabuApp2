@@ -1,101 +1,112 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
-
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Switch,
+  TouchableOpacity,
+} from 'react-native';
+import { Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function NotificationsModal() {
-  const router = useRouter();
   const { colors, isDarkMode } = useTheme();
-
+  
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(false);
   const [transactionAlerts, setTransactionAlerts] = useState(true);
   const [budgetAlerts, setBudgetAlerts] = useState(true);
 
-  return (
-    <ThemedView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* 헤더 */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="close" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <ThemedText type="subtitle">알림 설정</ThemedText>
-          <View style={{ width: 24 }} />
-        </View>
+  const SettingRow = ({ 
+    icon, 
+    title, 
+    subtitle, 
+    value, 
+    onValueChange, 
+  }: {
+    icon: string;
+    title: string;
+    subtitle?: string;
+    value?: boolean;
+    onValueChange?: (value: boolean) => void;
+  }) => (
+    <TouchableOpacity 
+      style={[styles.settingRow, { backgroundColor: colors.surface }]}
+      disabled={true}
+    >
+      <View style={[styles.iconContainer, { backgroundColor: colors.backgroundSecondary }]}>
+        <Ionicons name={icon as any} size={24} color={colors.primary} />
+      </View>
+      <View style={styles.settingInfo}>
+        <Text style={[styles.settingTitle, { color: colors.text }]}>{title}</Text>
+        {subtitle && (
+          <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>
+            {subtitle}
+          </Text>
+        )}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={async (newValue) => {
+          if (onValueChange) {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onValueChange(newValue);
+          }
+        }}
+        trackColor={{ false: colors.border, true: colors.primary + '60' }}
+        thumbColor={value ? colors.primary : '#f4f3f4'}
+      />
+    </TouchableOpacity>
+  );
 
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          title: '알림 설정',
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+        }}
+      />
+      
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
         {/* 알림 설정 */}
         <View style={styles.section}>
-          <View style={[styles.settingItem, { backgroundColor: colors.card }]}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="notifications" size={24} color={colors.primary} />
-              <View style={styles.settingText}>
-                <ThemedText type="defaultSemiBold">푸시 알림</ThemedText>
-                <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>앱 푸시 알림을 받습니다</ThemedText>
-              </View>
-            </View>
-            <Switch
-              value={pushNotifications}
-              onValueChange={setPushNotifications}
-              trackColor={{ false: '#767577', true: colors.primary }}
-              thumbColor={pushNotifications ? '#f4f3f4' : '#f4f3f4'}
-            />
-          </View>
-
-          <View style={[styles.settingItem, { backgroundColor: colors.card }]}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="mail" size={24} color={colors.primary} />
-              <View style={styles.settingText}>
-                <ThemedText type="defaultSemiBold">이메일 알림</ThemedText>
-                <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>이메일로 알림을 받습니다</ThemedText>
-              </View>
-            </View>
-            <Switch
-              value={emailNotifications}
-              onValueChange={setEmailNotifications}
-              trackColor={{ false: '#767577', true: colors.primary }}
-              thumbColor={emailNotifications ? '#f4f3f4' : '#f4f3f4'}
-            />
-          </View>
-
-          <View style={[styles.settingItem, { backgroundColor: colors.card }]}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="card" size={24} color={colors.primary} />
-              <View style={styles.settingText}>
-                <ThemedText type="defaultSemiBold">거래 알림</ThemedText>
-                <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>새로운 거래 내역 알림</ThemedText>
-              </View>
-            </View>
-            <Switch
-              value={transactionAlerts}
-              onValueChange={setTransactionAlerts}
-              trackColor={{ false: '#767577', true: colors.primary }}
-              thumbColor={transactionAlerts ? '#f4f3f4' : '#f4f3f4'}
-            />
-          </View>
-
-          <View style={[styles.settingItem, { backgroundColor: colors.card }]}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="warning" size={24} color={colors.primary} />
-              <View style={styles.settingText}>
-                <ThemedText type="defaultSemiBold">예산 경고</ThemedText>
-                <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>예산 초과 시 알림</ThemedText>
-              </View>
-            </View>
-            <Switch
-              value={budgetAlerts}
-              onValueChange={setBudgetAlerts}
-              trackColor={{ false: '#767577', true: colors.primary }}
-              thumbColor={budgetAlerts ? '#f4f3f4' : '#f4f3f4'}
-            />
-          </View>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>알림</Text>
+          <SettingRow
+            icon="notifications"
+            title="푸시 알림"
+            subtitle="앱 푸시 알림을 받습니다"
+            value={pushNotifications}
+            onValueChange={setPushNotifications}
+          />
+          <SettingRow
+            icon="mail"
+            title="이메일 알림"
+            subtitle="이메일로 알림을 받습니다"
+            value={emailNotifications}
+            onValueChange={setEmailNotifications}
+          />
+          <SettingRow
+            icon="card"
+            title="거래 알림"
+            subtitle="새로운 거래 내역 알림"
+            value={transactionAlerts}
+            onValueChange={setTransactionAlerts}
+          />
+          <SettingRow
+            icon="warning"
+            title="예산 경고"
+            subtitle="예산 초과 시 알림"
+            value={budgetAlerts}
+            onValueChange={setBudgetAlerts}
+          />
         </View>
       </ScrollView>
-    </ThemedView>
+    </>
   );
 }
 
@@ -103,25 +114,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-    padding: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 32,
-    paddingHorizontal: 8,
-  },
   section: {
-    gap: 12,
+    marginBottom: 32,
   },
-  settingItem: {
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginVertical: 4,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: {
@@ -129,20 +139,26 @@ const styles = StyleSheet.create({
       height: 1,
     },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 2,
   },
-  settingInfo: {
-    flexDirection: 'row',
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  settingInfo: {
     flex: 1,
   },
-  settingText: {
-    marginLeft: 16,
-    flex: 1,
+  settingTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 2,
   },
-  settingDescription: {
-    fontSize: 14,
-    marginTop: 2,
+  settingSubtitle: {
+    fontSize: 13,
   },
 }); 

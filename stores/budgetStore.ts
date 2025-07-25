@@ -149,7 +149,6 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       set({ currentBudget: budget, isLoading: false });
       return { success: true };
     } catch (error: any) {
-      console.error('예산 조회 실패:', error);
       set({ isLoading: false });
       
       // 예산이 존재하지 않는 경우 (404 또는 500 에러)

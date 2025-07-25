@@ -115,8 +115,17 @@ export default function ExploreScreen() {
       console.log('Statistics tab - ledgers:', ledgers);
       console.log('Statistics tab - categories:', categories);
       console.log('Statistics tab - filtered ledgers:', getFilteredLedgers());
+      
+      // 현재 날짜에 맞는 데이터 다시 로드
+      const currentMonth = currentDate.toISOString().slice(0, 7);
+      fetchLedgers({ 
+        bookId: currentBook.id, 
+        yearMonth: currentMonth,
+        page: 0, 
+        size: 1000 
+      }, token);
     }
-  }, [selectedTab, ledgers, categories, currentDate]);
+  }, [selectedTab, currentDate, token, currentBook]);
 
   // 예산 탭일 때 예산 데이터 로드
   useEffect(() => {
@@ -134,7 +143,13 @@ export default function ExploreScreen() {
   useEffect(() => {
     if (token && currentBook) {
       // 거래 내역 로드 (모든 탭에서 필요)
-      fetchLedgers({ bookId: currentBook.id, page: 0, size: 100 }, token);
+      const currentMonth = currentDate.toISOString().slice(0, 7);
+      fetchLedgers({ 
+        bookId: currentBook.id, 
+        yearMonth: currentMonth,
+        page: 0, 
+        size: 1000 
+      }, token);
       
       // 카테고리 로드
       fetchCategories(currentBook.id, token);
@@ -152,7 +167,7 @@ export default function ExploreScreen() {
       };
       fetchPaymentMethods();
     }
-  }, [token, currentBook]);
+  }, [token, currentBook, currentDate]);
 
   const changeMonth = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
@@ -219,7 +234,8 @@ export default function ExploreScreen() {
                          ledgerDate.getFullYear() === currentDate.getFullYear();
       
       if (selectedTab === 0) { // 통계 탭
-        const matches = isSameMonth && ledger.amountType === (selectedType === 0 ? 'INCOME' : 'EXPENSE');
+        const amountType = selectedType === 0 ? 'INCOME' : 'EXPENSE';
+        const matches = isSameMonth && ledger.amountType === amountType;
         if (matches) {
           console.log('Matching ledger for statistics:', ledger);
         }
@@ -724,6 +740,17 @@ export default function ExploreScreen() {
                 console.log('Category map:', categoryMap);
                 console.log('Chart data processed:', chartData);
 
+                if (chartData.length === 0) {
+                  return (
+                    <View style={styles.emptyChartContainer}>
+                      <Ionicons name="pie-chart-outline" size={48} color={colors.textTertiary} />
+                      <ThemedText type="body" variant="tertiary" style={{ marginTop: 12 }}>
+                        {selectedType === 0 ? '수입 데이터가 없습니다' : '지출 데이터가 없습니다'}
+                      </ThemedText>
+                    </View>
+                  );
+                }
+
                 if (chartType === 'pie') {
                   return <PieChart data={chartData} />;
                 } else if (chartType === 'bar') {
@@ -798,7 +825,7 @@ export default function ExploreScreen() {
             </ThemedCard>
 
             {/* 월간 히트맵 - 지출 타입일 때만 표시 */}
-            {selectedType === 1 && (
+            {selectedType === 1 && chartType !== 'line' && chartType !== 'area' && (
               <ThemedCard variant="elevated" style={styles.heatMapCard}>
                 <ThemedText type="subtitle" style={styles.heatMapTitle}>
                   일일 지출 패턴
@@ -834,32 +861,44 @@ export default function ExploreScreen() {
             )}
 
             {/* 카테고리별 상세 */}
-            <View style={styles.categoryDetails}>
-              <ThemedText type="subtitle" style={styles.sectionTitle}>
-                카테고리별 상세
-              </ThemedText>
-              
-              {(() => {
-                const filteredLedgers = getFilteredLedgers();
-                const categoryStats = new Map<number, { category: any; ledgers: any[]; total: number }>();
+            {chartType !== 'line' && chartType !== 'area' && (
+              <View style={styles.categoryDetails}>
+                <ThemedText type="subtitle" style={styles.sectionTitle}>
+                  카테고리별 상세
+                </ThemedText>
                 
-                // 거래 내역을 카테고리별로 그룹화
-                filteredLedgers.forEach(ledger => {
-                  const category = categories.find(cat => cat.id === ledger.categoryId);
-                  if (category) {
-                    if (!categoryStats.has(category.id)) {
-                      categoryStats.set(category.id, { category, ledgers: [], total: 0 });
+                {(() => {
+                  const filteredLedgers = getFilteredLedgers();
+                  const categoryStats = new Map<number, { category: any; ledgers: any[]; total: number }>();
+                  
+                  // 거래 내역을 카테고리별로 그룹화
+                  filteredLedgers.forEach(ledger => {
+                    const category = categories.find(cat => cat.id === ledger.categoryId);
+                    if (category) {
+                      if (!categoryStats.has(category.id)) {
+                        categoryStats.set(category.id, { category, ledgers: [], total: 0 });
+                      }
+                      const stat = categoryStats.get(category.id)!;
+                      stat.ledgers.push(ledger);
+                      stat.total += ledger.amount;
                     }
-                    const stat = categoryStats.get(category.id)!;
-                    stat.ledgers.push(ledger);
-                    stat.total += ledger.amount;
+                  });
+                  
+                  const stats = Array.from(categoryStats.values())
+                    .filter(stat => stat.total > 0)
+                    .sort((a, b) => b.total - a.total);
+                  
+                  if (stats.length === 0) {
+                    return (
+                      <ThemedCard variant="outlined" style={styles.emptyCard}>
+                        <ThemedText type="body" variant="tertiary">
+                          카테고리별 데이터가 없습니다.
+                        </ThemedText>
+                      </ThemedCard>
+                    );
                   }
-                });
-                
-                return Array.from(categoryStats.values())
-                  .filter(stat => stat.total > 0)
-                  .sort((a, b) => b.total - a.total)
-                  .map(({ category, ledgers, total }) => (
+                  
+                  return stats.map(({ category, ledgers, total }) => (
                     <ThemedCard key={category.id} variant="default" style={styles.categoryItem}>
                       <View style={styles.categoryContent}>
                         <View style={[styles.categoryIcon, { backgroundColor: getCategoryColor(category.category, colors) + '20' }]}>
@@ -889,8 +928,9 @@ export default function ExploreScreen() {
                       </View>
                     </ThemedCard>
                   ));
-              })()}
-            </View>
+                })()}
+              </View>
+            )}
           </View>
         )}
 
@@ -1270,6 +1310,14 @@ const styles = StyleSheet.create({
   chartCard: {
     marginBottom: 24,
     minHeight: 300,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyChartContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
   },
   heatMapCard: {
     marginBottom: 24,

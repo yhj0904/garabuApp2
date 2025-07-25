@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
-import { useEffect, useState, useRef } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Alert, Modal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
@@ -107,6 +107,9 @@ export default function HomeScreen() {
       // 거래 목록 새로고침
       if (token && currentBook) {
         fetchLedgers({ bookId: currentBook.id, page: 0, size: 5 }, token);
+        // 캘린더 데이터도 새로고침
+        const currentMonth = new Date().toISOString().substring(0, 7);
+        loadCalendarData(currentMonth);
       }
     };
 
@@ -123,6 +126,19 @@ export default function HomeScreen() {
       syncService.off('sync-status-changed', handleSyncStatusChanged);
     };
   }, [token, currentBook]);
+
+  // 화면에 포커스될 때 데이터 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      if (token && currentBook) {
+        // 최근 거래 내역 새로고침
+        fetchLedgers({ bookId: currentBook.id, page: 0, size: 5 }, token);
+        // 캘린더 데이터 새로고침
+        const currentMonth = new Date().toISOString().substring(0, 7);
+        loadCalendarData(currentMonth);
+      }
+    }, [token, currentBook])
+  );
 
   const handleLogout = async () => {
     try {

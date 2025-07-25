@@ -45,7 +45,6 @@ export default function NotificationSettingsScreen() {
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
-  const [testingNotification, setTestingNotification] = useState(false);
 
   useEffect(() => {
     fetchPreferences();
@@ -127,69 +126,6 @@ export default function NotificationSettingsScreen() {
     const [hours, minutes] = timeString.split(':').map(Number);
     now.setHours(hours, minutes, 0, 0);
     return now;
-  };
-  
-  // 포그라운드 알림 테스트
-  const testForegroundNotification = async () => {
-    setTestingNotification(true);
-    try {
-      // FCM 토큰 확인
-      const fcmToken = await firebaseService.getFCMToken();
-      if (!fcmToken) {
-        Alert.alert('오류', 'FCM 토큰을 가져올 수 없습니다.');
-        setTestingNotification(false);
-        return;
-      }
-      
-      // 서버에 테스트 알림 요청
-      await apiService.sendTestNotification({
-        message: '포그라운드 테스트 알림입니다. 앱이 실행 중일 때 표시됩니다.'
-      });
-      
-      Alert.alert('성공', '포그라운드 테스트 알림이 전송되었습니다. 잠시 후 알림이 표시됩니다.');
-    } catch (error) {
-      console.error('포그라운드 알림 테스트 실패:', error);
-      Alert.alert('오류', '알림 테스트에 실패했습니다.');
-    } finally {
-      setTestingNotification(false);
-    }
-  };
-  
-  // 백그라운드 알림 테스트
-  const testBackgroundNotification = async () => {
-    setTestingNotification(true);
-    try {
-      // FCM 토큰 확인
-      const fcmToken = await firebaseService.getFCMToken();
-      if (!fcmToken) {
-        Alert.alert('오류', 'FCM 토큰을 가져올 수 없습니다.');
-        setTestingNotification(false);
-        return;
-      }
-      
-      // 5초 후 알림 예약
-      Alert.alert(
-        '백그라운드 알림 테스트',
-        '5초 후에 알림이 전송됩니다. 홈 화면으로 이동하여 백그라운드 알림을 확인하세요.',
-        [
-          {
-            text: '확인',
-            onPress: async () => {
-              setTimeout(async () => {
-                await apiService.sendTestNotification({
-                  message: '백그라운드 테스트 알림입니다. 앱이 백그라운드에 있을 때 표시됩니다.'
-                });
-              }, 5000);
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('백그라운드 알림 테스트 실패:', error);
-      Alert.alert('오류', '알림 테스트에 실패했습니다.');
-    } finally {
-      setTestingNotification(false);
-    }
   };
 
   if (loading) {
@@ -395,45 +331,6 @@ export default function NotificationSettingsScreen() {
             />
           </View>
         </View>
-        
-        <View style={[styles.section, { backgroundColor: colors.card }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>알림 테스트</Text>
-          
-          <TouchableOpacity
-            style={[styles.testButton, { backgroundColor: colors.primary }]}
-            onPress={testForegroundNotification}
-            disabled={testingNotification}
-          >
-            {testingNotification ? (
-              <ActivityIndicator size="small" color="#ffffff" />
-            ) : (
-              <>
-                <Ionicons name="notifications" size={20} color="#ffffff" style={{ marginRight: 8 }} />
-                <Text style={styles.testButtonText}>포그라운드 알림 테스트</Text>
-              </>
-            )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.testButton, { backgroundColor: colors.primary, marginTop: 12 }]}
-            onPress={testBackgroundNotification}
-            disabled={testingNotification}
-          >
-            {testingNotification ? (
-              <ActivityIndicator size="small" color="#ffffff" />
-            ) : (
-              <>
-                <Ionicons name="moon" size={20} color="#ffffff" style={{ marginRight: 8 }} />
-                <Text style={styles.testButtonText}>백그라운드 알림 테스트</Text>
-              </>
-            )}
-          </TouchableOpacity>
-          
-          <Text style={[styles.testDescription, { color: colors.textSecondary }]}>
-            포그라운드: 앱 사용 중 알림 표시{'\n'}
-            백그라운드: 앱이 백그라운드에 있을 때 알림 표시
-          </Text>
-        </View>
 
         {showStartTimePicker && (
           <DateTimePicker
@@ -530,26 +427,5 @@ const styles = StyleSheet.create({
   timeValue: {
     fontSize: 18,
     fontWeight: '600',
-  },
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginHorizontal: 20,
-  },
-  testButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  testDescription: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 16,
-    marginHorizontal: 20,
-    textAlign: 'center',
   },
 }); 

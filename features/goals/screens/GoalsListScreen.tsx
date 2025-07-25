@@ -10,7 +10,8 @@ import {
   Modal, 
   ScrollView, 
   KeyboardAvoidingView, 
-  Platform 
+  Platform,
+  TextInput
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,18 @@ import { ThemedInput } from '@/components/ThemedInput';
 import { useBookStore } from '@/stores/bookStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
+import { formatAmountInput, parseFormattedNumber, formatKoreanAmount } from '@/utils/numberFormat';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
+
+// 한국어 달력 설정
+LocaleConfig.locales['kr'] = {
+  monthNames: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+  monthNamesShort: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+  dayNames: ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'],
+  dayNamesShort: ['일', '월', '화', '수', '목', '금', '토'],
+  today: '오늘'
+};
+LocaleConfig.defaultLocale = 'kr';
 
 interface Goal {
   id: number;
@@ -48,7 +61,11 @@ export default function GoalsListScreen() {
   const [newGoal, setNewGoal] = useState<Partial<Goal>>({
     goalType: 'SAVING',
     status: 'ACTIVE',
+    targetDate: new Date().toISOString().split('T')[0],
   });
+  const [targetAmountString, setTargetAmountString] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState<'calendar' | 'input'>('input');
 
   useEffect(() => {
     loadGoalsFromStorage();
@@ -82,7 +99,9 @@ export default function GoalsListScreen() {
   };
 
   const handleAddGoal = async () => {
-    if (!newGoal.name || !newGoal.targetAmount || !newGoal.targetDate) {
+    const targetAmount = parseFormattedNumber(targetAmountString);
+    
+    if (!newGoal.name || !targetAmount || !newGoal.targetDate) {
       Alert.alert('오류', '모든 필드를 입력해주세요.');
       return;
     }
@@ -91,7 +110,7 @@ export default function GoalsListScreen() {
       id: Date.now(),
       name: newGoal.name,
       goalType: newGoal.goalType || 'SAVING',
-      targetAmount: newGoal.targetAmount,
+      targetAmount: targetAmount,
       currentAmount: 0,
       progressPercentage: 0,
       status: 'ACTIVE',
@@ -104,7 +123,12 @@ export default function GoalsListScreen() {
     setGoals(updatedGoals);
     await saveGoalsToStorage(updatedGoals);
     setShowAddModal(false);
-    setNewGoal({ goalType: 'SAVING', status: 'ACTIVE' });
+    setNewGoal({ 
+      goalType: 'SAVING', 
+      status: 'ACTIVE',
+      targetDate: new Date().toISOString().split('T')[0]
+    });
+    setTargetAmountString('');
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -327,7 +351,15 @@ export default function GoalsListScreen() {
         visible={showAddModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowAddModal(false)}
+        onRequestClose={() => {
+          setShowAddModal(false);
+          setNewGoal({ 
+            goalType: 'SAVING', 
+            status: 'ACTIVE',
+            targetDate: new Date().toISOString().split('T')[0]
+          });
+          setTargetAmountString('');
+        }}
       >
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -336,7 +368,15 @@ export default function GoalsListScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
               <ThemedText type="subtitle" weight="semibold">새 목표 추가</ThemedText>
-              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+              <TouchableOpacity onPress={() => {
+                setShowAddModal(false);
+                setNewGoal({ 
+                  goalType: 'SAVING', 
+                  status: 'ACTIVE',
+                  targetDate: new Date().toISOString().split('T')[0]
+                });
+                setTargetAmountString('');
+              }}>
                 <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -356,9 +396,17 @@ export default function GoalsListScreen() {
                   label="목표 금액"
                   placeholder="0"
                   keyboardType="numeric"
-                  value={newGoal.targetAmount?.toString()}
-                  onChangeText={(text) => setNewGoal({ ...newGoal, targetAmount: parseInt(text) || 0 })}
+                  value={targetAmountString}
+                  onChangeText={(text) => {
+                    const formatted = formatAmountInput(text);
+                    setTargetAmountString(formatted);
+                  }}
                 />
+                {targetAmountString && (
+                  <ThemedText type="caption" variant="secondary" style={styles.amountInWords}>
+                    {formatKoreanAmount(targetAmountString)}
+                  </ThemedText>
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -391,12 +439,86 @@ export default function GoalsListScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <ThemedInput
-                  label="목표 날짜"
-                  placeholder="YYYY-MM-DD"
-                  value={newGoal.targetDate}
-                  onChangeText={(text) => setNewGoal({ ...newGoal, targetDate: text })}
-                />
+                <View style={styles.dateHeader}>
+                  <ThemedText type="body" weight="medium" style={styles.inputLabel}>
+                    목표 날짜
+                  </ThemedText>
+                  <View style={styles.datePickerToggle}>
+                    <TouchableOpacity
+                      style={[
+                        styles.datePickerButton,
+                        datePickerMode === 'input' && styles.datePickerButtonActive,
+                        { backgroundColor: datePickerMode === 'input' ? colors.primary : colors.card }
+                      ]}
+                      onPress={() => {
+                        setDatePickerMode('input');
+                        setShowDatePicker(false);
+                      }}
+                    >
+                      <Ionicons 
+                        name="keypad" 
+                        size={16} 
+                        color={datePickerMode === 'input' ? 'white' : colors.text} 
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.datePickerButton,
+                        datePickerMode === 'calendar' && styles.datePickerButtonActive,
+                        { backgroundColor: datePickerMode === 'calendar' ? colors.primary : colors.card }
+                      ]}
+                      onPress={() => {
+                        setDatePickerMode('calendar');
+                        setShowDatePicker(true);
+                      }}
+                    >
+                      <Ionicons 
+                        name="calendar" 
+                        size={16} 
+                        color={datePickerMode === 'calendar' ? 'white' : colors.text} 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                
+                {datePickerMode === 'input' ? (
+                  <TextInput
+                    style={[styles.dateInput, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
+                    value={newGoal.targetDate}
+                    onChangeText={(text) => {
+                      // Basic format validation for YYYY-MM-DD
+                      if (text.length <= 10) {
+                        // Auto-insert hyphens
+                        if (text.length === 4 || text.length === 7) {
+                          if (!text.endsWith('-')) {
+                            text += '-';
+                          }
+                        }
+                        // Only allow numbers and hyphens
+                        if (/^[0-9-]*$/.test(text)) {
+                          setNewGoal({ ...newGoal, targetDate: text });
+                        }
+                      }
+                    }}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.textTertiary}
+                    maxLength={10}
+                    keyboardType="numeric"
+                  />
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.selectButton, { backgroundColor: colors.backgroundSecondary }]}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <View style={styles.selectButtonContent}>
+                      <Ionicons name="calendar-outline" size={20} color={colors.textTertiary} />
+                      <ThemedText type="body" variant={newGoal.targetDate ? 'default' : 'tertiary'}>
+                        {newGoal.targetDate || '날짜를 선택하세요'}
+                      </ThemedText>
+                    </View>
+                    <Ionicons name="chevron-down" size={20} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
               </View>
             </ScrollView>
 
@@ -410,6 +532,69 @@ export default function GoalsListScreen() {
             </ThemedButton>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* 날짜 선택 캘린더 모달 */}
+      <Modal
+        visible={showDatePicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <TouchableOpacity 
+          style={styles.calendarModalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowDatePicker(false)}
+        >
+          <TouchableOpacity 
+            style={[styles.calendarModalContent, { backgroundColor: colors.background }]} 
+            activeOpacity={1}
+            onPress={() => {}}
+          >
+            <ThemedText type="subtitle" weight="semibold" style={styles.calendarModalTitle}>
+              목표 날짜 선택
+            </ThemedText>
+            
+            <Calendar
+              current={newGoal.targetDate || new Date().toISOString().split('T')[0]}
+              onDayPress={(day: any) => {
+                setNewGoal({ ...newGoal, targetDate: day.dateString });
+                setShowDatePicker(false);
+              }}
+              markedDates={{
+                [newGoal.targetDate || '']: { selected: true, selectedColor: colors.primary }
+              }}
+              minDate={new Date().toISOString().split('T')[0]}
+              theme={{
+                backgroundColor: colors.background,
+                calendarBackground: colors.background,
+                textSectionTitleColor: colors.text,
+                selectedDayBackgroundColor: colors.primary,
+                selectedDayTextColor: 'white',
+                todayTextColor: colors.primary,
+                dayTextColor: colors.text,
+                textDisabledColor: colors.textTertiary,
+                dotColor: colors.primary,
+                selectedDotColor: 'white',
+                arrowColor: colors.primary,
+                monthTextColor: colors.text,
+                textDayFontWeight: '300',
+                textMonthFontWeight: 'bold',
+                textDayHeaderFontWeight: '500',
+                textDayFontSize: 16,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 14
+              }}
+            />
+
+            <TouchableOpacity
+              style={[styles.calendarCloseButton, { backgroundColor: colors.card }]}
+              onPress={() => setShowDatePicker(false)}
+            >
+              <ThemedText type="body" weight="semibold" variant="default">닫기</ThemedText>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -535,6 +720,76 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   saveButton: {
+    marginTop: 20,
+  },
+  amountInWords: {
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  dateHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  datePickerToggle: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  datePickerButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  datePickerButtonActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  dateInput: {
+    height: 50,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontSize: 16,
+  },
+  selectButton: {
+    height: 50,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  calendarModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  calendarModalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  calendarModalTitle: {
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  calendarCloseButton: {
+    height: 50,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 20,
   },
 });

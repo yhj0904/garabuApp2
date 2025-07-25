@@ -538,6 +538,11 @@ class ApiService {
                 await AsyncStorage.setItem('refreshToken', finalRefreshToken);
               }
               
+              // authStore의 토큰만 업데이트 (사용자 정보는 유지)
+              const { useAuthStore } = await import('@/stores/authStore');
+              const authStore = useAuthStore.getState();
+              await authStore.updateTokens(finalAccessToken, finalRefreshToken || null);
+              
               // 대기 중인 요청들 처리
               this.processQueue(null);
               
@@ -1596,15 +1601,6 @@ class ApiService {
     }
   }
 
-  async sendTestNotification(data?: { message?: string; token?: string }): Promise<FCMTokenResponse> {
-    try {
-      const response = await this.axiosInstance.post('/notifications/send/test', data || {});
-      return response.data;
-    } catch (error) {
-      console.error('테스트 알림 전송 실패:', error);
-      throw error;
-    }
-  }
 
   async getRecentBudgets(bookId: number, limit: number, token: string): Promise<Budget[]> {
     try {
